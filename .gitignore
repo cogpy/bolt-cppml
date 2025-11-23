@@ -1,0 +1,57 @@
+# Prerequisites
+*.d
+
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Fortran module files
+*.mod
+*.smod
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+
+# Build directories  
+build/
+.build/
+
+# Package manager directories
+vcpkg_installed/
+conan-data/
+.conan/
+
+# IDEs
+.vscode/
+.vs/
+
+# OS
+.DS_Store
+
+# Replit
+.replit.pid
+
+# Keep small test models (but ignore large model downloads)
+!test/models/*.bin
+test/models/*
+!test/models/*.bin
+!test/models/README.md
