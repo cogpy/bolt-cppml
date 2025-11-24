@@ -55,3 +55,4 @@ conan-data/
 test/models/*
 !test/models/*.bin
 !test/models/README.md
+build-coverage/
