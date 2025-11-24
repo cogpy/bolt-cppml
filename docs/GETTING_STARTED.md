@@ -324,8 +324,8 @@ ls -la test/models/
 Continue your journey with Bolt C++ ML:
 
 - **[User Guide](USER_GUIDE.md)**: Deep dive into all features
-- **[AI Features](AI_IMPLEMENTATION_COMPLETE.md)**: Learn about AI integration
-- **[LSP Support](LSP_IMPLEMENTATION_COMPLETE.md)**: Language Server Protocol
+- **[AI Features](../AI_IMPLEMENTATION_COMPLETE.md)**: Learn about AI integration
+- **[LSP Support](../LSP_IMPLEMENTATION_COMPLETE.md)**: Language Server Protocol
 - **[Git Integration](GIT_INTEGRATION.md)**: Version control features
 - **[Performance](PERFORMANCE_PROFILER.md)**: Profiling and optimization
 
