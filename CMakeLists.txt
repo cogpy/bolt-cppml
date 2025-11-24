@@ -8,6 +8,12 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # Include cross-platform configuration
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/CrossPlatform.cmake")
 
+# Include code coverage configuration
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/CodeCoverage.cmake")
+
+# Include documentation generation
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/Documentation.cmake")
+
 # Try to find CURL via CONFIG first, then fallback to module
 set(CMAKE_PREFIX_PATH "${CMAKE_CURRENT_SOURCE_DIR}/vcpkg_installed/x64-linux;${CMAKE_PREFIX_PATH}")
 set(CURL_FOUND FALSE)
@@ -126,6 +132,7 @@ add_library(bolt_lib
     src/bolt/editor/minimap_renderer.cpp
     src/bolt/editor/minimap_ui.cpp
     src/bolt/editor/theme_system.cpp
+    src/bolt/editor/tab_bar.cpp
     src/bolt/editor/debugger_interface.cpp
     src/bolt/editor/debugger_ui.cpp
     # LSP components (temporarily disabled due to build issues)
