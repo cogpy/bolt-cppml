@@ -7,6 +7,7 @@
 #include <chrono>
 #include <sstream>
 #include <iomanip>
+#include <mutex>
 
 namespace bolt {
 
@@ -66,10 +67,12 @@ public:
      * @brief Enable or disable leak detection
      */
     void setEnabled(bool enabled) {
+        std::lock_guard<std::mutex> lock(mutex_);
         enabled_ = enabled;
     }
     
     bool isEnabled() const {
+        std::lock_guard<std::mutex> lock(mutex_);
         return enabled_;
     }
     
@@ -79,6 +82,8 @@ public:
     void trackAllocation(void* ptr, size_t size, const std::string& file, 
                         int line, const std::string& function, 
                         const std::string& category = "general") {
+        std::lock_guard<std::mutex> lock(mutex_);
+        
         if (!enabled_ || !ptr) return;
         
         AllocationInfo info(ptr, size, file, line, function, category);
@@ -96,6 +101,8 @@ public:
      * @brief Untrack a memory deallocation
      */
     void untrackAllocation(void* ptr) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        
         if (!enabled_ || !ptr) return;
         
         auto it = allocations_.find(ptr);
@@ -110,6 +117,7 @@ public:
      * @brief Check if there are any memory leaks
      */
     bool hasLeaks() const {
+        std::lock_guard<std::mutex> lock(mutex_);
         return !allocations_.empty();
     }
     
@@ -117,6 +125,7 @@ public:
      * @brief Get the number of leaked allocations
      */
     size_t getLeakCount() const {
+        std::lock_guard<std::mutex> lock(mutex_);
         return allocations_.size();
     }
     
@@ -124,6 +133,7 @@ public:
      * @brief Get total bytes leaked
      */
     size_t getLeakedBytes() const {
+        std::lock_guard<std::mutex> lock(mutex_);
         size_t total = 0;
         for (const auto& pair : allocations_) {
             total += pair.second.size;
@@ -135,6 +145,7 @@ public:
      * @brief Get all leaked allocations
      */
     std::vector<AllocationInfo> getLeaks() const {
+        std::lock_guard<std::mutex> lock(mutex_);
         std::vector<AllocationInfo> leaks;
         for (const auto& pair : allocations_) {
             leaks.push_back(pair.second);
@@ -146,9 +157,15 @@ public:
      * @brief Get leak detection statistics
      */
     LeakDetectionStats getStats() const {
+        std::lock_guard<std::mutex> lock(mutex_);
         LeakDetectionStats stats;
-        stats.totalLeaks = getLeakCount();
-        stats.totalLeakedBytes = getLeakedBytes();
+        stats.totalLeaks = allocations_.size();
+        stats.totalLeakedBytes = 0;
+        
+        for (const auto& pair : allocations_) {
+            stats.totalLeakedBytes += pair.second.size;
+        }
+        
         stats.peakMemoryUsage = peakMemoryUsage_;
         stats.currentMemoryUsage = currentMemoryUsage_;
         
@@ -166,29 +183,41 @@ public:
      * @brief Generate a detailed leak report
      */
     std::string generateReport() const {
+        std::lock_guard<std::mutex> lock(mutex_);
         std::ostringstream report;
         
         report << "=== Memory Leak Detection Report ===\n\n";
         
-        if (!hasLeaks()) {
+        if (allocations_.empty()) {
             report << "✓ No memory leaks detected!\n";
             report << "Peak memory usage: " << formatBytes(peakMemoryUsage_) << "\n";
             return report.str();
         }
         
-        auto stats = getStats();
+        // Calculate stats inline (we already have the lock)
+        size_t totalLeaks = allocations_.size();
+        size_t totalLeakedBytes = 0;
+        std::map<std::string, size_t> leaksByCategory;
+        std::map<std::string, size_t> leaksByFile;
+        
+        for (const auto& pair : allocations_) {
+            const auto& info = pair.second;
+            totalLeakedBytes += info.size;
+            leaksByCategory[info.category] += info.size;
+            leaksByFile[info.file] += info.size;
+        }
         
         report << "⚠ Memory leaks detected!\n\n";
         report << "Summary:\n";
-        report << "  Total leaks: " << stats.totalLeaks << "\n";
-        report << "  Total leaked: " << formatBytes(stats.totalLeakedBytes) << "\n";
-        report << "  Peak usage: " << formatBytes(stats.peakMemoryUsage) << "\n";
-        report << "  Current usage: " << formatBytes(stats.currentMemoryUsage) << "\n\n";
+        report << "  Total leaks: " << totalLeaks << "\n";
+        report << "  Total leaked: " << formatBytes(totalLeakedBytes) << "\n";
+        report << "  Peak usage: " << formatBytes(peakMemoryUsage_) << "\n";
+        report << "  Current usage: " << formatBytes(currentMemoryUsage_) << "\n\n";
         
         // Leaks by category
-        if (!stats.leaksByCategory.empty()) {
+        if (!leaksByCategory.empty()) {
             report << "Leaks by category:\n";
-            for (const auto& pair : stats.leaksByCategory) {
+            for (const auto& pair : leaksByCategory) {
                 report << "  " << pair.first << ": " 
                        << formatBytes(pair.second) << "\n";
             }
@@ -196,9 +225,9 @@ public:
         }
         
         // Leaks by file
-        if (!stats.leaksByFile.empty()) {
+        if (!leaksByFile.empty()) {
             report << "Leaks by file:\n";
-            for (const auto& pair : stats.leaksByFile) {
+            for (const auto& pair : leaksByFile) {
                 report << "  " << pair.first << ": " 
                        << formatBytes(pair.second) << "\n";
             }
@@ -207,7 +236,11 @@ public:
         
         // Detailed leak information
         report << "Detailed leak information:\n";
-        auto leaks = getLeaks();
+        std::vector<AllocationInfo> leaks;
+        for (const auto& pair : allocations_) {
+            leaks.push_back(pair.second);
+        }
+        
         for (size_t i = 0; i < leaks.size(); ++i) {
             const auto& leak = leaks[i];
             report << "\nLeak #" << (i + 1) << ":\n";
@@ -230,14 +263,18 @@ public:
      * @brief Generate a summary report
      */
     std::string generateSummary() const {
+        std::lock_guard<std::mutex> lock(mutex_);
         std::ostringstream summary;
         
-        if (!hasLeaks()) {
+        if (allocations_.empty()) {
             summary << "No memory leaks detected.";
         } else {
-            auto stats = getStats();
-            summary << stats.totalLeaks << " leaks, "
-                   << formatBytes(stats.totalLeakedBytes) << " leaked";
+            size_t totalLeakedBytes = 0;
+            for (const auto& pair : allocations_) {
+                totalLeakedBytes += pair.second.size;
+            }
+            summary << allocations_.size() << " leaks, "
+                   << formatBytes(totalLeakedBytes) << " leaked";
         }
         
         return summary.str();
@@ -247,6 +284,7 @@ public:
      * @brief Clear all tracked allocations (use with caution!)
      */
     void clear() {
+        std::lock_guard<std::mutex> lock(mutex_);
         allocations_.clear();
         currentMemoryUsage_ = 0;
         categoryStats_.clear();
@@ -256,6 +294,7 @@ public:
      * @brief Reset statistics but keep tracking
      */
     void resetStats() {
+        std::lock_guard<std::mutex> lock(mutex_);
         peakMemoryUsage_ = currentMemoryUsage_;
     }
     
@@ -289,6 +328,7 @@ private:
     size_t currentMemoryUsage_ = 0;
     size_t peakMemoryUsage_ = 0;
     std::map<std::string, size_t> categoryStats_;
+    mutable std::mutex mutex_; // Thread safety for all operations
 };
 
 // Convenience macros for leak detection
