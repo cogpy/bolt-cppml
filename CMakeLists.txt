@@ -8,6 +8,9 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # Include cross-platform configuration
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/CrossPlatform.cmake")
 
+# Include code coverage configuration
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/CodeCoverage.cmake")
+
 # Try to find CURL via CONFIG first, then fallback to module
 set(CMAKE_PREFIX_PATH "${CMAKE_CURRENT_SOURCE_DIR}/vcpkg_installed/x64-linux;${CMAKE_PREFIX_PATH}")
 set(CURL_FOUND FALSE)
