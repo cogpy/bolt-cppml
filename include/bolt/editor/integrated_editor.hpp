@@ -171,7 +171,7 @@ public:
     bool switchToTabByPath(const std::string& filePath);
     void switchToNextTab();
     void switchToPreviousTab();
-    const EditorTab* getActiveTab() const;
+    std::optional<EditorTab> getActiveTab() const;
     std::vector<EditorTab> getAllTabs() const;
     size_t getTabCount() const;
     bool hasOpenTabs() const;

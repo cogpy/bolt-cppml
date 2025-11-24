@@ -17,8 +17,8 @@ BOLT_TEST(TabBar, CreateTab) {
     BOLT_ASSERT_TRUE(tabId > 0);
     BOLT_ASSERT_EQ(1u, tabBar.getTabCount());
     
-    const EditorTab* tab = tabBar.getTab(tabId);
-    BOLT_ASSERT_NOT_NULL(tab);
+    auto tab = tabBar.getTab(tabId);
+    BOLT_ASSERT_TRUE(tab.has_value());
     BOLT_ASSERT_EQ("/path/to/file1.cpp", tab->filePath);
     BOLT_ASSERT_EQ("file1.cpp", tab->displayName);
     BOLT_ASSERT_FALSE(tab->isDirty);
@@ -61,8 +61,8 @@ BOLT_TEST(TabBar, TabActivation) {
     size_t tab2 = tabBar.addTab("/file2.cpp");
     
     // tab2 should be active (last added)
-    const EditorTab* activeTab = tabBar.getActiveTab();
-    BOLT_ASSERT_NOT_NULL(activeTab);
+    auto activeTab = tabBar.getActiveTab();
+    BOLT_ASSERT_TRUE(activeTab.has_value());
     BOLT_ASSERT_EQ(tab2, activeTab->id);
     
     // Activate tab1
@@ -70,7 +70,7 @@ BOLT_TEST(TabBar, TabActivation) {
     BOLT_ASSERT_TRUE(activated);
     
     activeTab = tabBar.getActiveTab();
-    BOLT_ASSERT_NOT_NULL(activeTab);
+    BOLT_ASSERT_TRUE(activeTab.has_value());
     BOLT_ASSERT_EQ(tab1, activeTab->id);
 }
 
@@ -91,8 +91,8 @@ BOLT_TEST(TabBar, CloseTab) {
     BOLT_ASSERT_EQ(2u, tabBar.getTabCount());
     
     // Verify tab2 is gone
-    const EditorTab* tab = tabBar.getTab(tab2);
-    BOLT_ASSERT_NULL(tab);
+    auto tab = tabBar.getTab(tab2);
+    BOLT_ASSERT_FALSE(tab.has_value());
 }
 
 // Test close by path
@@ -122,20 +122,20 @@ BOLT_TEST(TabBar, TabNavigation) {
     
     // Go to next (should wrap to tab1)
     tabBar.activateNextTab();
-    const EditorTab* active = tabBar.getActiveTab();
-    BOLT_ASSERT_NOT_NULL(active);
+    auto active = tabBar.getActiveTab();
+    BOLT_ASSERT_TRUE(active.has_value());
     BOLT_ASSERT_EQ(tab1, active->id);
     
     // Go to previous (should wrap to tab3)
     tabBar.activatePreviousTab();
     active = tabBar.getActiveTab();
-    BOLT_ASSERT_NOT_NULL(active);
+    BOLT_ASSERT_TRUE(active.has_value());
     BOLT_ASSERT_EQ(tab3, active->id);
     
     // Go to previous (should go to tab2)
     tabBar.activatePreviousTab();
     active = tabBar.getActiveTab();
-    BOLT_ASSERT_NOT_NULL(active);
+    BOLT_ASSERT_TRUE(active.has_value());
     BOLT_ASSERT_EQ(tab2, active->id);
 }
 
@@ -145,9 +145,9 @@ BOLT_TEST(TabBar, DirtyFlag) {
     tabBar.closeAllTabs();
     
     size_t tabId = tabBar.addTab("/file.cpp");
-    const EditorTab* tab = tabBar.getTab(tabId);
+    auto tab = tabBar.getTab(tabId);
     
-    BOLT_ASSERT_NOT_NULL(tab);
+    BOLT_ASSERT_TRUE(tab.has_value());
     BOLT_ASSERT_FALSE(tab->isDirty);
     
     tabBar.setTabDirty(tabId, true);
@@ -179,8 +179,8 @@ BOLT_TEST(TabBar, PinnedTabs) {
     tabBar.closeAllTabs();
     BOLT_ASSERT_EQ(1u, tabBar.getTabCount());
     
-    const EditorTab* tab = tabBar.getActiveTab();
-    BOLT_ASSERT_NOT_NULL(tab);
+    auto tab = tabBar.getActiveTab();
+    BOLT_ASSERT_TRUE(tab.has_value());
     BOLT_ASSERT_EQ(tab1, tab->id);
 }
 
@@ -203,10 +203,10 @@ BOLT_TEST(TabBar, CloseOtherTabs) {
     // Should have tab1 (pinned) and tab3 (exception)
     BOLT_ASSERT_EQ(2u, tabBar.getTabCount());
     
-    const EditorTab* t1 = tabBar.getTab(tab1);
-    const EditorTab* t3 = tabBar.getTab(tab3);
-    BOLT_ASSERT_NOT_NULL(t1);
-    BOLT_ASSERT_NOT_NULL(t3);
+    auto t1 = tabBar.getTab(tab1);
+    auto t3 = tabBar.getTab(tab3);
+    BOLT_ASSERT_TRUE(t1.has_value());
+    BOLT_ASSERT_TRUE(t3.has_value());
 }
 
 // Test get tab by path
@@ -216,13 +216,13 @@ BOLT_TEST(TabBar, GetByPath) {
     
     size_t tabId = tabBar.addTab("/my/path/file.cpp");
     
-    const EditorTab* tab = tabBar.getTabByPath("/my/path/file.cpp");
-    BOLT_ASSERT_NOT_NULL(tab);
+    auto tab = tabBar.getTabByPath("/my/path/file.cpp");
+    BOLT_ASSERT_TRUE(tab.has_value());
     BOLT_ASSERT_EQ(tabId, tab->id);
     
     // Non-existent path
     tab = tabBar.getTabByPath("/does/not/exist.cpp");
-    BOLT_ASSERT_NULL(tab);
+    BOLT_ASSERT_FALSE(tab.has_value());
 }
 
 // Test tab reordering
@@ -283,8 +283,8 @@ BOLT_TEST(TabBar, CloseActiveTab) {
     tabBar.closeTab(tab2);
     
     // Should activate tab to the left (tab1)
-    const EditorTab* active = tabBar.getActiveTab();
-    BOLT_ASSERT_NOT_NULL(active);
+    auto active = tabBar.getActiveTab();
+    BOLT_ASSERT_TRUE(active.has_value());
     BOLT_ASSERT_EQ(tab1, active->id);
 }
 
@@ -297,9 +297,13 @@ BOLT_TEST(TabBar, DisplayNameExtraction) {
     size_t tab2 = tabBar.addTab("C:\\Windows\\path\\file.hpp");
     size_t tab3 = tabBar.addTab("filename_only.txt");
     
-    const EditorTab* t1 = tabBar.getTab(tab1);
-    const EditorTab* t2 = tabBar.getTab(tab2);
-    const EditorTab* t3 = tabBar.getTab(tab3);
+    auto t1 = tabBar.getTab(tab1);
+    auto t2 = tabBar.getTab(tab2);
+    auto t3 = tabBar.getTab(tab3);
+    
+    BOLT_ASSERT_TRUE(t1.has_value());
+    BOLT_ASSERT_TRUE(t2.has_value());
+    BOLT_ASSERT_TRUE(t3.has_value());
     
     BOLT_ASSERT_EQ("file.cpp", t1->displayName);
     BOLT_ASSERT_EQ("file.hpp", t2->displayName);

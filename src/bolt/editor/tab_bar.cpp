@@ -223,8 +223,8 @@ void TabBar::activatePreviousTab() {
     });
 }
 
-const EditorTab* TabBar::getActiveTab() const {
-    const EditorTab* result = nullptr;
+std::optional<EditorTab> TabBar::getActiveTab() const {
+    std::optional<EditorTab> result;
     
     activeTabId_.read([&](const auto& activeId) {
         if (activeId.has_value()) {
@@ -235,35 +235,28 @@ const EditorTab* TabBar::getActiveTab() const {
     return result;
 }
 
-const EditorTab* TabBar::getTab(size_t tabId) const {
-    const EditorTab* result = nullptr;
-    
-    tabs_.read([&](const auto& tabs) {
+std::optional<EditorTab> TabBar::getTab(size_t tabId) const {
+    return tabs_.read([&](const auto& tabs) -> std::optional<EditorTab> {
         auto it = std::find_if(tabs.begin(), tabs.end(),
             [tabId](const EditorTab& tab) { return tab.id == tabId; });
         
         if (it != tabs.end()) {
-            // This is safe because we're holding the read lock
-            result = &(*it);
+            return *it;  // Return copy
         }
+        return std::nullopt;
     });
-    
-    return result;
 }
 
-const EditorTab* TabBar::getTabByPath(const std::string& filePath) const {
-    const EditorTab* result = nullptr;
-    
-    tabs_.read([&](const auto& tabs) {
+std::optional<EditorTab> TabBar::getTabByPath(const std::string& filePath) const {
+    return tabs_.read([&](const auto& tabs) -> std::optional<EditorTab> {
         auto it = std::find_if(tabs.begin(), tabs.end(),
             [&filePath](const EditorTab& tab) { return tab.filePath == filePath; });
         
         if (it != tabs.end()) {
-            result = &(*it);
+            return *it;  // Return copy
         }
+        return std::nullopt;
     });
-    
-    return result;
 }
 
 std::vector<EditorTab> TabBar::getAllTabs() const {

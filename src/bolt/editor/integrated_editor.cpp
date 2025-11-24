@@ -399,8 +399,8 @@ void IntegratedEditor::initializeKeyboardShortcuts() {
     }, ShortcutContext::Global, "Switch to previous tab");
     
     keyboardShortcuts_.registerShortcut("Ctrl+W", "closeCurrentTab", [this]() {
-        const EditorTab* activeTab = getActiveTab();
-        if (activeTab) {
+        auto activeTab = getActiveTab();
+        if (activeTab.has_value()) {
             closeTabById(activeTab->id);
         }
     }, ShortcutContext::Global, "Close current tab");
@@ -607,10 +607,16 @@ void IntegratedEditor::acceptCompletion() {
         // Calculate the prefix to remove (word before cursor)
         size_t cursorPos = doc->cursor.position;
         std::string content = doc->value;
+        
+        // Bounds check for cursor position
+        if (cursorPos > content.length()) {
+            cursorPos = content.length();
+        }
+        
         size_t prefixStart = cursorPos;
         
         // Find the start of the current word/prefix
-        while (prefixStart > 0 && 
+        while (prefixStart > 0 && prefixStart <= content.length() &&
                (std::isalnum(content[prefixStart - 1]) || 
                 content[prefixStart - 1] == '_' || 
                 content[prefixStart - 1] == ':')) {
@@ -810,8 +816,8 @@ size_t IntegratedEditor::openDocumentInTab(const std::string& filePath, const st
 
 bool IntegratedEditor::closeTabById(size_t tabId) {
     // Get the tab to find its file path
-    const EditorTab* tab = tabBar_.getTab(tabId);
-    if (!tab) {
+    auto tab = tabBar_.getTab(tabId);
+    if (!tab.has_value()) {
         return false;
     }
     
@@ -862,8 +868,8 @@ void IntegratedEditor::closeOtherTabs(size_t exceptTabId) {
 
 bool IntegratedEditor::switchToTab(size_t tabId) {
     // Get the tab to find its file path
-    const EditorTab* tab = tabBar_.getTab(tabId);
-    if (!tab) {
+    auto tab = tabBar_.getTab(tabId);
+    if (!tab.has_value()) {
         return false;
     }
     
@@ -886,8 +892,8 @@ void IntegratedEditor::switchToNextTab() {
     tabBar_.activateNextTab();
     
     // Update selected file in editor store
-    const EditorTab* activeTab = tabBar_.getActiveTab();
-    if (activeTab) {
+    auto activeTab = tabBar_.getActiveTab();
+    if (activeTab.has_value()) {
         editorStore_.setSelectedFile(activeTab->filePath);
     }
 }
@@ -896,13 +902,13 @@ void IntegratedEditor::switchToPreviousTab() {
     tabBar_.activatePreviousTab();
     
     // Update selected file in editor store
-    const EditorTab* activeTab = tabBar_.getActiveTab();
-    if (activeTab) {
+    auto activeTab = tabBar_.getActiveTab();
+    if (activeTab.has_value()) {
         editorStore_.setSelectedFile(activeTab->filePath);
     }
 }
 
-const EditorTab* IntegratedEditor::getActiveTab() const {
+std::optional<EditorTab> IntegratedEditor::getActiveTab() const {
     return tabBar_.getActiveTab();
 }
 

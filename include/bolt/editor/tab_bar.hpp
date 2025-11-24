@@ -113,23 +113,23 @@ public:
     
     /**
      * @brief Get the currently active tab
-     * @return Pointer to active tab, or nullptr if no tabs
+     * @return Copy of active tab, or nullopt if no tabs
      */
-    const EditorTab* getActiveTab() const;
+    std::optional<EditorTab> getActiveTab() const;
     
     /**
      * @brief Get tab by ID
      * @param tabId ID of the tab
-     * @return Pointer to tab, or nullptr if not found
+     * @return Copy of tab, or nullopt if not found
      */
-    const EditorTab* getTab(size_t tabId) const;
+    std::optional<EditorTab> getTab(size_t tabId) const;
     
     /**
      * @brief Get tab by file path
      * @param filePath Path to the file
-     * @return Pointer to tab, or nullptr if not found
+     * @return Copy of tab, or nullopt if not found
      */
-    const EditorTab* getTabByPath(const std::string& filePath) const;
+    std::optional<EditorTab> getTabByPath(const std::string& filePath) const;
     
     /**
      * @brief Get all tabs
