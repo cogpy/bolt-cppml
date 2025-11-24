@@ -16,6 +16,7 @@ IntegratedEditor::IntegratedEditor()
     , cursorManager_(CursorManager::getInstance())
     , keyboardShortcuts_(KeyboardShortcuts::getInstance())
     , splitViewManager_(SplitViewManager::getInstance())
+    , tabBar_(TabBar::getInstance())
     , aiCompletionEngine_(AICodeCompletionEngine::getInstance())
     , codeCompletion_(std::make_unique<CodeCompletion>())
     , debugger_(std::make_shared<DebuggerInterface>())
@@ -387,6 +388,22 @@ void IntegratedEditor::initializeKeyboardShortcuts() {
             selectPreviousCompletion();
         }
     }, ShortcutContext::Editor, "Select previous completion");
+    
+    // Tab navigation shortcuts
+    keyboardShortcuts_.registerShortcut("Ctrl+PageDown", "nextTab", [this]() {
+        switchToNextTab();
+    }, ShortcutContext::Global, "Switch to next tab");
+    
+    keyboardShortcuts_.registerShortcut("Ctrl+PageUp", "previousTab", [this]() {
+        switchToPreviousTab();
+    }, ShortcutContext::Global, "Switch to previous tab");
+    
+    keyboardShortcuts_.registerShortcut("Ctrl+W", "closeCurrentTab", [this]() {
+        const EditorTab* activeTab = getActiveTab();
+        if (activeTab) {
+            closeTabById(activeTab->id);
+        }
+    }, ShortcutContext::Global, "Close current tab");
 }
 
 // Split view operations
@@ -580,11 +597,53 @@ void IntegratedEditor::acceptCompletion() {
     if (codeCompletion_->isActive()) {
         auto selectedCompletion = codeCompletion_->getSelectedSuggestion();
         
-        // In a real implementation, this would insert the completion into the document
-        // For now, we just deactivate the completion
-        codeCompletion_->deactivate();
+        // Get current document
+        auto* doc = editorStore_.getCurrentDocument();
+        if (!doc || selectedCompletion.label.empty()) {
+            codeCompletion_->deactivate();
+            return;
+        }
         
-        // TODO: Insert selectedCompletion.label or selectedCompletion.detail into document
+        // Calculate the prefix to remove (word before cursor)
+        size_t cursorPos = doc->cursor.position;
+        std::string content = doc->value;
+        size_t prefixStart = cursorPos;
+        
+        // Find the start of the current word/prefix
+        while (prefixStart > 0 && 
+               (std::isalnum(content[prefixStart - 1]) || 
+                content[prefixStart - 1] == '_' || 
+                content[prefixStart - 1] == ':')) {
+            prefixStart--;
+        }
+        
+        // Determine what text to insert based on completion kind
+        std::string insertText;
+        if (selectedCompletion.kind == "snippet") {
+            // For snippets, use the detail which contains the full code
+            insertText = selectedCompletion.detail;
+        } else {
+            // For simple completions, use the label
+            insertText = selectedCompletion.label;
+        }
+        
+        // Remove the prefix and insert the completion
+        std::string newContent = content.substr(0, prefixStart) + 
+                                 insertText + 
+                                 content.substr(cursorPos);
+        
+        // Update document content
+        doc->value = newContent;
+        
+        // Move cursor to end of inserted text
+        size_t newCursorPos = prefixStart + insertText.length();
+        doc->cursor.position = newCursorPos;
+        
+        // Update editor store
+        editorStore_.setDocument(doc->filePath, *doc);
+        
+        // Deactivate completion
+        codeCompletion_->deactivate();
     }
 }
 
@@ -737,5 +796,135 @@ std::vector<std::string> IntegratedEditor::getDebugStackContents() const {
 std::map<std::string, std::string> IntegratedEditor::getDebugGlobalVariables() const {
     return debugger_->get_global_variables();
 }
+
+// Tab management operations
+size_t IntegratedEditor::openDocumentInTab(const std::string& filePath, const std::string& content) {
+    // Add tab first
+    size_t tabId = tabBar_.addTab(filePath);
+    
+    // Open the document
+    openDocument(filePath, content);
+    
+    return tabId;
+}
+
+bool IntegratedEditor::closeTabById(size_t tabId) {
+    // Get the tab to find its file path
+    const EditorTab* tab = tabBar_.getTab(tabId);
+    if (!tab) {
+        return false;
+    }
+    
+    // Close the document
+    closeDocument(tab->filePath);
+    
+    // Close the tab
+    return tabBar_.closeTab(tabId);
+}
+
+bool IntegratedEditor::closeTabByPath(const std::string& filePath) {
+    // Close the document
+    closeDocument(filePath);
+    
+    // Close the tab
+    return tabBar_.closeTabByPath(filePath);
+}
+
+void IntegratedEditor::closeAllTabs() {
+    // Get all tabs first (to avoid modification during iteration)
+    auto tabs = tabBar_.getAllTabs();
+    
+    // Close all documents
+    for (const auto& tab : tabs) {
+        if (!tab.isPinned) {
+            closeDocument(tab.filePath);
+        }
+    }
+    
+    // Close all tabs
+    tabBar_.closeAllTabs();
+}
+
+void IntegratedEditor::closeOtherTabs(size_t exceptTabId) {
+    // Get all tabs first
+    auto tabs = tabBar_.getAllTabs();
+    
+    // Close all documents except the one we're keeping
+    for (const auto& tab : tabs) {
+        if (tab.id != exceptTabId && !tab.isPinned) {
+            closeDocument(tab.filePath);
+        }
+    }
+    
+    // Close other tabs
+    tabBar_.closeOtherTabs(exceptTabId);
+}
+
+bool IntegratedEditor::switchToTab(size_t tabId) {
+    // Get the tab to find its file path
+    const EditorTab* tab = tabBar_.getTab(tabId);
+    if (!tab) {
+        return false;
+    }
+    
+    // Set as selected file in editor store
+    editorStore_.setSelectedFile(tab->filePath);
+    
+    // Activate the tab
+    return tabBar_.activateTab(tabId);
+}
+
+bool IntegratedEditor::switchToTabByPath(const std::string& filePath) {
+    // Set as selected file in editor store
+    editorStore_.setSelectedFile(filePath);
+    
+    // Activate the tab
+    return tabBar_.activateTabByPath(filePath);
+}
+
+void IntegratedEditor::switchToNextTab() {
+    tabBar_.activateNextTab();
+    
+    // Update selected file in editor store
+    const EditorTab* activeTab = tabBar_.getActiveTab();
+    if (activeTab) {
+        editorStore_.setSelectedFile(activeTab->filePath);
+    }
+}
+
+void IntegratedEditor::switchToPreviousTab() {
+    tabBar_.activatePreviousTab();
+    
+    // Update selected file in editor store
+    const EditorTab* activeTab = tabBar_.getActiveTab();
+    if (activeTab) {
+        editorStore_.setSelectedFile(activeTab->filePath);
+    }
+}
+
+const EditorTab* IntegratedEditor::getActiveTab() const {
+    return tabBar_.getActiveTab();
+}
+
+std::vector<EditorTab> IntegratedEditor::getAllTabs() const {
+    return tabBar_.getAllTabs();
+}
+
+size_t IntegratedEditor::getTabCount() const {
+    return tabBar_.getTabCount();
+}
+
+bool IntegratedEditor::hasOpenTabs() const {
+    return tabBar_.hasTabs();
+}
+
+void IntegratedEditor::setTabDirty(size_t tabId, bool isDirty) {
+    tabBar_.setTabDirty(tabId, isDirty);
+}
+
+void IntegratedEditor::setTabPinned(size_t tabId, bool isPinned) {
+    tabBar_.setTabPinned(tabId, isPinned);
+}
+
 
 } // namespace bolt

@@ -10,6 +10,7 @@
 #include "bolt/editor/keyboard_shortcuts.hpp"
 #include "bolt/editor/split_view_manager.hpp"
 #include "bolt/editor/code_completion.hpp"
+#include "bolt/editor/tab_bar.hpp"
 #include "bolt/editor/debugger_interface.hpp"
 #include "bolt/editor/debugger_ui.hpp"
 #include "bolt/ai/ai_completion_provider.hpp"
@@ -28,6 +29,7 @@ private:
     CursorManager& cursorManager_;
     KeyboardShortcuts& keyboardShortcuts_;
     SplitViewManager& splitViewManager_;
+    TabBar& tabBar_;
     AICodeCompletionEngine& aiCompletionEngine_;
     std::unique_ptr<CodeCompletion> codeCompletion_;
     
@@ -158,6 +160,23 @@ public:
     std::vector<size_t> getDebugCallStack() const;
     std::vector<std::string> getDebugStackContents() const;
     std::map<std::string, std::string> getDebugGlobalVariables() const;
+    
+    // Tab management operations
+    size_t openDocumentInTab(const std::string& filePath, const std::string& content);
+    bool closeTabById(size_t tabId);
+    bool closeTabByPath(const std::string& filePath);
+    void closeAllTabs();
+    void closeOtherTabs(size_t exceptTabId);
+    bool switchToTab(size_t tabId);
+    bool switchToTabByPath(const std::string& filePath);
+    void switchToNextTab();
+    void switchToPreviousTab();
+    const EditorTab* getActiveTab() const;
+    std::vector<EditorTab> getAllTabs() const;
+    size_t getTabCount() const;
+    bool hasOpenTabs() const;
+    void setTabDirty(size_t tabId, bool isDirty);
+    void setTabPinned(size_t tabId, bool isPinned);
 
 private:
     IntegratedEditor();

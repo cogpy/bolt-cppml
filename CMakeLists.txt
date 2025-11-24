@@ -126,6 +126,7 @@ add_library(bolt_lib
     src/bolt/editor/minimap_renderer.cpp
     src/bolt/editor/minimap_ui.cpp
     src/bolt/editor/theme_system.cpp
+    src/bolt/editor/tab_bar.cpp
     src/bolt/editor/debugger_interface.cpp
     src/bolt/editor/debugger_ui.cpp
     # LSP components (temporarily disabled due to build issues)

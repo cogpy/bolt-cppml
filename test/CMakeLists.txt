@@ -54,6 +54,7 @@ add_executable(bolt_unit_tests
     test_error_handling.cpp
     test_file_tree.cpp
     test_minimap.cpp
+    test_tab_bar.cpp
     test_ai_ggml.cpp
     test_ai_models_complete.cpp
     test_debugger.cpp
@@ -107,6 +108,18 @@ add_executable(bolt_theme_system_tests
 target_link_libraries(bolt_theme_system_tests PRIVATE bolt_lib)
 
 target_include_directories(bolt_theme_system_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/include
+)
+
+# Create tab bar test executable
+add_executable(bolt_tab_bar_tests
+    test_runner.cpp
+    test_tab_bar.cpp
+)
+
+target_link_libraries(bolt_tab_bar_tests PRIVATE bolt_lib)
+
+target_include_directories(bolt_tab_bar_tests PRIVATE
     ${PROJECT_SOURCE_DIR}/include
 )
 
