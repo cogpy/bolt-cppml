@@ -59,6 +59,7 @@ add_executable(bolt_unit_tests
     test_ai_models_complete.cpp
     test_debugger.cpp
     test_logging.cpp
+    test_memory_leak_detector.cpp
 )
 
 target_link_libraries(bolt_unit_tests PRIVATE bolt_lib)
@@ -170,7 +171,6 @@ add_test(NAME bolt_multi_cursor_tests COMMAND bolt_multi_cursor_tests)
 add_test(NAME bolt_keyboard_shortcuts_tests COMMAND bolt_keyboard_shortcuts_tests)
 add_test(NAME bolt_theme_system_tests COMMAND bolt_theme_system_tests)
 add_test(NAME bolt_plugin_system_tests COMMAND bolt_plugin_system_tests)
-#<<<<<<< copilot/fix-7
 add_test(NAME bolt_error_handling_tests COMMAND bolt_unit_tests ErrorHandling)
 add_test(NAME bolt_memory_error_tests COMMAND bolt_unit_tests MemoryManagerErrors)
 add_test(NAME bolt_message_error_tests COMMAND bolt_unit_tests MessageHandlerErrors)
@@ -182,8 +182,9 @@ add_test(NAME bolt_ggml_tests COMMAND bolt_unit_tests GGMLTest)
 add_test(NAME bolt_ai_models_tests COMMAND bolt_unit_tests AIModels)
 add_test(NAME bolt_debugger_tests COMMAND bolt_unit_tests Debugger)
 add_test(NAME bolt_logging_tests COMMAND bolt_unit_tests Logging)
+add_test(NAME bolt_memory_leak_detector_tests COMMAND bolt_unit_tests MemoryLeakDetector)
 add_test(NAME bolt_collaboration_tests COMMAND bolt_collaboration_tests)
-#======= # Add integration tests to CTest
+
+# Add integration tests to CTest
 add_test(NAME bolt_integration_all COMMAND bolt_integration_tests)
 add_test(NAME bolt_integration_basic COMMAND bolt_integration_tests Integration)
-#>>>>>>> main
