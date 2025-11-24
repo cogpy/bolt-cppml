@@ -15,123 +15,6 @@
       "name": "vcpkg",
       "inherits": "default",
       "displayName": "Configure with vcpkg",
-//<<<<<<< copilot/fix-c443f9ba-6d68-4f4c-88c9-56a462d8f7e8
-      "description": "Configure with vcpkg dependencies"
-    },
-    {
-      "name": "windows-msvc-x64",
-      "displayName": "Windows x64 (MSVC)",
-      "description": "Build for Windows 64-bit using MSVC",
-      "generator": "Visual Studio 17 2022",
-      "architecture": "x64",
-      "binaryDir": "${sourceDir}/build/windows-x64",
-      "toolchainFile": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release",
-        "BOLT_PLATFORM_WINDOWS": "ON",
-        "VCPKG_TARGET_TRIPLET": "x64-windows"
-      },
-      "condition": {
-        "type": "equals",
-        "lhs": "${hostSystemName}",
-        "rhs": "Windows"
-      }
-    },
-    {
-      "name": "windows-mingw-x64",
-      "displayName": "Windows x64 (MinGW)",
-      "description": "Build for Windows 64-bit using MinGW",
-      "generator": "MinGW Makefiles",
-      "binaryDir": "${sourceDir}/build/windows-mingw-x64",
-      "toolchainFile": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release",
-        "BOLT_PLATFORM_WINDOWS": "ON",
-        "VCPKG_TARGET_TRIPLET": "x64-mingw-static"
-      },
-      "condition": {
-        "type": "equals",
-        "lhs": "${hostSystemName}",
-        "rhs": "Windows"
-      }
-    },
-    {
-      "name": "macos-x64",
-      "displayName": "macOS x64 (Intel)",
-      "description": "Build for macOS Intel processors",
-      "generator": "Unix Makefiles",
-      "binaryDir": "${sourceDir}/build/macos-x64",
-      "toolchainFile": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release",
-        "BOLT_PLATFORM_MACOS": "ON",
-        "CMAKE_OSX_ARCHITECTURES": "x86_64",
-        "CMAKE_OSX_DEPLOYMENT_TARGET": "10.15",
-        "VCPKG_TARGET_TRIPLET": "x64-osx"
-      },
-      "condition": {
-        "type": "equals",
-        "lhs": "${hostSystemName}",
-        "rhs": "Darwin"
-      }
-    },
-    {
-      "name": "macos-arm64",
-      "displayName": "macOS ARM64 (Apple Silicon)",
-      "description": "Build for Apple Silicon processors",
-      "generator": "Unix Makefiles",
-      "binaryDir": "${sourceDir}/build/macos-arm64",
-      "toolchainFile": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release",
-        "BOLT_PLATFORM_MACOS": "ON",
-        "CMAKE_OSX_ARCHITECTURES": "arm64",
-        "CMAKE_OSX_DEPLOYMENT_TARGET": "11.0",
-        "VCPKG_TARGET_TRIPLET": "arm64-osx"
-      },
-      "condition": {
-        "type": "equals",
-        "lhs": "${hostSystemName}",
-        "rhs": "Darwin"
-      }
-    },
-    {
-      "name": "macos-universal",
-      "displayName": "macOS Universal Binary",
-      "description": "Build universal binary for both Intel and Apple Silicon",
-      "generator": "Unix Makefiles",
-      "binaryDir": "${sourceDir}/build/macos-universal",
-      "toolchainFile": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release",
-        "BOLT_PLATFORM_MACOS": "ON",
-        "CMAKE_OSX_ARCHITECTURES": "arm64;x86_64",
-        "CMAKE_OSX_DEPLOYMENT_TARGET": "10.15",
-        "BOLT_BUILD_UNIVERSAL": "ON"
-      },
-      "condition": {
-        "type": "equals",
-        "lhs": "${hostSystemName}",
-        "rhs": "Darwin"
-      }
-    },
-    {
-      "name": "linux-x64",
-      "displayName": "Linux x64",
-      "description": "Build for Linux 64-bit",
-      "generator": "Unix Makefiles",
-      "binaryDir": "${sourceDir}/build/linux-x64",
-      "toolchainFile": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release",
-        "BOLT_PLATFORM_LINUX": "ON",
-        "VCPKG_TARGET_TRIPLET": "x64-linux"
-      },
-      "condition": {
-        "type": "equals",
-        "lhs": "${hostSystemName}",
-        "rhs": "Linux"
-//=======
       "description": "Configure with vcpkg dependencies (recommended)",
       "toolchainFile": "/usr/local/share/vcpkg/scripts/buildsystems/vcpkg.cmake",
       "cacheVariables": {
@@ -175,47 +58,11 @@
         "CMAKE_VERBOSE_MAKEFILE": "ON",
         "BOLT_ENABLE_TESTS": "ON",
         "BOLT_ENABLE_DOCS": "ON"
-//>>>>>>> main
       }
     }
   ],
   "buildPresets": [
     {
-//<<<<<<< copilot/fix-c443f9ba-6d68-4f4c-88c9-56a462d8f7e8
-      "name": "default",
-      "configurePreset": "vcpkg"
-    },
-    {
-      "name": "windows-msvc-x64",
-      "configurePreset": "windows-msvc-x64",
-      "displayName": "Build Windows x64 (MSVC)",
-      "configuration": "Release"
-    },
-    {
-      "name": "windows-mingw-x64",
-      "configurePreset": "windows-mingw-x64",
-      "displayName": "Build Windows x64 (MinGW)"
-    },
-    {
-      "name": "macos-x64",
-      "configurePreset": "macos-x64",
-      "displayName": "Build macOS x64"
-    },
-    {
-      "name": "macos-arm64",
-      "configurePreset": "macos-arm64",
-      "displayName": "Build macOS ARM64"
-    },
-    {
-      "name": "macos-universal",
-      "configurePreset": "macos-universal",
-      "displayName": "Build macOS Universal"
-    },
-    {
-      "name": "linux-x64",
-      "configurePreset": "linux-x64",
-      "displayName": "Build Linux x64"
-//=======
       "name": "vcpkg-release",
       "configurePreset": "vcpkg",
       "displayName": "Build Release",
@@ -238,41 +85,14 @@
       "configurePreset": "dev",
       "displayName": "Development Build",
       "description": "Development build with all features"
-//>>>>>>> main
     }
   ],
   "testPresets": [
     {
-//<<<<<<< copilot/fix-c443f9ba-6d68-4f4c-88c9-56a462d8f7e8
-      "name": "default",
-      "configurePreset": "vcpkg",
-      "displayName": "Test Default Configuration"
-    }
-  ],
-  "packagePresets": [
-    {
-      "name": "windows-installer",
-      "configurePreset": "windows-msvc-x64",
-      "displayName": "Create Windows Installer",
-      "generators": ["NSIS", "ZIP"]
-    },
-    {
-      "name": "macos-dmg",
-      "configurePreset": "macos-universal",
-      "displayName": "Create macOS DMG",
-      "generators": ["DragNDrop"]
-    },
-    {
-      "name": "linux-packages",
-      "configurePreset": "linux-x64",
-      "displayName": "Create Linux Packages",
-      "generators": ["DEB", "RPM", "TGZ"]
-//=======
       "name": "vcpkg-tests",
       "configurePreset": "vcpkg-debug",
       "displayName": "Run tests",
       "description": "Run all tests with vcpkg dependencies"
-//>>>>>>> main
     }
   ]
 }
