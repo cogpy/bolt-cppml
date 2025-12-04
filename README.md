@@ -24,6 +24,7 @@ A modern C++ implementation of the Bolt IDE core components with AI integration 
 - Code folding
 - Auto-completion
 - Split view editing
+- Integrated debugger with breakpoints and step debugging
 
 ### Network Components
 - WebSocket server for real-time collaboration
