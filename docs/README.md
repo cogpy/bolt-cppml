@@ -55,6 +55,7 @@ Welcome to the Bolt C++ ML documentation! This directory contains comprehensive 
 
 #### Development Tools
 
+- **[Integrated Debugger](INTEGRATED_DEBUGGER.md)** - Debugging interface and tools
 - **[Language Server Protocol](LSP_SUPPORT.md)** - LSP client/server
 - **[Git Integration](GIT_INTEGRATION.md)** - Version control features
 - **[Performance Profiler](PERFORMANCE_PROFILER.md)** - Code profiling tools
@@ -62,6 +63,7 @@ Welcome to the Bolt C++ ML documentation! This directory contains comprehensive 
 - **[Benchmark Suite](BENCHMARK_SUITE.md)** - Performance benchmarking
 - **[Advanced Code Analysis](ADVANCED_CODE_ANALYSIS.md)** - Static analysis
 - **[Plugin System](PLUGIN_SYSTEM.md)** - Plugin architecture
+- **[Memory Leak Detection](MEMORY_LEAK_DETECTION.md)** - Memory debugging tools
 
 #### Collaboration & Network
 
@@ -116,7 +118,7 @@ Welcome to the Bolt C++ ML documentation! This directory contains comprehensive 
 | **Getting Started** | [Getting Started](GETTING_STARTED.md), [User Guide](USER_GUIDE.md) |
 | **AI/ML** | [AI Implementation](../AI_IMPLEMENTATION_COMPLETE.md), [GPU Acceleration](GPU_ACCELERATION.md), [AI Chat](../AI_CHAT_SETUP_GUIDE.md) |
 | **Editor** | [Code Folding](code_folding.md), [Multi-Cursor](../MULTI_CURSOR_IMPLEMENTATION.md), [Split View](../SPLIT_VIEW_IMPLEMENTATION.md) |
-| **Development** | [LSP](LSP_SUPPORT.md), [Git](GIT_INTEGRATION.md), [Profiler](PERFORMANCE_PROFILER.md), [Logging](LOGGING_SYSTEM.md) |
+| **Development** | [Debugger](INTEGRATED_DEBUGGER.md), [LSP](LSP_SUPPORT.md), [Git](GIT_INTEGRATION.md), [Profiler](PERFORMANCE_PROFILER.md), [Logging](LOGGING_SYSTEM.md) |
 | **Collaboration** | [Collaborative Editing](COLLABORATIVE_EDITING.md), [Network](../NETWORK_OPTIMIZATIONS.md) |
 | **System** | [Plugin System](PLUGIN_SYSTEM.md), [Widget Framework](WIDGET_FRAMEWORK.md), [Theme System](theme-system.md) |
 | **Testing** | [Testing Guide](../TESTING.md), [AI Testing](../AI_TESTING_STRATEGY.md), [Benchmarks](BENCHMARK_SUITE.md) |
