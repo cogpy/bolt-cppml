@@ -311,11 +311,21 @@ bool PluginSystem::loadPlugin(std::shared_ptr<IPlugin> plugin) {
         return false;
     }
     
-    // Add to active plugins
-    registerPluginByType(plugin);
-    activePlugins_.write([&](auto& plugins) {
-        plugins[name] = plugin;
+    // Create a LoadedPlugin wrapper for in-memory plugins
+    auto loadedPlugin = std::make_unique<PluginLoader::LoadedPlugin>();
+    loadedPlugin->handle = nullptr;  // No dynamic library handle for in-memory plugins
+    loadedPlugin->plugin = plugin;
+    loadedPlugin->metadata = metadata;
+    loadedPlugin->filePath = "<in-memory>";  // Mark as in-memory plugin
+    
+    // Store in loadedPlugins_ so isPluginLoaded() works correctly
+    loadedPlugins_.write([&](auto& plugins) {
+        plugins[name] = std::move(loadedPlugin);
     });
+    
+    // Register plugin by type but don't add to activePlugins yet
+    // Plugins must be explicitly activated via activatePlugin()
+    registerPluginByType(plugin);
     
     return true;
 }
@@ -401,7 +411,7 @@ void PluginSystem::discoverAndLoadPlugins() {
 // Plugin queries
 std::vector<std::string> PluginSystem::getLoadedPluginNames() const {
     std::vector<std::string> names;
-    activePlugins_.read([&](const auto& plugins) {
+    loadedPlugins_.read([&](const auto& plugins) {
         names.reserve(plugins.size());
         for (const auto& [name, plugin] : plugins) {
             names.push_back(name);
@@ -434,10 +444,10 @@ std::shared_ptr<IPlugin> PluginSystem::getPlugin(const std::string& name) const 
 
 std::vector<std::shared_ptr<IPlugin>> PluginSystem::getPlugins() const {
     std::vector<std::shared_ptr<IPlugin>> plugins;
-    activePlugins_.read([&](const auto& pluginMap) {
+    loadedPlugins_.read([&](const auto& pluginMap) {
         plugins.reserve(pluginMap.size());
-        for (const auto& [name, plugin] : pluginMap) {
-            plugins.push_back(plugin);
+        for (const auto& [name, loadedPlugin] : pluginMap) {
+            plugins.push_back(loadedPlugin->plugin);
         }
     });
     return plugins;
@@ -532,6 +542,10 @@ bool PluginSystem::activatePlugin(const std::string& name) {
     if (plugin && !isPluginActive(name)) {
         try {
             plugin->activate();
+            // Add to active plugins after successful activation
+            activePlugins_.write([&](auto& plugins) {
+                plugins[name] = plugin;
+            });
             return true;
         } catch (const std::exception& e) {
             handlePluginError(name, "Activation failed: " + std::string(e.what()));
@@ -545,6 +559,10 @@ bool PluginSystem::deactivatePlugin(const std::string& name) {
     if (plugin && isPluginActive(name)) {
         try {
             plugin->deactivate();
+            // Remove from active plugins after deactivation
+            activePlugins_.write([&](auto& plugins) {
+                plugins.erase(name);
+            });
             return true;
         } catch (const std::exception& e) {
             handlePluginError(name, "Deactivation failed: " + std::string(e.what()));

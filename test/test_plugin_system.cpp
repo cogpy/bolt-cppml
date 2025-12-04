@@ -15,7 +15,6 @@ namespace bolt {
 class TestEditorPlugin : public IEditorPlugin {
 private:
     PluginMetadata metadata_;
-    PluginState state_ = PluginState::Unloaded;
     int documentOpenedCount_ = 0;
     int documentClosedCount_ = 0;
 
@@ -32,20 +31,20 @@ public:
     PluginMetadata getMetadata() const override { return metadata_; }
 
     bool initialize(PluginContext* context) override {
-        state_ = PluginState::Initialized;
+        IPlugin::state_ = PluginState::Initialized;
         return true;
     }
 
     void activate() override {
-        state_ = PluginState::Active;
+        IPlugin::state_ = PluginState::Active;
     }
 
     void deactivate() override {
-        state_ = PluginState::Loaded;
+        IPlugin::state_ = PluginState::Loaded;
     }
 
     void cleanup() override {
-        state_ = PluginState::Unloaded;
+        IPlugin::state_ = PluginState::Unloaded;
     }
 
     void onDocumentOpened(const std::string& filePath, const std::string& content) override {
@@ -63,7 +62,6 @@ public:
 class TestLanguagePlugin : public ILanguagePlugin {
 private:
     PluginMetadata metadata_;
-    PluginState state_ = PluginState::Unloaded;
 
 public:
     TestLanguagePlugin() {
@@ -78,20 +76,20 @@ public:
     PluginMetadata getMetadata() const override { return metadata_; }
 
     bool initialize(PluginContext* context) override {
-        state_ = PluginState::Initialized;
+        IPlugin::state_ = PluginState::Initialized;
         return true;
     }
 
     void activate() override {
-        state_ = PluginState::Active;
+        IPlugin::state_ = PluginState::Active;
     }
 
     void deactivate() override {
-        state_ = PluginState::Loaded;
+        IPlugin::state_ = PluginState::Loaded;
     }
 
     void cleanup() override {
-        state_ = PluginState::Unloaded;
+        IPlugin::state_ = PluginState::Unloaded;
     }
 
     std::vector<std::string> getSupportedExtensions() const override {
