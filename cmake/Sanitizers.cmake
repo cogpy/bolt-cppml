@@ -166,8 +166,10 @@ if(ENABLE_SANITIZER_ADDRESS OR ENABLE_SANITIZER_LEAK OR
 endif()
 
 # Print summary
-if(SANITIZERS_ENABLED)
+if(SANITIZERS_ENABLED OR ENABLE_VALGRIND)
     message(STATUS "=== Sanitizers Configuration ===")
+    
+    # Check each sanitizer individually
     if(ENABLE_SANITIZER_ADDRESS)
         message(STATUS "  AddressSanitizer: ENABLED")
     endif()
@@ -186,5 +188,6 @@ if(SANITIZERS_ENABLED)
     if(ENABLE_VALGRIND)
         message(STATUS "  Valgrind: ENABLED")
     endif()
+    
     message(STATUS "================================")
 endif()

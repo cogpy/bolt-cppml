@@ -273,21 +273,22 @@ void example_intentional_leak() {
     auto& detector = bolt::MemoryLeakDetector::getInstance();
     detector.clear();
     
-    // Intentionally leak memory
+    // Intentionally leak memory (temporarily for demonstration)
     void* leaked = malloc(4096);
     TRACK_ALLOCATION(leaked, 4096, "intentional_leak");
     
-    std::cout << "Intentionally leaked 4096 bytes\n";
+    std::cout << "Intentionally leaked 4096 bytes (temporarily)\n";
     std::cout << detector.generateReport() << "\n";
     
-    // Note: In real code, always clean up!
-    // For this example, we'll leave it leaked to demonstrate detection
-    
     std::cout << "\nNote: In production code, ALWAYS free allocated memory!\n";
+    std::cout << "Cleaning up the intentional leak for proper shutdown...\n";
     
-    // Cleanup for good practice
+    // Cleanup for proper program termination
+    // In a real leak scenario, this line would be missing
     UNTRACK_ALLOCATION(leaked);
     free(leaked);
+    
+    std::cout << "Leak cleaned up successfully.\n";
 }
 
 int main() {
