@@ -35,6 +35,9 @@
 build/
 .build/
 
+# SSR dependencies (vcpkg cloned locally)
+ssr_deps/
+
 # Package manager directories
 vcpkg_installed/
 conan-data/
