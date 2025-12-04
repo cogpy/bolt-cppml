@@ -1055,10 +1055,10 @@ ui->set_auto_refresh(true, 500.0f);  // 500ms instead of 100ms
 
 ## Related Documentation
 
-- [DIS VM Documentation](./DIS_VM.md)
-- [Integrated Editor Guide](./INTEGRATED_EDITOR.md)
 - [User Guide](./USER_GUIDE.md)
 - [Getting Started](./GETTING_STARTED.md)
+- [Performance Profiler](./PERFORMANCE_PROFILER.md)
+- [Logging System](./LOGGING_SYSTEM.md)
 
 ## Version History
 
