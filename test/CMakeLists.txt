@@ -158,6 +158,19 @@ target_include_directories(bolt_collaboration_tests PRIVATE
     ${PROJECT_SOURCE_DIR}/include
 )
 
+# Apply sanitizer flags to test executables if enabled
+if(SANITIZERS_ENABLED)
+    add_sanitizer_flags(bolt_unit_tests)
+    add_sanitizer_flags(bolt_split_view_tests)
+    add_sanitizer_flags(bolt_multi_cursor_tests)
+    add_sanitizer_flags(bolt_keyboard_shortcuts_tests)
+    add_sanitizer_flags(bolt_theme_system_tests)
+    add_sanitizer_flags(bolt_tab_bar_tests)
+    add_sanitizer_flags(bolt_plugin_system_tests)
+    add_sanitizer_flags(bolt_integration_tests)
+    add_sanitizer_flags(bolt_collaboration_tests)
+endif()
+
 # Add our custom test framework tests to CTest
 add_test(NAME bolt_all_tests COMMAND bolt_unit_tests)
 add_test(NAME bolt_chat_tests COMMAND bolt_unit_tests Chat)
@@ -188,3 +201,11 @@ add_test(NAME bolt_collaboration_tests COMMAND bolt_collaboration_tests)
 # Add integration tests to CTest
 add_test(NAME bolt_integration_all COMMAND bolt_integration_tests)
 add_test(NAME bolt_integration_basic COMMAND bolt_integration_tests Integration)
+
+# Add Valgrind tests if enabled
+if(ENABLE_VALGRIND)
+    add_valgrind_test(bolt_unit_tests bolt_unit_tests)
+    add_valgrind_test(bolt_integration_tests bolt_integration_tests)
+    add_valgrind_test(memory_leak_detection_example memory_leak_detection_example)
+endif()
+

@@ -4,12 +4,80 @@ Bolt C++ ML provides comprehensive memory leak detection tools to help identify 
 
 ## Overview
 
-The memory leak detection system consists of two main components:
+The memory leak detection system consists of multiple components:
 
-1. **MemoryManager** - Basic allocation tracking and leak detection
-2. **MemoryLeakDetector** - Enhanced leak detection with source location tracking and detailed reporting
+1. **MemoryLeakDetector** - Built-in leak detection with source location tracking
+2. **MemoryManager** - Basic allocation tracking and leak detection
+3. **AddressSanitizer (ASan)** - Compiler-based memory error detection
+4. **LeakSanitizer (LSan)** - Compiler-based memory leak detection
+5. **Valgrind** - External tool for comprehensive memory analysis
 
-## Basic Memory Manager
+## Quick Start
+
+### Using Built-in Leak Detector
+
+```bash
+# Build and run the example
+mkdir build && cd build
+cmake ..
+make memory_leak_detection_example
+./memory_leak_detection_example
+```
+
+### Using AddressSanitizer
+
+```bash
+# Configure with ASan
+cmake --preset asan
+cmake --build --preset asan
+
+# Run tests
+ctest --preset asan-tests
+
+# Or run a specific program
+./memory_leak_detection_example
+```
+
+### Using LeakSanitizer
+
+```bash
+# Configure with LSan
+cmake --preset lsan
+cmake --build --preset lsan
+
+# Run with leak detection
+LSAN_OPTIONS=verbosity=1:log_threads=1 ./memory_leak_detection_example
+```
+
+### Using Comprehensive Leak Detection
+
+```bash
+# Configure with both ASan and LSan
+cmake --preset leak-detection
+cmake --build --preset leak-detection
+ctest --preset leak-detection-tests
+```
+
+### Using Valgrind
+
+```bash
+# Install Valgrind
+sudo apt-get install valgrind  # Ubuntu/Debian
+# or
+sudo yum install valgrind      # RHEL/CentOS
+
+# Configure and build
+cmake --preset valgrind
+cmake --build --preset valgrind
+
+# Run with Valgrind
+valgrind --leak-check=full --show-leak-kinds=all ./memory_leak_detection_example
+
+# Or use CTest integration
+ctest --preset valgrind-tests
+```
+
+## Built-in Memory Leak Detector
 
 The `MemoryManager` class provides fundamental memory tracking capabilities:
 
@@ -369,6 +437,32 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug")
 endif()
 ```
 
+### CMake Presets
+
+Use predefined presets for different leak detection tools:
+
+```bash
+# AddressSanitizer
+cmake --preset asan
+cmake --build --preset asan
+
+# LeakSanitizer
+cmake --preset lsan
+cmake --build --preset lsan
+
+# UndefinedBehaviorSanitizer
+cmake --preset ubsan
+
+# ThreadSanitizer (for data race detection)
+cmake --preset tsan
+
+# Comprehensive leak detection (ASan + LSan)
+cmake --preset leak-detection
+
+# Valgrind
+cmake --preset valgrind
+```
+
 ### Conditional Compilation
 
 ```cpp
@@ -380,6 +474,191 @@ endif()
     #define UNTRACK_ALLOC(ptr)
 #endif
 ```
+
+## Sanitizer Integration
+
+### AddressSanitizer (ASan)
+
+AddressSanitizer detects:
+- Heap buffer overflow
+- Stack buffer overflow
+- Global buffer overflow
+- Use after free
+- Use after return
+- Use after scope
+- Memory leaks (with leak detection enabled)
+
+**Configuration:**
+
+```bash
+# Build with ASan
+cmake -DENABLE_SANITIZER_ADDRESS=ON ..
+make
+
+# Run with options
+ASAN_OPTIONS=detect_leaks=1:halt_on_error=0 ./your_program
+```
+
+**Environment Variables:**
+
+```bash
+# Comprehensive ASan options
+export ASAN_OPTIONS="
+    detect_leaks=1
+    halt_on_error=0
+    verbosity=1
+    log_path=asan.log
+    detect_stack_use_after_return=1
+    check_initialization_order=1
+    detect_invalid_pointer_pairs=2
+"
+```
+
+### LeakSanitizer (LSan)
+
+LeakSanitizer is a specialized tool for detecting memory leaks.
+
+**Configuration:**
+
+```bash
+# Build with LSan
+cmake -DENABLE_SANITIZER_LEAK=ON ..
+make
+
+# Run with options
+LSAN_OPTIONS=verbosity=1:log_threads=1 ./your_program
+```
+
+**Environment Variables:**
+
+```bash
+# Comprehensive LSan options
+export LSAN_OPTIONS="
+    verbosity=1
+    log_threads=1
+    log_pointers=1
+    report_objects=1
+    use_registers=0
+    use_stacks=1
+"
+```
+
+**Suppression File:**
+
+Create `lsan.supp` to suppress known false positives:
+
+```
+# Suppress leaks in third-party library
+leak:libthirdparty.so
+
+# Suppress specific function
+leak:known_leaky_function
+```
+
+Use with: `LSAN_OPTIONS=suppressions=lsan.supp ./your_program`
+
+### UndefinedBehaviorSanitizer (UBSan)
+
+Detects various forms of undefined behavior:
+- Integer overflow
+- Null pointer dereference
+- Misaligned pointer use
+- Signed integer overflow
+- Division by zero
+
+**Configuration:**
+
+```bash
+cmake -DENABLE_SANITIZER_UNDEFINED_BEHAVIOR=ON ..
+make
+```
+
+### ThreadSanitizer (TSan)
+
+Detects data races and synchronization issues.
+
+**Note:** TSan is incompatible with ASan and LSan.
+
+**Configuration:**
+
+```bash
+cmake -DENABLE_SANITIZER_THREAD=ON ..
+make
+
+# Run with options
+TSAN_OPTIONS=verbosity=1:history_size=7 ./your_program
+```
+
+### MemorySanitizer (MSan)
+
+Detects uninitialized memory reads (Clang only).
+
+**Configuration:**
+
+```bash
+# Requires Clang compiler
+cmake -DCMAKE_CXX_COMPILER=clang++ -DENABLE_SANITIZER_MEMORY=ON ..
+make
+```
+
+## Valgrind Integration
+
+### Basic Usage
+
+```bash
+# Memory leak check
+valgrind --leak-check=full --show-leak-kinds=all ./your_program
+
+# With origin tracking
+valgrind --leak-check=full --track-origins=yes ./your_program
+
+# Generate suppression file
+valgrind --gen-suppressions=all ./your_program 2>&1 | grep -A 20 "insert_a_suppression_name_here"
+```
+
+### CMake Integration
+
+The build system includes automatic Valgrind test integration:
+
+```bash
+# Enable Valgrind tests
+cmake -DENABLE_VALGRIND=ON ..
+make
+
+# Run Valgrind tests via CTest
+ctest -R valgrind
+```
+
+### Suppression Files
+
+Valgrind suppressions are stored in `cmake/valgrind.supp`. Add custom suppressions:
+
+```
+{
+   my_suppression_name
+   Memcheck:Leak
+   match-leak-kinds: possible
+   ...
+   fun:my_function
+}
+```
+
+### Valgrind Options
+
+Common useful options:
+
+```bash
+valgrind \
+  --leak-check=full \
+  --show-leak-kinds=all \
+  --track-origins=yes \
+  --verbose \
+  --log-file=valgrind.log \
+  --suppressions=cmake/valgrind.supp \
+  ./your_program
+```
+
+## Conditional Compilation
 
 ## Troubleshooting
 
@@ -431,10 +710,108 @@ TRACK_ALLOCATION(ptr, size, category);
 
 ## Performance Considerations
 
-- **Overhead**: ~20-50ns per allocation/deallocation in debug builds
+- **MemoryLeakDetector overhead**: ~20-50ns per allocation/deallocation in debug builds
 - **Memory**: ~40 bytes per tracked allocation
 - **Thread Safety**: All operations are thread-safe but may contend on mutex
+- **AddressSanitizer overhead**: ~2x slowdown, 2-3x memory usage
+- **LeakSanitizer overhead**: Minimal runtime impact, runs at process exit
+- **Valgrind overhead**: ~10-50x slowdown
 - **Recommendation**: Enable in debug/testing builds, disable in production
+
+## Comparison of Tools
+
+| Tool | Type | Pros | Cons | Best For |
+|------|------|------|------|----------|
+| **MemoryLeakDetector** | Built-in | Fast, customizable, detailed reports | Manual tracking required | Quick debugging, specific categories |
+| **AddressSanitizer** | Compiler | Comprehensive, automatic | Runtime overhead | Development testing |
+| **LeakSanitizer** | Compiler | Focused on leaks, automatic | Runs at exit only | Continuous integration |
+| **Valgrind** | External | Very comprehensive, no recompilation | Very slow | Deep analysis |
+| **UBSan** | Compiler | Catches undefined behavior | Not leak-specific | Code correctness |
+| **TSan** | Compiler | Detects race conditions | Incompatible with ASan | Thread safety |
+
+## Choosing the Right Tool
+
+### For Development
+- Use **MemoryLeakDetector** for quick iteration and category-based analysis
+- Enable **AddressSanitizer** for comprehensive memory error detection
+
+### For Continuous Integration
+- Use **LeakSanitizer** in CI pipelines for fast leak detection
+- Run **Valgrind** nightly for comprehensive analysis
+
+### For Debugging Specific Issues
+- Use **MemoryLeakDetector** with categories for targeted leak hunting
+- Use **Valgrind** for deep analysis of complex memory issues
+
+### For Thread Safety
+- Use **ThreadSanitizer** to detect data races
+- Note: Cannot be combined with ASan/LSan
+
+## Workflow Examples
+
+### Development Workflow
+
+```bash
+# 1. Quick iteration with built-in detector
+./your_program  # Uses MemoryLeakDetector
+
+# 2. Local comprehensive check
+cmake --preset leak-detection
+make
+./your_program
+
+# 3. Before committing
+ctest --preset leak-detection-tests
+```
+
+### CI/CD Workflow
+
+```yaml
+# .github/workflows/leak-detection.yml
+name: Leak Detection
+
+on: [push, pull_request]
+
+jobs:
+  leak-detection:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      
+      - name: Install dependencies
+        run: sudo apt-get install -y cmake ninja-build
+      
+      - name: Configure with LeakSanitizer
+        run: cmake --preset lsan
+      
+      - name: Build
+        run: cmake --build --preset lsan
+      
+      - name: Run tests
+        run: ctest --preset lsan-tests --output-on-failure
+        env:
+          LSAN_OPTIONS: verbosity=1:log_threads=1
+```
+
+### Nightly Analysis Workflow
+
+```bash
+#!/bin/bash
+# nightly-leak-check.sh
+
+# Build with Valgrind support
+cmake --preset valgrind
+cmake --build --preset valgrind
+
+# Run Valgrind tests
+ctest --preset valgrind-tests --output-on-failure
+
+# Generate report
+valgrind --leak-check=full --xml=yes --xml-file=leak-report.xml ./bolt_unit_tests
+
+# Parse and report
+python3 scripts/parse_valgrind_report.py leak-report.xml
+```
 
 ## API Reference
 
@@ -443,18 +820,86 @@ See the [API Documentation](api/html/index.html) for complete class and function
 ## Examples
 
 Complete examples are available in:
-- `examples/memory_leak_detection_example.cpp`
-- `test/test_memory_manager.cpp`
-- `test/test_memory_leak_detector.cpp`
+- `examples/memory_leak_detection_example.cpp` - Comprehensive demonstration
+- `test/test_memory_manager.cpp` - MemoryManager tests
+- `test/test_memory_leak_detector.cpp` - MemoryLeakDetector tests
 
 ## Related Documentation
 
 - [Memory Manager](api/html/classMemoryManager.html)
 - [Error Handling](api/html/error__handling_8hpp.html)
 - [Testing Guide](../TESTING.md)
+- [Build System](../README.md#build-system)
+
+## Continuous Integration
+
+Example GitHub Actions workflow for automated leak detection:
+
+```yaml
+name: Memory Leak Detection
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  asan:
+    name: AddressSanitizer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build
+      - name: Configure
+        run: cmake --preset asan
+      - name: Build
+        run: cmake --build --preset asan
+      - name: Test
+        run: ctest --preset asan-tests --output-on-failure
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=0
+  
+  lsan:
+    name: LeakSanitizer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build
+      - name: Configure
+        run: cmake --preset lsan
+      - name: Build
+        run: cmake --build --preset lsan
+      - name: Test
+        run: ctest --preset lsan-tests --output-on-failure
+        env:
+          LSAN_OPTIONS: verbosity=1:log_threads=1
+  
+  valgrind:
+    name: Valgrind
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build valgrind
+      - name: Configure
+        run: cmake --preset valgrind
+      - name: Build
+        run: cmake --build --preset valgrind
+      - name: Test
+        run: ctest --preset valgrind-tests --output-on-failure
+```
 
 ---
 
-**Last Updated**: November 2024
+**Last Updated**: December 2024
 
-**See Also**: [Performance Profiler](PERFORMANCE_PROFILER.md), [Logging System](LOGGING_SYSTEM.md)
+**See Also**: [Performance Profiler](PERFORMANCE_PROFILER.md), [Logging System](LOGGING_SYSTEM.md), [Testing Guide](../TESTING.md)

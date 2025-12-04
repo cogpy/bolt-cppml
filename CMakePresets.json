@@ -59,6 +59,61 @@
         "BOLT_ENABLE_TESTS": "ON",
         "BOLT_ENABLE_DOCS": "ON"
       }
+    },
+    {
+      "name": "asan",
+      "inherits": "vcpkg-debug",
+      "displayName": "AddressSanitizer",
+      "description": "Debug build with AddressSanitizer for memory error detection",
+      "cacheVariables": {
+        "ENABLE_SANITIZER_ADDRESS": "ON"
+      }
+    },
+    {
+      "name": "lsan",
+      "inherits": "vcpkg-debug",
+      "displayName": "LeakSanitizer",
+      "description": "Debug build with LeakSanitizer for memory leak detection",
+      "cacheVariables": {
+        "ENABLE_SANITIZER_LEAK": "ON"
+      }
+    },
+    {
+      "name": "ubsan",
+      "inherits": "vcpkg-debug",
+      "displayName": "UndefinedBehaviorSanitizer",
+      "description": "Debug build with UndefinedBehaviorSanitizer",
+      "cacheVariables": {
+        "ENABLE_SANITIZER_UNDEFINED_BEHAVIOR": "ON"
+      }
+    },
+    {
+      "name": "tsan",
+      "inherits": "vcpkg-debug",
+      "displayName": "ThreadSanitizer",
+      "description": "Debug build with ThreadSanitizer for data race detection",
+      "cacheVariables": {
+        "ENABLE_SANITIZER_THREAD": "ON"
+      }
+    },
+    {
+      "name": "valgrind",
+      "inherits": "vcpkg-debug",
+      "displayName": "Valgrind",
+      "description": "Debug build configured for Valgrind testing",
+      "cacheVariables": {
+        "ENABLE_VALGRIND": "ON"
+      }
+    },
+    {
+      "name": "leak-detection",
+      "inherits": "vcpkg-debug",
+      "displayName": "Comprehensive Leak Detection",
+      "description": "Debug build with both AddressSanitizer and LeakSanitizer",
+      "cacheVariables": {
+        "ENABLE_SANITIZER_ADDRESS": "ON",
+        "ENABLE_SANITIZER_LEAK": "ON"
+      }
     }
   ],
   "buildPresets": [
@@ -85,6 +140,24 @@
       "configurePreset": "dev",
       "displayName": "Development Build",
       "description": "Development build with all features"
+    },
+    {
+      "name": "asan",
+      "configurePreset": "asan",
+      "displayName": "Build with AddressSanitizer",
+      "description": "Debug build with AddressSanitizer"
+    },
+    {
+      "name": "lsan",
+      "configurePreset": "lsan",
+      "displayName": "Build with LeakSanitizer",
+      "description": "Debug build with LeakSanitizer"
+    },
+    {
+      "name": "leak-detection",
+      "configurePreset": "leak-detection",
+      "displayName": "Build with Leak Detection",
+      "description": "Debug build with comprehensive leak detection"
     }
   ],
   "testPresets": [
@@ -93,6 +166,30 @@
       "configurePreset": "vcpkg-debug",
       "displayName": "Run tests",
       "description": "Run all tests with vcpkg dependencies"
+    },
+    {
+      "name": "asan-tests",
+      "configurePreset": "asan",
+      "displayName": "AddressSanitizer Tests",
+      "description": "Run tests with AddressSanitizer"
+    },
+    {
+      "name": "lsan-tests",
+      "configurePreset": "lsan",
+      "displayName": "LeakSanitizer Tests",
+      "description": "Run tests with LeakSanitizer"
+    },
+    {
+      "name": "leak-detection-tests",
+      "configurePreset": "leak-detection",
+      "displayName": "Leak Detection Tests",
+      "description": "Run tests with comprehensive leak detection"
+    },
+    {
+      "name": "valgrind-tests",
+      "configurePreset": "valgrind",
+      "displayName": "Valgrind Tests",
+      "description": "Run tests with Valgrind"
     }
   ]
 }
