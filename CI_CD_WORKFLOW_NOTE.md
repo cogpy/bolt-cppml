@@ -57,7 +57,9 @@ git push origin main
 
 ## Workflow File Content
 
-The workflow file is located at `.github/workflows/ci.yml` in the repository directory.
+The **updated and fixed** workflow file is located at `.github/workflows/ci.yml` in the repository directory.
+
+**Important**: This version includes a critical fix for the library path issue that caused all tests to fail in CI. The fix changes the `LD_LIBRARY_PATH` configuration from using `env:` to an explicit `export` command in the script.
 
 ## Workflow Features
 
