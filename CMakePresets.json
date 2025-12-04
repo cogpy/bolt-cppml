@@ -23,6 +23,17 @@
       }
     },
     {
+      "name": "vcpkg-ssr",
+      "inherits": "default",
+      "displayName": "Configure with local SSR vcpkg",
+      "description": "Configure with locally cloned vcpkg for SSR pipeline",
+      "toolchainFile": "${sourceDir}/ssr_deps/vcpkg/scripts/buildsystems/vcpkg.cmake",
+      "cacheVariables": {
+        "VCPKG_MANIFEST_INSTALL": "ON",
+        "VCPKG_MANIFEST_MODE": "ON"
+      }
+    },
+    {
       "name": "vcpkg-debug",
       "inherits": "vcpkg",
       "displayName": "vcpkg (Debug)",
@@ -114,6 +125,64 @@
         "ENABLE_SANITIZER_ADDRESS": "ON",
         "ENABLE_SANITIZER_LEAK": "ON"
       }
+    },
+    {
+      "name": "linux-x64",
+      "inherits": "vcpkg-ssr",
+      "displayName": "Linux x64 (SSR)",
+      "description": "Linux x64 build with local SSR vcpkg",
+      "cacheVariables": {
+        "VCPKG_TARGET_TRIPLET": "x64-linux"
+      }
+    },
+    {
+      "name": "windows-msvc-x64",
+      "inherits": "vcpkg-ssr",
+      "displayName": "Windows MSVC x64 (SSR)",
+      "description": "Windows MSVC x64 build with local SSR vcpkg",
+      "generator": "Visual Studio 17 2022",
+      "architecture": "x64",
+      "cacheVariables": {
+        "VCPKG_TARGET_TRIPLET": "x64-windows"
+      }
+    },
+    {
+      "name": "windows-mingw-x64",
+      "inherits": "vcpkg-ssr",
+      "displayName": "Windows MinGW x64 (SSR)",
+      "description": "Windows MinGW x64 build with local SSR vcpkg",
+      "generator": "MinGW Makefiles",
+      "cacheVariables": {
+        "VCPKG_TARGET_TRIPLET": "x64-mingw-static"
+      }
+    },
+    {
+      "name": "macos-x64",
+      "inherits": "vcpkg-ssr",
+      "displayName": "macOS Intel x64 (SSR)",
+      "description": "macOS Intel x64 build with local SSR vcpkg",
+      "cacheVariables": {
+        "VCPKG_TARGET_TRIPLET": "x64-osx"
+      }
+    },
+    {
+      "name": "macos-arm64",
+      "inherits": "vcpkg-ssr",
+      "displayName": "macOS Apple Silicon ARM64 (SSR)",
+      "description": "macOS ARM64 build with local SSR vcpkg",
+      "cacheVariables": {
+        "VCPKG_TARGET_TRIPLET": "arm64-osx"
+      }
+    },
+    {
+      "name": "macos-universal",
+      "inherits": "vcpkg-ssr",
+      "displayName": "macOS Universal Binary (SSR)",
+      "description": "macOS Universal build with local SSR vcpkg",
+      "cacheVariables": {
+        "VCPKG_TARGET_TRIPLET": "x64-osx",
+        "CMAKE_OSX_ARCHITECTURES": "x86_64;arm64"
+      }
     }
   ],
   "buildPresets": [
@@ -158,6 +227,42 @@
       "configurePreset": "leak-detection",
       "displayName": "Build with Leak Detection",
       "description": "Debug build with comprehensive leak detection"
+    },
+    {
+      "name": "linux-x64",
+      "configurePreset": "linux-x64",
+      "displayName": "Build Linux x64 (SSR)",
+      "description": "Build for Linux x64 with SSR vcpkg"
+    },
+    {
+      "name": "windows-msvc-x64",
+      "configurePreset": "windows-msvc-x64",
+      "displayName": "Build Windows MSVC x64 (SSR)",
+      "description": "Build for Windows MSVC x64 with SSR vcpkg"
+    },
+    {
+      "name": "windows-mingw-x64",
+      "configurePreset": "windows-mingw-x64",
+      "displayName": "Build Windows MinGW x64 (SSR)",
+      "description": "Build for Windows MinGW x64 with SSR vcpkg"
+    },
+    {
+      "name": "macos-x64",
+      "configurePreset": "macos-x64",
+      "displayName": "Build macOS x64 (SSR)",
+      "description": "Build for macOS Intel x64 with SSR vcpkg"
+    },
+    {
+      "name": "macos-arm64",
+      "configurePreset": "macos-arm64",
+      "displayName": "Build macOS ARM64 (SSR)",
+      "description": "Build for macOS Apple Silicon ARM64 with SSR vcpkg"
+    },
+    {
+      "name": "macos-universal",
+      "configurePreset": "macos-universal",
+      "displayName": "Build macOS Universal (SSR)",
+      "description": "Build for macOS Universal Binary with SSR vcpkg"
     }
   ],
   "testPresets": [
@@ -190,6 +295,12 @@
       "configurePreset": "valgrind",
       "displayName": "Valgrind Tests",
       "description": "Run tests with Valgrind"
+    },
+    {
+      "name": "default",
+      "configurePreset": "linux-x64",
+      "displayName": "Default SSR Tests",
+      "description": "Default test configuration for SSR pipeline"
     }
   ]
 }

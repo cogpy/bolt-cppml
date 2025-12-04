@@ -67,13 +67,29 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
       with:
-        submodules: recursive
         fetch-depth: 0
 
-    - name: Setup vcpkg
-      uses: lukka/run-vcpkg@v11
-      with:
-        vcpkgGitCommitId: 'de117c9255ff3d68c1ba730b6c96dc3418c74ae3'
+    - name: Clone vcpkg for SSR dependencies
+      run: |
+        mkdir -p ./ssr_deps
+        git clone https://github.com/Microsoft/vcpkg.git ./ssr_deps/vcpkg
+        cd ./ssr_deps/vcpkg
+        git checkout de117c9255ff3d68c1ba730b6c96dc3418c74ae3
+        rm -rf .git
+        ./bootstrap-vcpkg.sh -disableMetrics
+      shell: bash
+      if: runner.os != 'Windows'
+      
+    - name: Clone vcpkg for SSR dependencies (Windows)
+      run: |
+        mkdir -p ./ssr_deps
+        git clone https://github.com/Microsoft/vcpkg.git ./ssr_deps/vcpkg
+        cd ./ssr_deps/vcpkg
+        git checkout de117c9255ff3d68c1ba730b6c96dc3418c74ae3
+        Remove-Item -Recurse -Force .git
+        .\bootstrap-vcpkg.bat -disableMetrics
+      shell: pwsh
+      if: runner.os == 'Windows'
         
     - name: Setup MSVC (Windows)
       if: matrix.os == 'windows-latest' && contains(matrix.preset, 'msvc')
@@ -207,16 +223,20 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y gcc-${{ matrix.gcc }} g++-${{ matrix.gcc }}
         
-    - name: Setup vcpkg for cross-compilation
-      uses: lukka/run-vcpkg@v11
-      with:
-        vcpkgGitCommitId: 'de117c9255ff3d68c1ba730b6c96dc3418c74ae3'
+    - name: Clone vcpkg for cross-compilation
+      run: |
+        mkdir -p ./ssr_deps
+        git clone https://github.com/Microsoft/vcpkg.git ./ssr_deps/vcpkg
+        cd ./ssr_deps/vcpkg
+        git checkout de117c9255ff3d68c1ba730b6c96dc3418c74ae3
+        rm -rf .git
+        ./bootstrap-vcpkg.sh -disableMetrics
         
     - name: Cross-compile
       run: |
         mkdir build-cross
         cd build-cross
-        cmake .. -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake \
+        cmake .. -DCMAKE_TOOLCHAIN_FILE=../ssr_deps/vcpkg/scripts/buildsystems/vcpkg.cmake \
                  -DVCPKG_TARGET_TRIPLET=${{ matrix.triplet }} \
                  -DCMAKE_BUILD_TYPE=Release
         make -j$(nproc)
