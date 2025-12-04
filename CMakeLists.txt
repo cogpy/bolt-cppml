@@ -14,6 +14,9 @@ include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/CodeCoverage.cmake")
 # Include documentation generation
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/Documentation.cmake")
 
+# Include sanitizer support for memory leak detection
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/Sanitizers.cmake")
+
 # Try to find CURL via CONFIG first, then fallback to module
 set(CMAKE_PREFIX_PATH "${CMAKE_CURRENT_SOURCE_DIR}/vcpkg_installed/x64-linux;${CMAKE_PREFIX_PATH}")
 set(CURL_FOUND FALSE)
@@ -406,6 +409,15 @@ endif()
 if(IMGUI_FOUND)
     add_executable(demo_widget_framework demo_widget_framework.cpp)
     target_link_libraries(demo_widget_framework PRIVATE bolt_lib)
+endif()
+
+# Memory leak detection example
+add_executable(memory_leak_detection_example examples/memory_leak_detection_example.cpp)
+target_link_libraries(memory_leak_detection_example PRIVATE bolt_lib)
+
+# Apply sanitizer flags to the example if enabled
+if(SANITIZERS_ENABLED)
+    add_sanitizer_flags(memory_leak_detection_example)
 endif()
 
 # Tests
