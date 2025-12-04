@@ -75,7 +75,6 @@ jobs:
         git clone https://github.com/Microsoft/vcpkg.git ./ssr_deps/vcpkg
         cd ./ssr_deps/vcpkg
         git checkout de117c9255ff3d68c1ba730b6c96dc3418c74ae3
-        rm -rf .git
         ./bootstrap-vcpkg.sh -disableMetrics
       shell: bash
       if: runner.os != 'Windows'
@@ -86,7 +85,6 @@ jobs:
         git clone https://github.com/Microsoft/vcpkg.git ./ssr_deps/vcpkg
         cd ./ssr_deps/vcpkg
         git checkout de117c9255ff3d68c1ba730b6c96dc3418c74ae3
-        Remove-Item -Recurse -Force .git
         .\bootstrap-vcpkg.bat -disableMetrics
       shell: pwsh
       if: runner.os == 'Windows'
@@ -229,7 +227,6 @@ jobs:
         git clone https://github.com/Microsoft/vcpkg.git ./ssr_deps/vcpkg
         cd ./ssr_deps/vcpkg
         git checkout de117c9255ff3d68c1ba730b6c96dc3418c74ae3
-        rm -rf .git
         ./bootstrap-vcpkg.sh -disableMetrics
         
     - name: Cross-compile

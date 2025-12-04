@@ -55,12 +55,5 @@
       ]
     }
   },
-  "builtin-baseline": "de117c9255ff3d68c1ba730b6c96dc3418c74ae3",
-  "vcpkg-configuration": {
-    "default-registry": {
-      "kind": "git",
-      "repository": "https://github.com/Microsoft/vcpkg",
-      "baseline": "de117c9255ff3d68c1ba730b6c96dc3418c74ae3"
-    }
-  }
+  "builtin-baseline": "de117c9255ff3d68c1ba730b6c96dc3418c74ae3"
 }
