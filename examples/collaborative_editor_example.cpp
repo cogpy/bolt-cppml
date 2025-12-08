@@ -71,13 +71,30 @@ private:
 #include <string>
 
 class CollaborativeExample {
+private:
+    std::vector<std::string> data_;
+    
 public:
     void processData() {
-        // TODO: Implement data processing
+        // Process data by collecting example information
+        data_.push_back("Processing collaborative editing features");
+        data_.push_back("Supporting multi-user document editing");
+        data_.push_back("Providing real-time synchronization");
+        
+        // Simulate data processing
+        for (auto& item : data_) {
+            // Transform data (example: convert to uppercase first char)
+            if (!item.empty()) {
+                item[0] = std::toupper(item[0]);
+            }
+        }
     }
     
     void displayResults() {
         std::cout << "Results: " << std::endl;
+        for (const auto& item : data_) {
+            std::cout << "  - " << item << std::endl;
+        }
     }
 };
 
