@@ -17,7 +17,7 @@ using namespace bolt::test;
 // Helper function to reset store states between tests
 void resetStoreStates() {
     auto& chatStore = bolt::ChatStore::getInstance();
-    auto& editorStore = bolt::EditorStore::getInstance();
+    (void)bolt::EditorStore::getInstance();  // Access singleton but don't store
     auto& workbenchStore = bolt::WorkbenchStore::getInstance();
     auto& memManager = bolt::MemoryManager::getInstance();
     
@@ -53,10 +53,10 @@ BOLT_TEST(Integration, BoltAppInitialization) {
     app.initialize();
     
     // Verify that core stores are accessible after initialization
-    auto& chatStore = bolt::ChatStore::getInstance();
-    auto& editorStore = bolt::EditorStore::getInstance();
-    auto& workbenchStore = bolt::WorkbenchStore::getInstance();
-    
+    (void)bolt::ChatStore::getInstance();
+    (void)bolt::EditorStore::getInstance();
+    (void)bolt::WorkbenchStore::getInstance();
+
     BOLT_ASSERT_TRUE(true); // If we get here, initialization worked
 }
 

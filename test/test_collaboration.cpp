@@ -50,6 +50,7 @@ void testDocumentOperation() {
     
     bool success = op.apply(lines);
     assert(success);
+    (void)success;
     assert(lines[1] == "liXXXne2");
     std::cout << "  Operation application ... PASS\n";
 }
@@ -93,14 +94,16 @@ void testCollaborativeSession() {
     // Test document creation
     bool created = session.createDocument("test_doc", "Initial content");
     assert(created);
+    (void)created;
     std::cout << "  Document creation ... PASS\n";
-    
+
     // Test user joining
     bool joined = session.joinDocument("user1", "User One", "test_doc");
     assert(joined);
-    
+
     joined = session.joinDocument("user2", "User Two", "test_doc");
     assert(joined);
+    (void)joined;
     std::cout << "  User joining ... PASS\n";
     
     // Test getting active users
@@ -112,28 +115,31 @@ void testCollaborativeSession() {
     DocumentOperation op(OperationType::INSERT, "user1", Position(0, 7), " - modified");
     bool applied = session.applyOperation(op, "test_doc");
     assert(applied);
-    
+
     std::string content = session.getDocumentContent("test_doc");
     assert(content.find("Initial - modified") != std::string::npos);
     std::cout << "  Operation application ... PASS\n";
-    
+
     // Test cursor update
     DocumentOperation cursorOp(OperationType::CURSOR_MOVE, "user1", Position(0, 15));
     applied = session.applyOperation(cursorOp, "test_doc");
     assert(applied);
+    (void)applied;
     std::cout << "  Cursor update ... PASS\n";
-    
+
     // Test user leaving
     bool left = session.leaveDocument("user1", "test_doc");
     assert(left);
-    
+    (void)left;
+
     users = session.getActiveUsers("test_doc");
     assert(users.size() == 1);
     std::cout << "  User leaving ... PASS\n";
-    
+
     // Test document removal
     bool removed = session.removeDocument("test_doc");
     assert(removed);
+    (void)removed;
     std::cout << "  Document removal ... PASS\n";
 }
 
@@ -156,21 +162,25 @@ void testEditorIntegration() {
     // Test collaboration stats before initialization
     auto stats = integration.getStats();
     assert(!stats.isServerRunning);
+    (void)stats;
     std::cout << "  Initial stats check ... PASS\n";
-    
+
     // Test collaboration enabled check (should be false)
     bool isEnabled = integration.isCollaborationEnabled(testDoc.filePath);
     assert(!isEnabled);
+    (void)isEnabled;
     std::cout << "  Collaboration status check ... PASS\n";
-    
+
     // Test text edit application (local only, without collaboration enabled)
     bool applied = integration.applyTextEdit(testDoc.filePath, Position(1, 4), "// comment\n    ");
+    (void)applied;  // Result depends on collaboration state
     // Should work locally even without collaboration
     std::cout << "  Local text edit ... PASS\n";
-    
+
     // Test cursor position update (should be no-op without collaboration)
     bool updated = integration.updateCursorPosition(testDoc.filePath, Position(1, 10));
     assert(updated); // Should return true even if it's a no-op
+    (void)updated;
     std::cout << "  Cursor position update ... PASS\n";
     
     // Test remote cursors (should be empty without collaboration)
@@ -181,6 +191,7 @@ void testEditorIntegration() {
     // Test enabling collaboration on non-existent document (should fail)
     bool enabledFake = integration.enableCollaboration("/non/existent/file.cpp");
     assert(!enabledFake);
+    (void)enabledFake;  // Suppress unused variable warning in release builds
     std::cout << "  Non-existent document collaboration ... PASS\n";
 }
 
@@ -229,13 +240,15 @@ void testPositionConversion() {
     
     Position converted = Position::fromLinear(linear, lines);
     assert(converted == pos);
+    (void)converted;  // Suppress unused variable warning in release builds
     std::cout << "  Position conversion ... PASS\n";
-    
+
     // Test edge cases
     Position endPos(2, 4);
     size_t endLinear = endPos.toLinear(lines);
     Position endConverted = Position::fromLinear(endLinear, lines);
     assert(endConverted == endPos);
+    (void)endConverted;  // Suppress unused variable warning in release builds
     std::cout << "  Edge case conversion ... PASS\n";
 }
 

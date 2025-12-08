@@ -78,11 +78,11 @@ BOLT_TEST(TabBar, TabActivation) {
 BOLT_TEST(TabBar, CloseTab) {
     TabBar& tabBar = TabBar::getInstance();
     tabBar.closeAllTabs();
-    
-    size_t tab1 = tabBar.addTab("/file1.cpp");
+
+    (void)tabBar.addTab("/file1.cpp");
     size_t tab2 = tabBar.addTab("/file2.cpp");
-    size_t tab3 = tabBar.addTab("/file3.cpp");
-    
+    (void)tabBar.addTab("/file3.cpp");
+
     BOLT_ASSERT_EQ(3u, tabBar.getTabCount());
     
     // Close middle tab
@@ -163,10 +163,10 @@ BOLT_TEST(TabBar, DirtyFlag) {
 BOLT_TEST(TabBar, PinnedTabs) {
     TabBar& tabBar = TabBar::getInstance();
     tabBar.closeAllTabs();
-    
+
     size_t tab1 = tabBar.addTab("/file1.cpp");
-    size_t tab2 = tabBar.addTab("/file2.cpp");
-    
+    (void)tabBar.addTab("/file2.cpp");
+
     // Pin tab1
     tabBar.setTabPinned(tab1, true);
     
@@ -188,12 +188,12 @@ BOLT_TEST(TabBar, PinnedTabs) {
 BOLT_TEST(TabBar, CloseOtherTabs) {
     TabBar& tabBar = TabBar::getInstance();
     tabBar.closeAllTabs();
-    
+
     size_t tab1 = tabBar.addTab("/file1.cpp");
-    size_t tab2 = tabBar.addTab("/file2.cpp");
+    (void)tabBar.addTab("/file2.cpp");
     size_t tab3 = tabBar.addTab("/file3.cpp");
-    size_t tab4 = tabBar.addTab("/file4.cpp");
-    
+    (void)tabBar.addTab("/file4.cpp");
+
     // Pin one tab
     tabBar.setTabPinned(tab1, true);
     
@@ -271,11 +271,11 @@ BOLT_TEST(TabBar, GetAllTabs) {
 BOLT_TEST(TabBar, CloseActiveTab) {
     TabBar& tabBar = TabBar::getInstance();
     tabBar.closeAllTabs();
-    
+
     size_t tab1 = tabBar.addTab("/file1.cpp");
     size_t tab2 = tabBar.addTab("/file2.cpp");
-    size_t tab3 = tabBar.addTab("/file3.cpp");
-    
+    (void)tabBar.addTab("/file3.cpp");
+
     // Activate tab2
     tabBar.activateTab(tab2);
     
