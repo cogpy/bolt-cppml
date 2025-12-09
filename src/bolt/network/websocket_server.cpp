@@ -150,27 +150,30 @@ void WebSocketServer::start(int port) {
             struct sockaddr_in clientAddr;
             socklen_t clientLen = sizeof(clientAddr);
 #ifdef _WIN32
-            SOCKET clientSocket = accept(serverSocket_, (struct sockaddr*)&clientAddr, &clientLen);
-            if (clientSocket != INVALID_SOCKET) {
-                int clientSocketInt = static_cast<int>(clientSocket);
+            SOCKET clientSocketHandle = accept(serverSocket_, (struct sockaddr*)&clientAddr, &clientLen);
+            if (clientSocketHandle == INVALID_SOCKET) {
+                continue;
+            }
+            // Convert SOCKET to int for our internal API
+            int clientSocket = static_cast<int>(clientSocketHandle);
 #else
             int clientSocket = accept(serverSocket_, (struct sockaddr*)&clientAddr, &clientLen);
-            int clientSocketInt = clientSocket;
-            if (clientSocket >= 0) {
+            if (clientSocket < 0) {
+                continue;
+            }
 #endif
-                auto conn = new WebSocketConnection(clientSocketInt);
-                if (conn->performHandshake()) {
-                    {
-                        std::lock_guard<std::mutex> lock(connectionsMutex_);
-                        connections_.insert(conn);
-                    }
-                    if (connectCallback_) {
-                        connectCallback_(conn);
-                    }
-                    std::thread(&WebSocketServer::handleClient, this, clientSocketInt).detach();
-                } else {
-                    delete conn;
+            auto conn = new WebSocketConnection(clientSocket);
+            if (conn->performHandshake()) {
+                {
+                    std::lock_guard<std::mutex> lock(connectionsMutex_);
+                    connections_.insert(conn);
                 }
+                if (connectCallback_) {
+                    connectCallback_(conn);
+                }
+                std::thread(&WebSocketServer::handleClient, this, clientSocket).detach();
+            } else {
+                delete conn;
             }
         }
     });

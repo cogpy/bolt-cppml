@@ -23,7 +23,9 @@ std::unique_ptr<PluginLoader::LoadedPlugin> PluginLoader::loadPlugin(const std::
     
     // Get the plugin creation function
     typedef IPlugin* (*create_plugin_t)();
-    create_plugin_t createPlugin = (create_plugin_t)GetProcAddress(handle, "createPlugin");
+    create_plugin_t createPlugin = reinterpret_cast<create_plugin_t>(
+        GetProcAddress(handle, "createPlugin")
+    );
     
     if (!createPlugin) {
         DWORD error = GetLastError();
@@ -39,7 +41,9 @@ std::unique_ptr<PluginLoader::LoadedPlugin> PluginLoader::loadPlugin(const std::
     
     // Get the plugin creation function
     typedef IPlugin* (*create_plugin_t)();
-    create_plugin_t createPlugin = (create_plugin_t) dlsym(handle, "createPlugin");
+    create_plugin_t createPlugin = reinterpret_cast<create_plugin_t>(
+        dlsym(handle, "createPlugin")
+    );
     
     const char* dlsym_error = dlerror();
     if (dlsym_error) {
@@ -87,9 +91,13 @@ bool PluginLoader::unloadPlugin(LoadedPlugin* plugin) {
     // Get the plugin destruction function
     typedef void (*destroy_plugin_t)(IPlugin*);
 #ifdef _WIN32
-    destroy_plugin_t destroyPlugin = (destroy_plugin_t)GetProcAddress((HMODULE)plugin->handle, "destroyPlugin");
+    destroy_plugin_t destroyPlugin = reinterpret_cast<destroy_plugin_t>(
+        GetProcAddress(static_cast<HMODULE>(plugin->handle), "destroyPlugin")
+    );
 #else
-    destroy_plugin_t destroyPlugin = (destroy_plugin_t) dlsym(plugin->handle, "destroyPlugin");
+    destroy_plugin_t destroyPlugin = reinterpret_cast<destroy_plugin_t>(
+        dlsym(plugin->handle, "destroyPlugin")
+    );
 #endif
     
     if (destroyPlugin) {
@@ -97,7 +105,7 @@ bool PluginLoader::unloadPlugin(LoadedPlugin* plugin) {
     }
     
 #ifdef _WIN32
-    FreeLibrary((HMODULE)plugin->handle);
+    FreeLibrary(static_cast<HMODULE>(plugin->handle));
 #else
     dlclose(plugin->handle);
 #endif

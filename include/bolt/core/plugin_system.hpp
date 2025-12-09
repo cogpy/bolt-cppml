@@ -48,7 +48,7 @@ public:
         ~LoadedPlugin() {
             if (handle) {
 #ifdef _WIN32
-                FreeLibrary((HMODULE)handle);
+                FreeLibrary(static_cast<HMODULE>(handle));
 #else
                 dlclose(handle);
 #endif
