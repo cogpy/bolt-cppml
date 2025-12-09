@@ -1,9 +1,16 @@
 #include "bolt/editor/lsp_client.hpp"
 #include "bolt/editor/lsp_protocol.hpp"
+
+#ifndef _WIN32
 #include <unistd.h>
 #include <sys/wait.h>
 #include <signal.h>
 #include <fcntl.h>
+#else
+#include <windows.h>
+#include <io.h>
+#endif
+
 #include <cstring>
 
 namespace bolt {

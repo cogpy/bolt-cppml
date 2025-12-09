@@ -4,9 +4,12 @@
 #include <algorithm>
 #include <sstream>
 #include <cstdlib>
-#include <unistd.h>
 #include <cstring>
 #include <unordered_set>
+
+#ifndef _WIN32
+#include <unistd.h>
+#endif
 
 #ifdef __linux__
 #include <sys/resource.h>

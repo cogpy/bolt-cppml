@@ -8,7 +8,14 @@
 #include <memory>
 #include <unordered_map>
 #include <filesystem>
+
+// Platform-specific dynamic library loading headers
+#ifndef _WIN32
 #include <dlfcn.h>
+#else
+#include <windows.h>
+#endif
+
 #include "bolt/core/thread_safety.hpp"
 #include "bolt/core/plugin_interface.hpp"
 #include "bolt/core/error_handling.hpp"
@@ -40,7 +47,11 @@ public:
         
         ~LoadedPlugin() {
             if (handle) {
+#ifdef _WIN32
+                FreeLibrary(static_cast<HMODULE>(handle));
+#else
                 dlclose(handle);
+#endif
             }
         }
     };
