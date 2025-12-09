@@ -100,7 +100,11 @@ bool StyxConnection::connect() {
     std::string host = address_.substr(0, colon_pos);
     int port = std::stoi(address_.substr(colon_pos + 1));
     
+#ifdef _WIN32
+    socket_fd_ = static_cast<int>(socket(AF_INET, SOCK_STREAM, 0));
+#else
     socket_fd_ = socket(AF_INET, SOCK_STREAM, 0);
+#endif
     if (socket_fd_ < 0) {
         return false;
     }
@@ -275,7 +279,11 @@ bool StyxServer::start() {
     
     int port = std::stoi(address_.substr(colon_pos + 1));
     
+#ifdef _WIN32
+    listen_fd_ = static_cast<int>(socket(AF_INET, SOCK_STREAM, 0));
+#else
     listen_fd_ = socket(AF_INET, SOCK_STREAM, 0);
+#endif
     if (listen_fd_ < 0) {
         return false;
     }
@@ -316,7 +324,11 @@ void StyxServer::run() {
         sockaddr_in client_addr{};
         socklen_t client_len = sizeof(client_addr);
         
+#ifdef _WIN32
+        int client_fd = static_cast<int>(accept(listen_fd_, (sockaddr*)&client_addr, &client_len));
+#else
         int client_fd = accept(listen_fd_, (sockaddr*)&client_addr, &client_len);
+#endif
         if (client_fd < 0) {
             if (running_) {
                 std::cerr << "Accept failed" << std::endl;

@@ -32,7 +32,11 @@ public:
     TCPCommand() : sockfd_(-1) {}
     
     bool connect(const std::string& host, int port) override {
+#ifdef _WIN32
+        sockfd_ = static_cast<int>(socket(AF_INET, SOCK_STREAM, 0));
+#else
         sockfd_ = socket(AF_INET, SOCK_STREAM, 0);
+#endif
         if (sockfd_ < 0) return false;
         
         struct sockaddr_in serv_addr;

@@ -112,7 +112,11 @@ void ConnectionPool::closeConnection(std::shared_ptr<PooledConnection> conn) {
 }
 
 std::shared_ptr<PooledConnection> ConnectionPool::createConnection(const std::string& host, int port) {
+#ifdef _WIN32
+    int sockfd = static_cast<int>(socket(AF_INET, SOCK_STREAM, 0));
+#else
     int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+#endif
     if (sockfd < 0) {
         stats_.errors++;
         return nullptr;
