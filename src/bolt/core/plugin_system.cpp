@@ -13,6 +13,25 @@ std::unique_ptr<PluginLoader::LoadedPlugin> PluginLoader::loadPlugin(const std::
         throw std::runtime_error("Plugin file not found: " + filePath);
     }
     
+#ifdef _WIN32
+    // Windows-specific dynamic library loading
+    HMODULE handle = LoadLibraryA(filePath.c_str());
+    if (!handle) {
+        DWORD error = GetLastError();
+        throw std::runtime_error("Failed to load plugin: Error code " + std::to_string(error));
+    }
+    
+    // Get the plugin creation function
+    typedef IPlugin* (*create_plugin_t)();
+    create_plugin_t createPlugin = (create_plugin_t)GetProcAddress(handle, "createPlugin");
+    
+    if (!createPlugin) {
+        DWORD error = GetLastError();
+        FreeLibrary(handle);
+        throw std::runtime_error("Cannot load symbol 'createPlugin': Error code " + std::to_string(error));
+    }
+#else
+    // Unix-like systems (Linux, macOS)
     void* handle = dlopen(filePath.c_str(), RTLD_LAZY);
     if (!handle) {
         throw std::runtime_error("Failed to load plugin: " + std::string(dlerror()));
@@ -27,18 +46,27 @@ std::unique_ptr<PluginLoader::LoadedPlugin> PluginLoader::loadPlugin(const std::
         dlclose(handle);
         throw std::runtime_error("Cannot load symbol 'createPlugin': " + std::string(dlsym_error));
     }
+#endif
     
     // Create plugin instance
     IPlugin* plugin = createPlugin();
     if (!plugin) {
+#ifdef _WIN32
+        FreeLibrary(handle);
+#else
         dlclose(handle);
+#endif
         throw std::runtime_error("Failed to create plugin instance");
     }
     
     // Validate plugin
     if (!validatePlugin(plugin)) {
         delete plugin;
+#ifdef _WIN32
+        FreeLibrary(handle);
+#else
         dlclose(handle);
+#endif
         throw std::runtime_error("Plugin validation failed");
     }
     
@@ -58,13 +86,21 @@ bool PluginLoader::unloadPlugin(LoadedPlugin* plugin) {
     
     // Get the plugin destruction function
     typedef void (*destroy_plugin_t)(IPlugin*);
+#ifdef _WIN32
+    destroy_plugin_t destroyPlugin = (destroy_plugin_t)GetProcAddress((HMODULE)plugin->handle, "destroyPlugin");
+#else
     destroy_plugin_t destroyPlugin = (destroy_plugin_t) dlsym(plugin->handle, "destroyPlugin");
+#endif
     
     if (destroyPlugin) {
         destroyPlugin(plugin->plugin.get());
     }
     
+#ifdef _WIN32
+    FreeLibrary((HMODULE)plugin->handle);
+#else
     dlclose(plugin->handle);
+#endif
     plugin->handle = nullptr;
     
     return true;

@@ -64,7 +64,11 @@ std::string WebSocketConnection::generateAcceptKey(const std::string& clientKey)
 
 bool WebSocketConnection::performHandshake() {
     char buffer[1024];
+#ifdef _WIN32
     int bytes = recv(socket_, buffer, sizeof(buffer) - 1, 0);
+#else
+    int bytes = recv(socket_, buffer, sizeof(buffer) - 1, 0);
+#endif
     if (bytes <= 0) return false;
     
     buffer[bytes] = '\0';
@@ -110,7 +114,11 @@ std::vector<uint8_t> WebSocketConnection::createFrame(const std::string& payload
 
 void WebSocketConnection::send(const std::string& message, bool binary) {
     auto frame = createFrame(message, binary);
+#ifdef _WIN32
+    ::send(socket_, reinterpret_cast<const char*>(frame.data()), static_cast<int>(frame.size()), 0);
+#else
     ::send(socket_, frame.data(), frame.size(), 0);
+#endif
 }
 
 void WebSocketConnection::close() {
@@ -122,7 +130,11 @@ void WebSocketConnection::close() {
 
 void WebSocketServer::start(int port) {
     serverSocket_ = socket(AF_INET, SOCK_STREAM, 0);
+#ifdef _WIN32
+    if (serverSocket_ == INVALID_SOCKET) {
+#else
     if (serverSocket_ < 0) {
+#endif
         throw std::runtime_error("Failed to create socket");
     }
 
@@ -144,10 +156,16 @@ void WebSocketServer::start(int port) {
         while (running_) {
             struct sockaddr_in clientAddr;
             socklen_t clientLen = sizeof(clientAddr);
+#ifdef _WIN32
+            SOCKET clientSocket = accept(serverSocket_, (struct sockaddr*)&clientAddr, &clientLen);
+            if (clientSocket != INVALID_SOCKET) {
+                int clientSocketInt = static_cast<int>(clientSocket);
+#else
             int clientSocket = accept(serverSocket_, (struct sockaddr*)&clientAddr, &clientLen);
-            
+            int clientSocketInt = clientSocket;
             if (clientSocket >= 0) {
-                auto conn = new WebSocketConnection(clientSocket);
+#endif
+                auto conn = new WebSocketConnection(clientSocketInt);
                 if (conn->performHandshake()) {
                     {
                         std::lock_guard<std::mutex> lock(connectionsMutex_);
@@ -156,7 +174,7 @@ void WebSocketServer::start(int port) {
                     if (connectCallback_) {
                         connectCallback_(conn);
                     }
-                    std::thread(&WebSocketServer::handleClient, this, clientSocket).detach();
+                    std::thread(&WebSocketServer::handleClient, this, clientSocketInt).detach();
                 } else {
                     delete conn;
                 }
@@ -221,7 +239,11 @@ void WebSocketServer::handleClient(int clientSocket) {
     }
 
     while (running_ && conn) {
+#ifdef _WIN32
+        int bytesRead = recv(clientSocket, reinterpret_cast<char*>(buffer.data()), static_cast<int>(buffer.size()), 0);
+#else
         int bytesRead = recv(clientSocket, buffer.data(), buffer.size(), 0);
+#endif
         if (bytesRead <= 0) break;
         
         bool isBinary;
