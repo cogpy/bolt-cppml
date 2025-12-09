@@ -7,6 +7,11 @@
 #include <memory>
 #include <functional>
 
+// Fix Windows macro collision
+#ifdef ERROR
+#undef ERROR
+#endif
+
 namespace bolt {
 
 // Forward declarations

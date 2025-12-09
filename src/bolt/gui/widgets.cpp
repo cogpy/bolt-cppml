@@ -176,7 +176,7 @@ void TextArea::setText(const std::string& text) {
 
 void TextArea::onRender() {
 #ifdef BOLT_HAVE_IMGUI
-    ImGuiInputTextFlags flags = ImGuiInputTextFlags_Multiline;
+    ImGuiInputTextFlags flags = ImGuiInputTextFlags_None;
     if (readOnly_) flags |= ImGuiInputTextFlags_ReadOnly;
     
     ImVec2 size(getBounds().size.width, getBounds().size.height);
