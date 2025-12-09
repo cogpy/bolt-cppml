@@ -64,11 +64,7 @@ std::string WebSocketConnection::generateAcceptKey(const std::string& clientKey)
 
 bool WebSocketConnection::performHandshake() {
     char buffer[1024];
-#ifdef _WIN32
     int bytes = recv(socket_, buffer, sizeof(buffer) - 1, 0);
-#else
-    int bytes = recv(socket_, buffer, sizeof(buffer) - 1, 0);
-#endif
     if (bytes <= 0) return false;
     
     buffer[bytes] = '\0';
@@ -114,11 +110,8 @@ std::vector<uint8_t> WebSocketConnection::createFrame(const std::string& payload
 
 void WebSocketConnection::send(const std::string& message, bool binary) {
     auto frame = createFrame(message, binary);
-#ifdef _WIN32
+    // Cast to const char* for Windows compatibility (send expects const char*)
     ::send(socket_, reinterpret_cast<const char*>(frame.data()), static_cast<int>(frame.size()), 0);
-#else
-    ::send(socket_, frame.data(), frame.size(), 0);
-#endif
 }
 
 void WebSocketConnection::close() {
@@ -239,11 +232,8 @@ void WebSocketServer::handleClient(int clientSocket) {
     }
 
     while (running_ && conn) {
-#ifdef _WIN32
+        // Cast to char* for cross-platform compatibility (recv expects char*)
         int bytesRead = recv(clientSocket, reinterpret_cast<char*>(buffer.data()), static_cast<int>(buffer.size()), 0);
-#else
-        int bytesRead = recv(clientSocket, buffer.data(), buffer.size(), 0);
-#endif
         if (bytesRead <= 0) break;
         
         bool isBinary;
