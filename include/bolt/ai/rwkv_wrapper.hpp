@@ -6,8 +6,11 @@
 #include <vector>
 #include <string>
 #include <unordered_map>
+#include <random>
 #include "bolt/ai/ggml_wrapper.hpp"
 #include "bolt/utils/tensor_utils.hpp"
+#include "bolt/ai/gguf_loader.hpp"
+#include "bolt/ai/bpe_tokenizer.hpp"
 
 namespace bolt {
 
@@ -51,6 +54,24 @@ public:
     // Generate text using simplified RWKV implementation
     std::string generate(const std::string& prompt, size_t max_tokens = 256);
     
+    // Generate with advanced parameters
+    std::string generateImproved(const std::string& prompt, size_t max_tokens = 256,
+                                 float temperature = 1.0f, float top_p = 0.95f);
+    
+    // Forward pass with logits output
+    ggml_tensor* forwardWithLogits(ggml_tensor* input);
+    
+    // RWKV layer components
+    ggml_tensor* rwkvLayer(ggml_tensor* x, int layer_idx);
+    ggml_tensor* timeMixing(ggml_tensor* x, int layer_idx);
+    ggml_tensor* channelMixing(ggml_tensor* x, int layer_idx);
+    ggml_tensor* layerNorm(ggml_tensor* x, const std::string& weight_name, const std::string& bias_name);
+    
+    // Helper methods
+    ggml_tensor* getEmbeddings(ggml_tensor* input);
+    ggml_tensor* projectToVocab(ggml_tensor* hidden);
+    int sampleToken(ggml_tensor* logits, float temperature, float top_p);
+    
     // Forward pass through simplified RWKV model
     ggml_tensor* forward(ggml_tensor* input);
     
@@ -64,11 +85,16 @@ private:
     std::unique_ptr<GGMLContext> context_;
     std::unique_ptr<RWKVState> state_;
     std::unordered_map<std::string, ggml_tensor*> weights_;
+    std::unique_ptr<GGUFLoader> gguf_loader_;
+    std::unique_ptr<BPETokenizer> tokenizer_;
+    std::mt19937 rng_;
     
-    int n_layers_ = 2;  // Reduced for testing
-    int n_embd_ = 64;   // Reduced for testing  
+    int n_layers_ = 2;  // Will be set from model
+    int n_embd_ = 64;   // Will be set from model
+    int n_vocab_ = 50277; // Will be set from model
     int n_threads_ = 4;
     bool model_loaded_ = false;
+    std::string model_path_;
     
     void loadModel(const std::string& path);
     
