@@ -157,6 +157,7 @@ add_library(bolt_lib
     src/bolt/gui/widget_framework.cpp
     src/bolt/gui/widgets.cpp
     src/bolt/gui/widget_registration.cpp
+    src/bolt/gui/dark_theme.cpp
     # DrawKern components
     src/bolt/drawkern/drawkern.cpp
     src/bolt/drawkern/styx_protocol.cpp

@@ -302,25 +302,190 @@ ggml_tensor* RWKVWrapper::rwkvLayer(ggml_tensor* x, int layer_idx) {
 }
 
 ggml_tensor* RWKVWrapper::timeMixing(ggml_tensor* x, int layer_idx) {
-    // This is a simplified placeholder
-    // Real RWKV time-mixing involves complex operations with state
-    
+    // RWKV time-mixing with WKV (Weighted Key-Value) operation
     std::string prefix = "blk." + std::to_string(layer_idx) + ".att.";
     
-    // For now, just return the input (placeholder)
-    // TODO: Implement proper RWKV time-mixing with WKV operation
-    return x;
+    // Get time-mixing weights
+    ggml_tensor* time_mix_k = weights_.find(prefix + "time_mix_k") != weights_.end() ? 
+                              weights_[prefix + "time_mix_k"] : nullptr;
+    ggml_tensor* time_mix_v = weights_.find(prefix + "time_mix_v") != weights_.end() ? 
+                              weights_[prefix + "time_mix_v"] : nullptr;
+    ggml_tensor* time_mix_r = weights_.find(prefix + "time_mix_r") != weights_.end() ? 
+                              weights_[prefix + "time_mix_r"] : nullptr;
+    
+    // Get weight matrices
+    ggml_tensor* Wk = weights_.find(prefix + "key.weight") != weights_.end() ? 
+                      weights_[prefix + "key.weight"] : nullptr;
+    ggml_tensor* Wv = weights_.find(prefix + "value.weight") != weights_.end() ? 
+                      weights_[prefix + "value.weight"] : nullptr;
+    ggml_tensor* Wr = weights_.find(prefix + "receptance.weight") != weights_.end() ? 
+                      weights_[prefix + "receptance.weight"] : nullptr;
+    ggml_tensor* Wout = weights_.find(prefix + "output.weight") != weights_.end() ? 
+                        weights_[prefix + "output.weight"] : nullptr;
+    
+    // Get decay and bonus parameters
+    ggml_tensor* time_decay = weights_.find(prefix + "time_decay") != weights_.end() ? 
+                              weights_[prefix + "time_decay"] : nullptr;
+    ggml_tensor* time_first = weights_.find(prefix + "time_first") != weights_.end() ? 
+                              weights_[prefix + "time_first"] : nullptr;
+    
+    // If weights not found, return input unchanged
+    if (!time_mix_k || !time_mix_v || !time_mix_r || !Wk || !Wv || !Wr || !Wout) {
+        return x;
+    }
+    
+    // Get previous token state (state_pp_)
+    ggml_tensor* last_x = state_ && layer_idx < state_->state_pp_.size() ? 
+                          state_->state_pp_[layer_idx] : nullptr;
+    
+    if (!last_x) {
+        // First token, use zeros
+        last_x = ggml_new_tensor_1d(context_->get(), GGML_TYPE_F32, n_embd_);
+        ggml_set_zero(last_x);
+    }
+    
+    // Interpolate current and previous token: x * mix + last_x * (1 - mix)
+    // Rewritten as: last_x + (x - last_x) * mix
+    auto* x_diff_k = ggml_sub(context_->get(), x, last_x);
+    auto* x_diff_k_scaled = ggml_mul(context_->get(), x_diff_k, time_mix_k);
+    auto* xk_interp = ggml_add(context_->get(), last_x, x_diff_k_scaled);
+    
+    auto* x_diff_v = ggml_sub(context_->get(), x, last_x);
+    auto* x_diff_v_scaled = ggml_mul(context_->get(), x_diff_v, time_mix_v);
+    auto* xv_interp = ggml_add(context_->get(), last_x, x_diff_v_scaled);
+    
+    auto* x_diff_r = ggml_sub(context_->get(), x, last_x);
+    auto* x_diff_r_scaled = ggml_mul(context_->get(), x_diff_r, time_mix_r);
+    auto* xr_interp = ggml_add(context_->get(), last_x, x_diff_r_scaled);
+    
+    // Compute k, v, r vectors
+    auto* k = ggml_mul_mat(context_->get(), Wk, xk_interp);
+    auto* v = ggml_mul_mat(context_->get(), Wv, xv_interp);
+    auto* r = ggml_mul_mat(context_->get(), Wr, xr_interp);
+    
+    // Get state variables (last_num, last_den)
+    ggml_tensor* last_num = state_ && layer_idx < state_->state_aa_.size() ? 
+                            state_->state_aa_[layer_idx] : nullptr;
+    ggml_tensor* last_den = state_ && layer_idx < state_->state_bb_.size() ? 
+                            state_->state_bb_[layer_idx] : nullptr;
+    
+    if (!last_num || !last_den) {
+        // Initialize state
+        last_num = ggml_new_tensor_1d(context_->get(), GGML_TYPE_F32, n_embd_);
+        last_den = ggml_new_tensor_1d(context_->get(), GGML_TYPE_F32, n_embd_);
+        ggml_set_zero(last_num);
+        ggml_set_zero(last_den);
+    }
+    
+    // WKV operation: wkv = (last_num + exp(bonus + k) * v) / (last_den + exp(bonus + k))
+    auto* bonus_k = time_first ? ggml_add(context_->get(), time_first, k) : k;
+    auto* exp_bonus_k = ggml_exp(context_->get(), bonus_k);
+    auto* exp_bonus_k_v = ggml_mul(context_->get(), exp_bonus_k, v);
+    
+    auto* wkv_num = ggml_add(context_->get(), last_num, exp_bonus_k_v);
+    auto* wkv_den = ggml_add(context_->get(), last_den, exp_bonus_k);
+    auto* wkv = ggml_div(context_->get(), wkv_num, wkv_den);
+    
+    // Apply receptance gating: rwkv = sigmoid(r) * wkv
+    auto* r_sigmoid = ggml_sigmoid(context_->get(), r);
+    auto* rwkv = ggml_mul(context_->get(), r_sigmoid, wkv);
+    
+    // Output projection
+    auto* output = ggml_mul_mat(context_->get(), Wout, rwkv);
+    
+    // Update state for next token
+    if (time_decay) {
+        auto* exp_neg_exp_decay = ggml_exp(context_->get(), 
+                                           ggml_neg(context_->get(), 
+                                                   ggml_exp(context_->get(), time_decay)));
+        auto* exp_k = ggml_exp(context_->get(), k);
+        auto* exp_k_v = ggml_mul(context_->get(), exp_k, v);
+        
+        // num = exp(-exp(decay)) * last_num + exp(k) * v
+        auto* new_num = ggml_add(context_->get(),
+                                 ggml_mul(context_->get(), exp_neg_exp_decay, last_num),
+                                 exp_k_v);
+        
+        // den = exp(-exp(decay)) * last_den + exp(k)
+        auto* new_den = ggml_add(context_->get(),
+                                 ggml_mul(context_->get(), exp_neg_exp_decay, last_den),
+                                 exp_k);
+        
+        // Update state
+        if (state_ && layer_idx < state_->state_aa_.size()) {
+            state_->state_aa_[layer_idx] = new_num;
+            state_->state_bb_[layer_idx] = new_den;
+            state_->state_pp_[layer_idx] = x;
+        }
+    }
+    
+    return output;
 }
 
 ggml_tensor* RWKVWrapper::channelMixing(ggml_tensor* x, int layer_idx) {
-    // This is a simplified placeholder
-    // Real RWKV channel-mixing involves key, value, and receptance operations
-    
+    // RWKV channel-mixing (Feed-Forward with memory)
     std::string prefix = "blk." + std::to_string(layer_idx) + ".ffn.";
     
-    // For now, just return the input (placeholder)
-    // TODO: Implement proper RWKV channel-mixing
-    return x;
+    // Get time-mixing weights for FFN
+    ggml_tensor* time_mix_k = weights_.find(prefix + "time_mix_k") != weights_.end() ? 
+                              weights_[prefix + "time_mix_k"] : nullptr;
+    ggml_tensor* time_mix_r = weights_.find(prefix + "time_mix_r") != weights_.end() ? 
+                              weights_[prefix + "time_mix_r"] : nullptr;
+    
+    // Get weight matrices
+    ggml_tensor* Wk = weights_.find(prefix + "key.weight") != weights_.end() ? 
+                      weights_[prefix + "key.weight"] : nullptr;
+    ggml_tensor* Wr = weights_.find(prefix + "receptance.weight") != weights_.end() ? 
+                      weights_[prefix + "receptance.weight"] : nullptr;
+    ggml_tensor* Wv = weights_.find(prefix + "value.weight") != weights_.end() ? 
+                      weights_[prefix + "value.weight"] : nullptr;
+    
+    // If weights not found, return input unchanged
+    if (!time_mix_k || !time_mix_r || !Wk || !Wr || !Wv) {
+        return x;
+    }
+    
+    // Get previous token state
+    ggml_tensor* last_x = state_ && layer_idx < state_->state_pp_.size() ? 
+                          state_->state_pp_[layer_idx] : nullptr;
+    
+    if (!last_x) {
+        // First token, use zeros
+        last_x = ggml_new_tensor_1d(context_->get(), GGML_TYPE_F32, n_embd_);
+        ggml_set_zero(last_x);
+    }
+    
+    // Interpolate current and previous token: x * mix + last_x * (1 - mix)
+    // Rewritten as: last_x + (x - last_x) * mix
+    auto* x_diff_k = ggml_sub(context_->get(), x, last_x);
+    auto* x_diff_k_scaled = ggml_mul(context_->get(), x_diff_k, time_mix_k);
+    auto* xk_interp = ggml_add(context_->get(), last_x, x_diff_k_scaled);
+    
+    auto* x_diff_r = ggml_sub(context_->get(), x, last_x);
+    auto* x_diff_r_scaled = ggml_mul(context_->get(), x_diff_r, time_mix_r);
+    auto* xr_interp = ggml_add(context_->get(), last_x, x_diff_r_scaled);
+    
+    // Compute k and r vectors
+    auto* k = ggml_mul_mat(context_->get(), Wk, xk_interp);
+    auto* r = ggml_mul_mat(context_->get(), Wr, xr_interp);
+    
+    // Apply squared ReLU: max(k, 0)^2
+    auto* k_relu = ggml_relu(context_->get(), k);
+    auto* k_squared = ggml_sqr(context_->get(), k_relu);
+    
+    // Apply value transformation: vk = Wv @ k_squared
+    auto* vk = ggml_mul_mat(context_->get(), Wv, k_squared);
+    
+    // Apply receptance gating: output = sigmoid(r) * vk
+    auto* r_sigmoid = ggml_sigmoid(context_->get(), r);
+    auto* output = ggml_mul(context_->get(), r_sigmoid, vk);
+    
+    // Update state (store current x for next token)
+    if (state_ && layer_idx < state_->state_pp_.size()) {
+        state_->state_pp_[layer_idx] = x;
+    }
+    
+    return output;
 }
 
 ggml_tensor* RWKVWrapper::layerNorm(ggml_tensor* x, const std::string& weight_name, 

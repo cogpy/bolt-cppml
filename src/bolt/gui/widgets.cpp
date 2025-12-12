@@ -1,6 +1,7 @@
 #include "bolt/gui/widgets.hpp"
 #include <algorithm>
 #include <cstring>
+#include <cmath>
 
 #ifdef BOLT_HAVE_IMGUI
 #include <imgui.h>
