@@ -336,8 +336,8 @@ bool AIEnhancedCodeGenerator::initialize() {
 
 bool AIEnhancedCodeGenerator::isReady() const {
     return initialized_ && 
-           (aiProvider_ && aiProvider_->isReady()) || 
-           (fallbackToTemplate_ && templateGenerator_ && templateGenerator_->isReady());
+           ((aiProvider_ && aiProvider_->isReady()) || 
+            (fallbackToTemplate_ && templateGenerator_ && templateGenerator_->isReady()));
 }
 
 void AIEnhancedCodeGenerator::shutdown() {

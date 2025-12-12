@@ -311,7 +311,7 @@ BOLT_TEST(EditorStoreErrors, FoldingValidation) {
     
     // Add a folding range
     std::vector<bolt::FoldRange> ranges;
-    ranges.push_back(bolt::FoldRange{0, 2, false});
+    ranges.push_back(bolt::FoldRange{0, 2, false, "..."});
     store.updateFoldingRanges("/test/folding.cpp", ranges);
     
     // Toggle existing fold should work
@@ -403,6 +403,8 @@ BOLT_TEST(ErrorRecovery, MemoryManagerRecovery) {
     // Allocate some memory
     void* ptr1 = manager.allocate(100);
     void* ptr2 = manager.allocate(200);
+    BOLT_ASSERT_NOT_NULL(ptr1);
+    BOLT_ASSERT_NOT_NULL(ptr2);
     
     // Force reset to test recovery
     manager.forceReset();
@@ -431,5 +433,6 @@ BOLT_TEST(ErrorRecovery, MessageHandlerRecovery) {
     // Handler should still be functional
     bolt::Message validMsg(bolt::MessageType::System, "recovery test");
     handler.pushMessage(validMsg); // Should not throw
-    BOLT_ASSERT_TRUE(handler.getQueueSize() >= 0);
+    // Queue size is unsigned, so it's always >= 0
+    BOLT_ASSERT_TRUE(handler.getQueueSize() < 1000); // Sanity check
 }

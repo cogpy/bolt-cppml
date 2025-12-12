@@ -56,9 +56,11 @@ void CodeFoldingManager::setOnFoldingChanged(std::function<void()> callback) {
 
 void CodeFoldingManager::refreshFoldingRanges() {
     // Trigger a refresh of folding ranges for all open files
-    for (const auto& [filePath, _] : foldingRanges_) {
+    for (const auto& [filePath, ranges] : foldingRanges_) {
         // In a real implementation, we would need to get cached content
         // For now, we'll leave this as a placeholder
+        (void)filePath;  // Mark as intentionally unused
+        (void)ranges;    // Mark as intentionally unused
     }
 }
 

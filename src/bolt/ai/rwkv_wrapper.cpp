@@ -35,6 +35,7 @@ std::string RWKVWrapper::generate(const std::string& prompt, size_t max_tokens) 
     
     // Forward pass through the model
     auto* output = forward(input);
+    (void)output;  // TODO: Use output for actual token generation
     
     // Convert output back to text (simplified)
     std::vector<int> generated_tokens;

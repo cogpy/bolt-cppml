@@ -24,8 +24,9 @@ BOLT_TEST(GGMLTest, GGMLContextCreation) {
 BOLT_TEST(GGMLTest, GGMLWrapperBasics) {
     auto& wrapper = bolt::GGMLWrapper::getInstance();
     
-    // Test that wrapper exists and is accessible
-    BOLT_ASSERT_TRUE(&wrapper != nullptr);
+    // Test that wrapper exists and is accessible (reference is always valid)
+    // Just verify we can access the instance
+    (void)wrapper; // Suppress unused variable warning
 }
 
 BOLT_TEST(GGMLTest, RWKVWrapperBasics) {

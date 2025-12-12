@@ -53,7 +53,7 @@ namespace {
         return value;
     }
     
-    std::string read_string(const std::vector<uint8_t>& buffer, size_t& offset) {
+    [[maybe_unused]] std::string read_string(const std::vector<uint8_t>& buffer, size_t& offset) {
         uint16_t length = read_uint16(buffer, offset);
         std::string str(buffer.begin() + offset, buffer.begin() + offset + length);
         offset += length;

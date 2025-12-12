@@ -317,9 +317,8 @@ BOLT_TEST(AIModels, AIWrapperIntegration) {
     auto& ggml_wrapper = bolt::GGMLWrapper::getInstance();
     auto& rwkv_wrapper = bolt::RWKVWrapper::getInstance();
     
-    // Test that wrappers exist and are accessible
-    BOLT_ASSERT_TRUE(&ggml_wrapper != nullptr);
-    BOLT_ASSERT_TRUE(&rwkv_wrapper != nullptr);
+    // Test that wrappers exist and are accessible (references are always valid)
+    // Just verify we can access the instances
     
     // Test basic functionality without actual models
     BOLT_ASSERT_FALSE(rwkv_wrapper.isInitialized());
