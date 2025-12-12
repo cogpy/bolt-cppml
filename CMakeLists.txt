@@ -427,3 +427,7 @@ enable_testing()
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/test")
     add_subdirectory(test)
 endif()
+# Model loading test
+add_executable(test_model_loading test/test_model_loading.cpp)
+target_link_libraries(test_model_loading bolt_lib)
+
