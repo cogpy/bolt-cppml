@@ -147,6 +147,8 @@ add_library(bolt_lib
     src/bolt/ai/ggml.cpp
     src/bolt/ai/rwkv_wrapper.cpp
     src/bolt/ai/gguf_loader.cpp
+    src/bolt/ai/ggml_loader.cpp
+    src/bolt/ai/model_loader.cpp
     src/bolt/ai/bpe_tokenizer.cpp
     src/bolt/ai/direct_gguf_inference.cpp
     src/bolt/ai/gpu_acceleration.cpp
