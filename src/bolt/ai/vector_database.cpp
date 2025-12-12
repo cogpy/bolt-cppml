@@ -137,15 +137,155 @@ void VectorDatabase::clear() {
 }
 
 bool VectorDatabase::saveToFile(const std::string& file_path) const {
-    // TODO: Implement binary serialization for persistence
-    // This is a placeholder for future implementation
-    return false;
+    std::lock_guard<std::mutex> lock(mutex_);
+    
+    try {
+        std::ofstream file(file_path, std::ios::binary);
+        if (!file.is_open()) {
+            return false;
+        }
+        
+        // Write file header
+        const char* magic = "BVDB";  // Bolt Vector DataBase
+        file.write(magic, 4);
+        
+        uint32_t version = 1;
+        file.write(reinterpret_cast<const char*>(&version), sizeof(version));
+        
+        // Write number of records
+        uint64_t num_records = records_.size();
+        file.write(reinterpret_cast<const char*>(&num_records), sizeof(num_records));
+        
+        // Write each record
+        for (const auto& [id, record] : records_) {
+            // Write ID length and ID
+            uint32_t id_len = id.size();
+            file.write(reinterpret_cast<const char*>(&id_len), sizeof(id_len));
+            file.write(id.c_str(), id_len);
+            
+            // Write content length and content
+            uint32_t content_len = record.content.size();
+            file.write(reinterpret_cast<const char*>(&content_len), sizeof(content_len));
+            file.write(record.content.c_str(), content_len);
+            
+            // Write embedding dimension and embedding data
+            uint32_t embedding_dim = record.embedding.size();
+            file.write(reinterpret_cast<const char*>(&embedding_dim), sizeof(embedding_dim));
+            file.write(reinterpret_cast<const char*>(record.embedding.data()), 
+                      embedding_dim * sizeof(float));
+            
+            // Write metadata size
+            uint32_t metadata_size = record.metadata.size();
+            file.write(reinterpret_cast<const char*>(&metadata_size), sizeof(metadata_size));
+            
+            // Write each metadata key-value pair
+            for (const auto& [key, value] : record.metadata) {
+                uint32_t key_len = key.size();
+                file.write(reinterpret_cast<const char*>(&key_len), sizeof(key_len));
+                file.write(key.c_str(), key_len);
+                
+                uint32_t value_len = value.size();
+                file.write(reinterpret_cast<const char*>(&value_len), sizeof(value_len));
+                file.write(value.c_str(), value_len);
+            }
+            
+            // Write timestamp
+            file.write(reinterpret_cast<const char*>(&record.timestamp), sizeof(record.timestamp));
+        }
+        
+        file.close();
+        return true;
+        
+    } catch (const std::exception& e) {
+        return false;
+    }
 }
 
 bool VectorDatabase::loadFromFile(const std::string& file_path) {
-    // TODO: Implement binary deserialization
-    // This is a placeholder for future implementation
-    return false;
+    std::lock_guard<std::mutex> lock(mutex_);
+    
+    try {
+        std::ifstream file(file_path, std::ios::binary);
+        if (!file.is_open()) {
+            return false;
+        }
+        
+        // Read and verify file header
+        char magic[4];
+        file.read(magic, 4);
+        if (std::string(magic, 4) != "BVDB") {
+            return false;  // Invalid file format
+        }
+        
+        uint32_t version;
+        file.read(reinterpret_cast<char*>(&version), sizeof(version));
+        if (version != 1) {
+            return false;  // Unsupported version
+        }
+        
+        // Clear existing records
+        records_.clear();
+        
+        // Read number of records
+        uint64_t num_records;
+        file.read(reinterpret_cast<char*>(&num_records), sizeof(num_records));
+        
+        // Read each record
+        for (uint64_t i = 0; i < num_records; ++i) {
+            VectorRecord record;
+            
+            // Read ID
+            uint32_t id_len;
+            file.read(reinterpret_cast<char*>(&id_len), sizeof(id_len));
+            std::string id(id_len, '\0');
+            file.read(&id[0], id_len);
+            record.id = id;
+            
+            // Read content
+            uint32_t content_len;
+            file.read(reinterpret_cast<char*>(&content_len), sizeof(content_len));
+            record.content.resize(content_len);
+            file.read(&record.content[0], content_len);
+            
+            // Read embedding
+            uint32_t embedding_dim;
+            file.read(reinterpret_cast<char*>(&embedding_dim), sizeof(embedding_dim));
+            record.embedding.resize(embedding_dim);
+            file.read(reinterpret_cast<char*>(record.embedding.data()), 
+                     embedding_dim * sizeof(float));
+            
+            // Read metadata
+            uint32_t metadata_size;
+            file.read(reinterpret_cast<char*>(&metadata_size), sizeof(metadata_size));
+            
+            for (uint32_t j = 0; j < metadata_size; ++j) {
+                uint32_t key_len;
+                file.read(reinterpret_cast<char*>(&key_len), sizeof(key_len));
+                std::string key(key_len, '\0');
+                file.read(&key[0], key_len);
+                
+                uint32_t value_len;
+                file.read(reinterpret_cast<char*>(&value_len), sizeof(value_len));
+                std::string value(value_len, '\0');
+                file.read(&value[0], value_len);
+                
+                record.metadata[key] = value;
+            }
+            
+            // Read timestamp
+            file.read(reinterpret_cast<char*>(&record.timestamp), sizeof(record.timestamp));
+            
+            // Add record to database
+            records_[record.id] = record;
+        }
+        
+        file.close();
+        return true;
+        
+    } catch (const std::exception& e) {
+        records_.clear();  // Clear partial data on error
+        return false;
+    }
 }
 
 } // namespace ai

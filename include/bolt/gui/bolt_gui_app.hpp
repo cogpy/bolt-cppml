@@ -58,6 +58,7 @@ private:
     std::vector<std::string> file_tree_;
     std::vector<std::string> console_log_;
     int selected_file_index_ = -1;
+    std::string current_file_path_;
     bool show_demo_window_ = false;
     bool show_file_tree_ = true;
     bool show_chat_panel_ = true;
@@ -107,6 +108,9 @@ private:
     // File operations
     void InitializeFileTree();
     void OnFileSelected(int index);
+    void OpenFileDialog();
+    void SaveCurrentFile();
+    void SaveFileAsDialog();
     
     // Keyboard shortcuts
     void HandleKeyboardShortcuts();

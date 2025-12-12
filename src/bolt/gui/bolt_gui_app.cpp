@@ -4,6 +4,9 @@
 
 #include "bolt/ai/enhanced_ai_manager.hpp"
 #include <iostream>
+#include <fstream>
+#include <sstream>
+#include <cstring>
 #include <GL/gl.h>
 #include <filesystem>
 #include <algorithm>
@@ -418,8 +421,15 @@ void BoltGuiApp::RenderMainMenuBar() {
                 // Clear code buffer for new file
                 strcpy(code_buffer_, "// New file\n\n");
             }
-            if (ImGui::MenuItem("Open", "Ctrl+O")) { /* TODO: File dialog */ }
-            if (ImGui::MenuItem("Save", "Ctrl+S")) { /* TODO: Save functionality */ }
+            if (ImGui::MenuItem("Open", "Ctrl+O")) { 
+                OpenFileDialog();
+            }
+            if (ImGui::MenuItem("Save", "Ctrl+S")) { 
+                SaveCurrentFile();
+            }
+            if (ImGui::MenuItem("Save As...", "Ctrl+Shift+S")) {
+                SaveFileAsDialog();
+            }
             ImGui::Separator();
             if (ImGui::MenuItem("Exit", "Alt+F4")) { 
                 glfwSetWindowShouldClose(window_, true); 
@@ -1183,6 +1193,117 @@ void BoltGuiApp::RenderAboutWindow() {
     }
     
     ImGui::End();
+}
+
+void BoltGuiApp::OpenFileDialog() {
+    // Simple file dialog implementation using ImGui
+    // In production, you'd use a native file dialog library like nativefiledialog or portable-file-dialogs
+    
+    // For now, we'll use the file tree selection
+    if (selected_file_index_ >= 0 && selected_file_index_ < static_cast<int>(file_tree_.size())) {
+        std::string selected_file = file_tree_[selected_file_index_];
+        
+        // Try to load the file
+        try {
+            std::ifstream file(selected_file);
+            if (file.is_open()) {
+                std::stringstream buffer;
+                buffer << file.rdbuf();
+                std::string content = buffer.str();
+                
+                // Copy to code buffer (with size limit)
+                size_t copy_size = std::min(content.size(), sizeof(code_buffer_) - 1);
+                std::memcpy(code_buffer_, content.c_str(), copy_size);
+                code_buffer_[copy_size] = '\0';
+                
+                current_file_path_ = selected_file;
+                AddChatMessage("System", "✅ Opened file: " + selected_file, false);
+                
+                file.close();
+            } else {
+                AddChatMessage("System", "❌ Failed to open file: " + selected_file, false);
+            }
+        } catch (const std::exception& e) {
+            AddChatMessage("System", "❌ Error opening file: " + std::string(e.what()), false);
+        }
+    } else {
+        AddChatMessage("System", "ℹ️ Please select a file from the file tree first, or use 'Save As' to create a new file.", false);
+    }
+}
+
+void BoltGuiApp::SaveCurrentFile() {
+    if (current_file_path_.empty()) {
+        // No file path set, prompt for save as
+        AddChatMessage("System", "ℹ️ No file path set. Please use 'Save As' to specify a file name.", false);
+        SaveFileAsDialog();
+        return;
+    }
+    
+    // Save to the current file path
+    try {
+        std::ofstream file(current_file_path_);
+        if (file.is_open()) {
+            file << code_buffer_;
+            file.close();
+            AddChatMessage("System", "✅ Saved file: " + current_file_path_, false);
+        } else {
+            AddChatMessage("System", "❌ Failed to save file: " + current_file_path_, false);
+        }
+    } catch (const std::exception& e) {
+        AddChatMessage("System", "❌ Error saving file: " + std::string(e.what()), false);
+    }
+}
+
+void BoltGuiApp::SaveFileAsDialog() {
+    // Simple save-as implementation
+    // In production, you'd use a native file dialog library
+    
+    // For now, we'll create a simple input dialog
+    static char filename_buffer[512] = "untitled.cpp";
+    
+    ImGui::OpenPopup("Save File As");
+    
+    if (ImGui::BeginPopupModal("Save File As", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+        ImGui::Text("Enter filename:");
+        ImGui::InputText("##filename", filename_buffer, sizeof(filename_buffer));
+        
+        ImGui::Separator();
+        
+        if (ImGui::Button("Save", ImVec2(120, 0))) {
+            std::string filepath = std::string(filename_buffer);
+            
+            // Add default extension if none provided
+            if (filepath.find('.') == std::string::npos) {
+                filepath += ".cpp";
+            }
+            
+            try {
+                std::ofstream file(filepath);
+                if (file.is_open()) {
+                    file << code_buffer_;
+                    file.close();
+                    current_file_path_ = filepath;
+                    AddChatMessage("System", "✅ Saved file as: " + filepath, false);
+                    
+                    // Refresh file tree
+                    InitializeFileTree();
+                    
+                    ImGui::CloseCurrentPopup();
+                } else {
+                    AddChatMessage("System", "❌ Failed to create file: " + filepath, false);
+                }
+            } catch (const std::exception& e) {
+                AddChatMessage("System", "❌ Error saving file: " + std::string(e.what()), false);
+            }
+        }
+        
+        ImGui::SameLine();
+        if (ImGui::Button("Cancel", ImVec2(120, 0))) {
+            ImGui::CloseCurrentPopup();
+        }
+        
+        ImGui::EndPopup();
+    }
 }
 
 } // namespace gui
