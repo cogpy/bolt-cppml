@@ -513,9 +513,22 @@ std::pair<std::string, size_t> DebuggerInterface::find_line_for_pc(size_t pc) co
 }
 
 std::string DebuggerInterface::evaluate_watch_expression(const std::string& expression) {
-    // TODO: Implement expression evaluation
-    // For now, return placeholder
-    return "TODO: evaluate " + expression;
+    // Basic expression evaluation implementation
+    // This is a simplified version - a full implementation would use a proper parser
+    
+    if (!is_debugging()) {
+        return "<not debugging>";
+    }
+    
+    // Check if it's a simple variable name (alphanumeric and underscore only)
+    if (expression.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_") == std::string::npos) {
+        // Try to find variable in VM state
+        // For now, return a descriptive message since VM doesn't expose variable inspection yet
+        return "<variable '" + expression + "' - VM variable inspection pending>";
+    }
+    
+    // For complex expressions, return a message
+    return "<expression '" + expression + "' - complex eval pending>";
 }
 
 void DebuggerInterface::setup_vm_handlers() {

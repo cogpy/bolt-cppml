@@ -47,7 +47,8 @@ jobs:
         cd build
         cmake -DCMAKE_TOOLCHAIN_FILE=../vcpkg_tool/scripts/buildsystems/vcpkg.cmake \
               -DCMAKE_BUILD_TYPE=Release \
-              -DCMAKE_INSTALL_PREFIX=/usr ..
+              -DCMAKE_INSTALL_PREFIX=/usr \
+              -DBUILD_SHARED_LIBS=ON ..
         make -j$(nproc)
     
     - name: Create RPM package
@@ -115,7 +116,8 @@ jobs:
         %license LICENSE
         %doc README.md
         /usr/bin/bolt
-        /usr/lib/libbolt_lib.so
+        /usr/lib*/libbolt_lib.so*
+        /usr/lib*/libggml*.so*
         
         %changelog
         * $(date "+%a %b %d %Y") Bolt C++ Team <team@bolt-cppml.org> - ${VERSION}-1

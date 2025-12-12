@@ -50,7 +50,8 @@ jobs:
         cd build
         cmake -DCMAKE_TOOLCHAIN_FILE=../vcpkg_tool/scripts/buildsystems/vcpkg.cmake \
               -DCMAKE_BUILD_TYPE=Release \
-              -DCMAKE_INSTALL_PREFIX=/usr ..
+              -DCMAKE_INSTALL_PREFIX=/usr \
+              -DBUILD_SHARED_LIBS=ON ..
         make -j$(nproc)
     
     - name: Create Debian package structure
@@ -68,7 +69,14 @@ jobs:
         
         # Copy binaries
         cp build/bolt debian-package/usr/bin/
-        cp build/libbolt_lib.so debian-package/usr/lib/
+        if [ -f build/libbolt_lib.so ]; then
+          cp build/libbolt_lib.so* debian-package/usr/lib/
+        fi
+        
+        # Copy GGML libraries if they exist
+        if [ -d build/ggml/ggml.cpp/src ]; then
+          cp build/ggml/ggml.cpp/src/libggml*.so* debian-package/usr/lib/ 2>/dev/null || true
+        fi
         
         # Create control file
         cat > debian-package/DEBIAN/control << EOF
@@ -116,7 +124,12 @@ jobs:
         # Set permissions
         chmod 755 debian-package/DEBIAN
         chmod 755 debian-package/usr/bin/bolt
-        chmod 644 debian-package/usr/lib/libbolt_lib.so
+        if [ -f debian-package/usr/lib/libbolt_lib.so ]; then
+          chmod 644 debian-package/usr/lib/libbolt_lib.so*
+        fi
+        if ls debian-package/usr/lib/libggml*.so* 1> /dev/null 2>&1; then
+          chmod 644 debian-package/usr/lib/libggml*.so*
+        fi
         
         # Build .deb package
         dpkg-deb --build debian-package ${PACKAGE_NAME}_${VERSION}_${ARCH}.deb

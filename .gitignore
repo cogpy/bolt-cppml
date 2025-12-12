@@ -66,3 +66,10 @@ test/data/models/*.gguf
 test/data/models/*.pth
 test/data/models/*.bin
 
+
+# Build directories
+build-shared/
+
+# vcpkg (use vcpkg.json manifest instead)
+vcpkg/
+vcpkg_installed/

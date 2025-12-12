@@ -805,21 +805,38 @@ void BoltGuiApp::InitializeFileTree() {
 void BoltGuiApp::OnFileSelected(int index) {
     selected_file_index_ = index;
     
-    // In a real implementation, this would load the file content
+    // Load actual file content
     std::string filename = file_tree_[index];
-    std::string sample_content = "// File: " + filename + "\n// This is a placeholder. In a real implementation,\n// the actual file content would be loaded here.\n\n";
+    std::string file_content;
     
-    if (filename.find(".cpp") != std::string::npos) {
-        sample_content += "#include <iostream>\n\nint main() {\n    std::cout << \"Hello from " + filename + "!\" << std::endl;\n    return 0;\n}\n";
-    } else if (filename.find(".hpp") != std::string::npos) {
-        sample_content += "#pragma once\n\nnamespace bolt {\n    // Class declarations here\n}\n";
+    // Try to read the file from the filesystem
+    std::ifstream file(filename);
+    if (file.is_open()) {
+        std::stringstream buffer;
+        buffer << file.rdbuf();
+        file_content = buffer.str();
+        file.close();
+        
+        // Update code buffer with actual file content
+        strncpy(code_buffer_, file_content.c_str(), sizeof(code_buffer_) - 1);
+        code_buffer_[sizeof(code_buffer_) - 1] = '\0';
+        
+        AddChatMessage("Assistant", "📁 Opened file: " + filename + " (" + std::to_string(file_content.length()) + " bytes)", false);
+    } else {
+        // If file doesn't exist, create sample content based on extension
+        std::string sample_content = "// File: " + filename + "\n// New file - content will be saved on write\n\n";
+        
+        if (filename.find(".cpp") != std::string::npos) {
+            sample_content += "#include <iostream>\n\nint main() {\n    std::cout << \"Hello from " + filename + "!\" << std::endl;\n    return 0;\n}\n";
+        } else if (filename.find(".hpp") != std::string::npos || filename.find(".h") != std::string::npos) {
+            sample_content += "#pragma once\n\nnamespace bolt {\n    // Class declarations here\n}\n";
+        }
+        
+        strncpy(code_buffer_, sample_content.c_str(), sizeof(code_buffer_) - 1);
+        code_buffer_[sizeof(code_buffer_) - 1] = '\0';
+        
+        AddChatMessage("Assistant", "📝 Created new file: " + filename, false);
     }
-    
-    // Update code buffer with file content
-    strncpy(code_buffer_, sample_content.c_str(), sizeof(code_buffer_) - 1);
-    code_buffer_[sizeof(code_buffer_) - 1] = '\0';
-    
-    AddChatMessage("Assistant", "📁 Opened file: " + filename, false);
 }
 
 void BoltGuiApp::HandleKeyboardShortcuts() {

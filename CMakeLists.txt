@@ -100,6 +100,9 @@ endif()
 set(LLAMA_AVAILABLE FALSE)
 message(WARNING "llama.cpp disabled - direct GGUF inference may be disabled")
 
+# Option to build shared library for packaging
+option(BUILD_SHARED_LIBS "Build shared libraries" OFF)
+
 # Main library - core components for DrawKern
 add_library(bolt_lib
     # Core components
@@ -180,6 +183,14 @@ add_library(bolt_lib
     src/bolt/network/network_buffer.cpp
     src/bolt/network/network_metrics.cpp
 )
+
+# Set library type based on BUILD_SHARED_LIBS option
+if(BUILD_SHARED_LIBS)
+    set_target_properties(bolt_lib PROPERTIES
+        VERSION 1.0.0
+        SOVERSION 1
+    )
+endif()
 
 # Always include core AI features
 target_sources(bolt_lib PRIVATE

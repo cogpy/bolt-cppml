@@ -27,7 +27,8 @@ jobs:
         mkdir build
         cd build
         cmake -DCMAKE_TOOLCHAIN_FILE=..\vcpkg_tool\scripts\buildsystems\vcpkg.cmake `
-              -DCMAKE_BUILD_TYPE=Release ..
+              -DCMAKE_BUILD_TYPE=Release `
+              -DBUILD_SHARED_LIBS=ON ..
         cmake --build . --config Release
     
     - name: Create Chocolatey package
@@ -41,7 +42,14 @@ jobs:
         
         # Copy binaries
         Copy-Item "build\Release\bolt.exe" "choco-package\bin\"
-        Copy-Item "build\Release\bolt_lib.dll" "choco-package\bin\"
+        if (Test-Path "build\Release\bolt_lib.dll") {
+            Copy-Item "build\Release\bolt_lib.dll" "choco-package\bin\"
+        }
+        
+        # Copy GGML DLLs if they exist
+        if (Test-Path "build\ggml\ggml.cpp\src\Release\ggml*.dll") {
+            Copy-Item "build\ggml\ggml.cpp\src\Release\ggml*.dll" "choco-package\bin\"
+        }
         
         # Create nuspec file
         @"
