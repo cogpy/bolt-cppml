@@ -96,9 +96,34 @@ else()
     message(WARNING "GGML not found - AI functionality will be simulated")
 endif()
 
-# Add llama.cpp as subdirectory (conditional) - disabled due to build issues
-set(LLAMA_AVAILABLE FALSE)
-message(WARNING "llama.cpp disabled - direct GGUF inference may be disabled")
+# Add llama.cpp as subdirectory (conditional)
+# Note: Currently disabled by default due to GGML API version incompatibility
+# The llama.cpp submodule requires newer GGML APIs not present in ggml.cpp submodule
+option(ENABLE_LLAMA_CPP "Enable llama.cpp integration" OFF)
+
+if(ENABLE_LLAMA_CPP AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/ggml/llama.cpp/CMakeLists.txt")
+    message(STATUS "Configuring llama.cpp integration...")
+    
+    # Configure llama.cpp build options
+    set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+    set(LLAMA_CURL OFF CACHE BOOL "" FORCE)
+    set(LLAMA_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+    set(LLAMA_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+    set(LLAMA_BUILD_SERVER OFF CACHE BOOL "" FORCE)
+    
+    # Add llama.cpp subdirectory
+    add_subdirectory(ggml/llama.cpp EXCLUDE_FROM_ALL)
+    
+    set(LLAMA_AVAILABLE TRUE)
+    message(STATUS "llama.cpp integration enabled")
+else()
+    set(LLAMA_AVAILABLE FALSE)
+    if(ENABLE_LLAMA_CPP)
+        message(WARNING "llama.cpp enabled but not found at ggml/llama.cpp - direct GGUF inference will be disabled")
+    else()
+        message(STATUS "llama.cpp disabled - direct GGUF inference will be disabled")
+    endif()
+endif()
 
 # Option to build shared library for packaging
 option(BUILD_SHARED_LIBS "Build shared libraries" OFF)
@@ -141,11 +166,11 @@ add_library(bolt_lib
     src/bolt/editor/tab_bar.cpp
     src/bolt/editor/debugger_interface.cpp
     src/bolt/editor/debugger_ui.cpp
-    # LSP components (temporarily disabled due to build issues)
-    # src/bolt/editor/lsp_json_rpc.cpp
-    # src/bolt/editor/lsp_server.cpp
-    # src/bolt/editor/lsp_client.cpp
-    # src/bolt/editor/lsp_plugin_adapter.cpp
+    # LSP components
+    src/bolt/editor/lsp_json_rpc.cpp
+    src/bolt/editor/lsp_server.cpp
+    src/bolt/editor/lsp_client.cpp
+    src/bolt/editor/lsp_plugin_adapter.cpp
     # AI components (conditional)
     src/bolt/ai/ggml.cpp
     src/bolt/ai/rwkv_wrapper.cpp

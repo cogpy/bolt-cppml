@@ -43,36 +43,9 @@ struct InitializeResult {
     ServerCapabilities capabilities;
 };
 
-// LSP Text Document Item
-struct TextDocumentItem {
-    std::string uri;
-    std::string languageId;
-    int version;
-    std::string text;
-};
-
-// LSP Text Document Identifier
-struct TextDocumentIdentifier {
-    std::string uri;
-};
-
-// LSP Versioned Text Document Identifier
-struct VersionedTextDocumentIdentifier : public TextDocumentIdentifier {
-    int version;
-};
-
-// LSP Text Document Position Params
-struct TextDocumentPositionParams {
-    TextDocumentIdentifier textDocument;
-    Position position;
-};
-
-// LSP Text Document Content Change Event
-struct TextDocumentContentChangeEvent {
-    std::optional<Range> range;
-    std::optional<int> rangeLength;
-    std::string text;
-};
+// Note: TextDocumentItem, TextDocumentIdentifier, VersionedTextDocumentIdentifier,
+// TextDocumentPositionParams, and TextDocumentContentChangeEvent are now defined
+// in lsp_protocol.hpp to avoid duplication
 
 // LSP Language Server
 class LanguageServer {

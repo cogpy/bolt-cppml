@@ -158,6 +158,54 @@ struct FormattingOptions {
     std::map<std::string, std::string> additional;
 };
 
+// LSP Text Document Identifier
+struct TextDocumentIdentifier {
+    std::string uri;
+    
+    TextDocumentIdentifier() = default;
+    TextDocumentIdentifier(const std::string& u) : uri(u) {}
+};
+
+// LSP Versioned Text Document Identifier
+struct VersionedTextDocumentIdentifier : public TextDocumentIdentifier {
+    int version;
+    
+    VersionedTextDocumentIdentifier() : version(0) {}
+    VersionedTextDocumentIdentifier(const std::string& u, int v) : TextDocumentIdentifier(u), version(v) {}
+};
+
+// LSP Text Document Item
+struct TextDocumentItem {
+    std::string uri;
+    std::string languageId;
+    int version;
+    std::string text;
+    
+    TextDocumentItem() : version(0) {}
+    TextDocumentItem(const std::string& u, const std::string& lang, int v, const std::string& t)
+        : uri(u), languageId(lang), version(v), text(t) {}
+};
+
+// LSP Text Document Content Change Event
+struct TextDocumentContentChangeEvent {
+    std::optional<Range> range;
+    std::optional<size_t> rangeLength;
+    std::string text;
+    
+    TextDocumentContentChangeEvent() = default;
+    TextDocumentContentChangeEvent(const std::string& t) : text(t) {}
+};
+
+// LSP Text Document Position Params
+struct TextDocumentPositionParams {
+    TextDocumentIdentifier textDocument;
+    Position position;
+    
+    TextDocumentPositionParams() = default;
+    TextDocumentPositionParams(const TextDocumentIdentifier& doc, const Position& pos)
+        : textDocument(doc), position(pos) {}
+};
+
 } // namespace lsp
 } // namespace bolt
 
