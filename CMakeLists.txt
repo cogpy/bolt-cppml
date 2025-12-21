@@ -165,21 +165,15 @@ add_library(bolt_lib
     src/bolt/editor/lsp_client.cpp
     src/bolt/editor/lsp_plugin_adapter.cpp
     src/bolt/editor/lsp_server_configs.cpp
-    # AI components (conditional)
-    src/bolt/ai/ggml.cpp
-    src/bolt/ai/rwkv_wrapper.cpp
-    src/bolt/ai/gguf_loader.cpp
-    src/bolt/ai/ggml_loader.cpp
-    src/bolt/ai/model_loader.cpp
-    src/bolt/ai/bpe_tokenizer.cpp
-    src/bolt/ai/direct_gguf_inference.cpp
-    src/bolt/ai/gpu_acceleration.cpp
+    src/bolt/editor/lsp_editor_bridge.cpp
+    # AI components are added conditionally below based on ENABLE_LLAMA_CPP
     # GUI components
     src/bolt/gui/bolt_gui_app.cpp
     src/bolt/gui/widget_framework.cpp
     src/bolt/gui/widgets.cpp
     src/bolt/gui/widget_registration.cpp
     src/bolt/gui/dark_theme.cpp
+    src/bolt/gui/lsp_ui_components.cpp
     # DrawKern components
     src/bolt/drawkern/drawkern.cpp
     src/bolt/drawkern/styx_protocol.cpp
@@ -220,6 +214,21 @@ target_sources(bolt_lib PRIVATE
     src/bolt/ai/ai_refactoring_engine.cpp
     src/bolt/ai/ai_http_client.cpp
 )
+
+# Add GGML-dependent AI components only when llama.cpp is enabled
+if(ENABLE_LLAMA_CPP)
+    target_sources(bolt_lib PRIVATE
+        src/bolt/ai/ggml.cpp
+        src/bolt/ai/rwkv_wrapper.cpp
+        src/bolt/ai/gguf_loader.cpp
+        src/bolt/ai/ggml_loader.cpp
+        src/bolt/ai/model_loader.cpp
+        src/bolt/ai/bpe_tokenizer.cpp
+        src/bolt/ai/direct_gguf_inference.cpp
+        src/bolt/ai/gpu_acceleration.cpp
+    )
+    target_compile_definitions(bolt_lib PUBLIC BOLT_HAVE_GGML=1)
+endif()
 
 # Add HTTP client compile definitions only if CURL and JSONCPP are available
 if(HAVE_CURL AND HAVE_JSONCPP)
@@ -427,6 +436,10 @@ add_executable(demo_lsp_editor_integration demo_lsp_editor_integration.cpp)
 # External LSP Integration Demo (tests real language servers)
 add_executable(demo_external_lsp demo_external_lsp.cpp)
 target_link_libraries(demo_external_lsp PRIVATE bolt_lib)
+
+# LSP UI Integration Demo (tests ImGui components for LSP)
+add_executable(demo_lsp_ui_integration demo_lsp_ui_integration.cpp)
+target_link_libraries(demo_lsp_ui_integration PRIVATE bolt_lib)
 
 # Network Optimizations Demo
 add_executable(demo_network_optimizations demo_network_optimizations.cpp)
