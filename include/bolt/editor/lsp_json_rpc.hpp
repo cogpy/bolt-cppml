@@ -75,9 +75,11 @@ private:
     
 public:
     JsonValue() : type_(Null) {}
+    explicit JsonValue(Type type) : type_(type) {}  // Explicit type constructor
     JsonValue(const std::string& value) : type_(String), stringValue_(value) {}
     JsonValue(const char* value) : type_(String), stringValue_(value) {}  // Prevent implicit bool conversion
     JsonValue(double value) : type_(Number), numberValue_(value) {}
+    explicit JsonValue(int value) : type_(Number), numberValue_(static_cast<double>(value)) {}  // Explicit int constructor
     JsonValue(bool value) : type_(Bool), boolValue_(value) {}
     
     Type getType() const { return type_; }

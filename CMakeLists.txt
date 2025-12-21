@@ -441,6 +441,9 @@ target_link_libraries(demo_external_lsp PRIVATE bolt_lib)
 add_executable(demo_lsp_ui_integration demo_lsp_ui_integration.cpp)
 target_link_libraries(demo_lsp_ui_integration PRIVATE bolt_lib)
 
+add_executable(demo_advanced_lsp demo_advanced_lsp.cpp)
+target_link_libraries(demo_advanced_lsp PRIVATE bolt_lib)
+
 # Network Optimizations Demo
 add_executable(demo_network_optimizations demo_network_optimizations.cpp)
 target_link_libraries(demo_network_optimizations PRIVATE bolt_lib)

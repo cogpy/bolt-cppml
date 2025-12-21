@@ -431,6 +431,107 @@ void LspClient::hover(const TextDocumentPositionParams& params,
     });
 }
 
+void LspClient::definition(const TextDocumentPositionParams& params,
+                          std::function<void(const std::vector<Location>&)> callback) {
+    auto jsonParams = textDocumentPositionParamsToJson(params);
+    
+    sendRequest("textDocument/definition", jsonParams, [this, callback](std::shared_ptr<JsonValue> result) {
+        if (callback) {
+            std::vector<Location> locations;
+            if (result) {
+                if (result->getType() == JsonValue::Array) {
+                    // Array of locations
+                    for (size_t i = 0; i < result->getArraySize(); ++i) {
+                        auto locJson = result->getArrayElement(i);
+                        if (locJson) {
+                            locations.push_back(jsonToLocation(locJson));
+                        }
+                    }
+                } else if (result->getType() == JsonValue::Object) {
+                    // Single location
+                    locations.push_back(jsonToLocation(result));
+                }
+            }
+            callback(locations);
+        }
+    });
+}
+
+void LspClient::references(const TextDocumentPositionParams& params,
+                          std::function<void(const std::vector<Location>&)> callback) {
+    // Create params with context (includeDeclaration)
+    auto jsonParams = std::make_shared<JsonValue>(JsonValue::Object);
+    jsonParams->setProperty("textDocument", textDocumentIdentifierToJson(params.textDocument));
+    
+    auto positionJson = std::make_shared<JsonValue>(JsonValue::Object);
+    positionJson->setProperty("line", std::make_shared<JsonValue>(static_cast<double>(params.position.line)));
+    positionJson->setProperty("character", std::make_shared<JsonValue>(static_cast<double>(params.position.character)));
+    jsonParams->setProperty("position", positionJson);
+    
+    // Add context with includeDeclaration
+    auto contextJson = std::make_shared<JsonValue>(JsonValue::Object);
+    contextJson->setProperty("includeDeclaration", std::make_shared<JsonValue>(true));
+    jsonParams->setProperty("context", contextJson);
+    
+    sendRequest("textDocument/references", jsonParams, [this, callback](std::shared_ptr<JsonValue> result) {
+        if (callback) {
+            std::vector<Location> locations;
+            if (result && result->getType() == JsonValue::Array) {
+                for (size_t i = 0; i < result->getArraySize(); ++i) {
+                    auto locJson = result->getArrayElement(i);
+                    if (locJson) {
+                        locations.push_back(jsonToLocation(locJson));
+                    }
+                }
+            }
+            callback(locations);
+        }
+    });
+}
+
+void LspClient::documentSymbol(const TextDocumentIdentifier& document,
+                              std::function<void(const std::vector<DocumentSymbol>&)> callback) {
+    auto jsonParams = std::make_shared<JsonValue>(JsonValue::Object);
+    jsonParams->setProperty("textDocument", textDocumentIdentifierToJson(document));
+    
+    sendRequest("textDocument/documentSymbol", jsonParams, [this, callback](std::shared_ptr<JsonValue> result) {
+        if (callback) {
+            std::vector<DocumentSymbol> symbols;
+            if (result && result->getType() == JsonValue::Array) {
+                for (size_t i = 0; i < result->getArraySize(); ++i) {
+                    auto symJson = result->getArrayElement(i);
+                    if (symJson) {
+                        symbols.push_back(jsonToDocumentSymbol(symJson));
+                    }
+                }
+            }
+            callback(symbols);
+        }
+    });
+}
+
+void LspClient::formatting(const TextDocumentIdentifier& document, const FormattingOptions& options,
+                          std::function<void(const std::vector<TextEdit>&)> callback) {
+    auto jsonParams = std::make_shared<JsonValue>(JsonValue::Object);
+    jsonParams->setProperty("textDocument", textDocumentIdentifierToJson(document));
+    jsonParams->setProperty("options", formattingOptionsToJson(options));
+    
+    sendRequest("textDocument/formatting", jsonParams, [this, callback](std::shared_ptr<JsonValue> result) {
+        if (callback) {
+            std::vector<TextEdit> edits;
+            if (result && result->getType() == JsonValue::Array) {
+                for (size_t i = 0; i < result->getArraySize(); ++i) {
+                    auto editJson = result->getArrayElement(i);
+                    if (editJson) {
+                        edits.push_back(jsonToTextEdit(editJson));
+                    }
+                }
+            }
+            callback(edits);
+        }
+    });
+}
+
 // Synchronous versions (simplified implementations)
 CompletionList LspClient::completionSync(const TextDocumentPositionParams& params, int timeoutMs) {
     // In a real implementation, this would wait for the async response with timeout
@@ -608,24 +709,101 @@ Hover LspClient::jsonToHover(std::shared_ptr<JsonValue> json) {
     return result;
 }
 
-Location LspClient::jsonToLocation(std::shared_ptr<JsonValue> json) {
-    return Location(); // Basic implementation
-}
-
-DocumentSymbol LspClient::jsonToDocumentSymbol(std::shared_ptr<JsonValue> json) {
-    return DocumentSymbol(); // Basic implementation
-}
-
-TextEdit LspClient::jsonToTextEdit(std::shared_ptr<JsonValue> json) {
-    return TextEdit(); // Basic implementation
-}
-
 Position LspClient::jsonToPosition(std::shared_ptr<JsonValue> json) {
-    return Position(); // Basic implementation
+    Position pos;
+    if (json && json->getType() == JsonValue::Object) {
+        auto line = json->getProperty("line");
+        auto character = json->getProperty("character");
+        if (line && line->getType() == JsonValue::Number) {
+            pos.line = static_cast<size_t>(line->asNumber());
+        }
+        if (character && character->getType() == JsonValue::Number) {
+            pos.character = static_cast<size_t>(character->asNumber());
+        }
+    }
+    return pos;
 }
 
 Range LspClient::jsonToRange(std::shared_ptr<JsonValue> json) {
-    return Range(); // Basic implementation
+    Range range;
+    if (json && json->getType() == JsonValue::Object) {
+        auto start = json->getProperty("start");
+        auto end = json->getProperty("end");
+        if (start) {
+            range.start = jsonToPosition(start);
+        }
+        if (end) {
+            range.end = jsonToPosition(end);
+        }
+    }
+    return range;
+}
+
+Location LspClient::jsonToLocation(std::shared_ptr<JsonValue> json) {
+    Location loc;
+    if (json && json->getType() == JsonValue::Object) {
+        auto uri = json->getProperty("uri");
+        auto range = json->getProperty("range");
+        if (uri && uri->getType() == JsonValue::String) {
+            loc.uri = uri->asString();
+        }
+        if (range) {
+            loc.range = jsonToRange(range);
+        }
+    }
+    return loc;
+}
+
+DocumentSymbol LspClient::jsonToDocumentSymbol(std::shared_ptr<JsonValue> json) {
+    DocumentSymbol symbol;
+    if (json && json->getType() == JsonValue::Object) {
+        auto name = json->getProperty("name");
+        auto detail = json->getProperty("detail");
+        auto kind = json->getProperty("kind");
+        auto range = json->getProperty("range");
+        auto selectionRange = json->getProperty("selectionRange");
+        auto children = json->getProperty("children");
+        
+        if (name && name->getType() == JsonValue::String) {
+            symbol.name = name->asString();
+        }
+        if (detail && detail->getType() == JsonValue::String) {
+            symbol.detail = detail->asString();
+        }
+        if (kind && kind->getType() == JsonValue::Number) {
+            symbol.kind = static_cast<SymbolKind>(static_cast<int>(kind->asNumber()));
+        }
+        if (range) {
+            symbol.range = jsonToRange(range);
+        }
+        if (selectionRange) {
+            symbol.selectionRange = jsonToRange(selectionRange);
+        }
+        if (children && children->getType() == JsonValue::Array) {
+            for (size_t i = 0; i < children->getArraySize(); ++i) {
+                auto childJson = children->getArrayElement(i);
+                if (childJson) {
+                    symbol.children.push_back(jsonToDocumentSymbol(childJson));
+                }
+            }
+        }
+    }
+    return symbol;
+}
+
+TextEdit LspClient::jsonToTextEdit(std::shared_ptr<JsonValue> json) {
+    TextEdit edit;
+    if (json && json->getType() == JsonValue::Object) {
+        auto range = json->getProperty("range");
+        auto newText = json->getProperty("newText");
+        if (range) {
+            edit.range = jsonToRange(range);
+        }
+        if (newText && newText->getType() == JsonValue::String) {
+            edit.newText = newText->asString();
+        }
+    }
+    return edit;
 }
 
 // LspClientManager implementation

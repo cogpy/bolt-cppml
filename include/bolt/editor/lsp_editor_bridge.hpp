@@ -70,6 +70,62 @@ struct EditorHoverInfo {
 };
 
 /**
+ * @brief Location result for go-to-definition and find references
+ */
+struct EditorLocation {
+    std::string filePath;
+    size_t line;
+    size_t column;
+    size_t endLine;
+    size_t endColumn;
+};
+
+/**
+ * @brief Document symbol for outline view
+ */
+struct EditorSymbol {
+    std::string name;
+    std::string detail;
+    std::string kind;  // "function", "class", "variable", etc.
+    size_t line;
+    size_t column;
+    size_t endLine;
+    size_t endColumn;
+    std::vector<EditorSymbol> children;
+};
+
+/**
+ * @brief Text edit for formatting
+ */
+struct EditorTextEdit {
+    size_t startLine;
+    size_t startColumn;
+    size_t endLine;
+    size_t endColumn;
+    std::string newText;
+};
+
+/**
+ * @brief State for definition/references results
+ */
+struct LocationResultState {
+    bool isVisible = false;
+    std::vector<EditorLocation> locations;
+    int selectedIndex = 0;
+    std::string requestType;  // "definition" or "references"
+};
+
+/**
+ * @brief State for document symbols (outline)
+ */
+struct SymbolOutlineState {
+    bool isVisible = false;
+    std::vector<EditorSymbol> symbols;
+    int selectedIndex = 0;
+    std::string filterText;
+};
+
+/**
  * @brief State of the completion popup
  */
 struct CompletionPopupState {
@@ -209,6 +265,111 @@ public:
      */
     void dismissHover();
     
+    // Go-to-Definition
+    
+    /**
+     * @brief Request definition at a position (Ctrl+Click or F12)
+     * @param filePath Full path to the file
+     * @param line Line number (0-indexed)
+     * @param column Column number (0-indexed)
+     */
+    void requestDefinition(const std::string& filePath, size_t line, size_t column);
+    
+    /**
+     * @brief Get current definition result state
+     */
+    LocationResultState& getDefinitionState() { return definitionState_; }
+    const LocationResultState& getDefinitionState() const { return definitionState_; }
+    
+    /**
+     * @brief Navigate to the selected definition
+     * @return The location to navigate to, or nullopt if none selected
+     */
+    std::optional<EditorLocation> acceptDefinition();
+    
+    /**
+     * @brief Dismiss the definition results
+     */
+    void dismissDefinition();
+    
+    // Find References
+    
+    /**
+     * @brief Request all references at a position (Shift+F12)
+     * @param filePath Full path to the file
+     * @param line Line number (0-indexed)
+     * @param column Column number (0-indexed)
+     */
+    void requestReferences(const std::string& filePath, size_t line, size_t column);
+    
+    /**
+     * @brief Get current references result state
+     */
+    LocationResultState& getReferencesState() { return referencesState_; }
+    const LocationResultState& getReferencesState() const { return referencesState_; }
+    
+    /**
+     * @brief Navigate to the selected reference
+     * @return The location to navigate to, or nullopt if none selected
+     */
+    std::optional<EditorLocation> acceptReference();
+    
+    /**
+     * @brief Dismiss the references results
+     */
+    void dismissReferences();
+    
+    // Document Symbols (Outline)
+    
+    /**
+     * @brief Request document symbols for outline view (Ctrl+Shift+O)
+     * @param filePath Full path to the file
+     */
+    void requestDocumentSymbols(const std::string& filePath);
+    
+    /**
+     * @brief Get current symbol outline state
+     */
+    SymbolOutlineState& getSymbolOutlineState() { return symbolOutlineState_; }
+    const SymbolOutlineState& getSymbolOutlineState() const { return symbolOutlineState_; }
+    
+    /**
+     * @brief Navigate to the selected symbol
+     * @return The location to navigate to, or nullopt if none selected
+     */
+    std::optional<EditorLocation> acceptSymbol();
+    
+    /**
+     * @brief Dismiss the symbol outline
+     */
+    void dismissSymbolOutline();
+    
+    /**
+     * @brief Filter symbols by name
+     */
+    void filterSymbols(const std::string& filter);
+    
+    // Code Formatting
+    
+    /**
+     * @brief Request document formatting (Shift+Alt+F)
+     * @param filePath Full path to the file
+     * @param tabSize Tab size for formatting
+     * @param insertSpaces Use spaces instead of tabs
+     */
+    void requestFormatting(const std::string& filePath, size_t tabSize = 4, bool insertSpaces = true);
+    
+    /**
+     * @brief Get pending formatting edits
+     * @return Vector of text edits to apply
+     */
+    std::vector<EditorTextEdit> getFormattingEdits();
+    
+    /**
+     * @brief Check if formatting is pending
+     */
+    bool hasFormattingPending() const { return formattingPending_.load(); }
+    
     // Diagnostics
     
     /**
@@ -285,6 +446,27 @@ private:
     HoverTooltipState hoverState_;
     std::mutex hoverMutex_;
     std::atomic<bool> hoverPending_{false};
+    
+    // Definition state
+    LocationResultState definitionState_;
+    std::mutex definitionMutex_;
+    std::atomic<bool> definitionPending_{false};
+    
+    // References state
+    LocationResultState referencesState_;
+    std::mutex referencesMutex_;
+    std::atomic<bool> referencesPending_{false};
+    
+    // Symbol outline state
+    SymbolOutlineState symbolOutlineState_;
+    std::vector<EditorSymbol> allSymbols_;  // Unfiltered symbols
+    std::mutex symbolsMutex_;
+    std::atomic<bool> symbolsPending_{false};
+    
+    // Formatting state
+    std::vector<EditorTextEdit> formattingEdits_;
+    std::mutex formattingMutex_;
+    std::atomic<bool> formattingPending_{false};
     
     // Diagnostics callback
     DiagnosticsCallback diagnosticsCallback_;

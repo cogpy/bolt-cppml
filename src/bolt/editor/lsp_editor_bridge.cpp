@@ -546,5 +546,335 @@ EditorDiagnostic LspEditorBridge::convertDiagnostic(std::shared_ptr<JsonValue> d
     return result;
 }
 
+// ============================================================================
+// Go-to-Definition Implementation
+// ============================================================================
+
+void LspEditorBridge::requestDefinition(const std::string& filePath, size_t line, size_t column) {
+    if (!initialized_) return;
+    
+    std::string langId;
+    {
+        std::lock_guard<std::mutex> lock(documentsMutex_);
+        auto it = openDocuments_.find(filePath);
+        if (it == openDocuments_.end()) return;
+        langId = it->second.languageId;
+    }
+    
+    auto* client = getClientForLanguage(langId);
+    if (!client || !client->isConnected()) return;
+    
+    definitionPending_ = true;
+    
+    TextDocumentPositionParams params;
+    params.textDocument.uri = pathToUri(filePath);
+    params.position.line = line;
+    params.position.character = column;
+    
+    client->definition(params, [this](const std::vector<Location>& locations) {
+        std::lock_guard<std::mutex> lock(definitionMutex_);
+        
+        definitionState_.locations.clear();
+        for (const auto& loc : locations) {
+            EditorLocation editorLoc;
+            editorLoc.filePath = uriToPath(loc.uri);
+            editorLoc.line = loc.range.start.line;
+            editorLoc.column = loc.range.start.character;
+            editorLoc.endLine = loc.range.end.line;
+            editorLoc.endColumn = loc.range.end.character;
+            definitionState_.locations.push_back(editorLoc);
+        }
+        
+        definitionState_.isVisible = !definitionState_.locations.empty();
+        definitionState_.selectedIndex = 0;
+        definitionState_.requestType = "definition";
+        definitionPending_ = false;
+    });
+}
+
+std::optional<EditorLocation> LspEditorBridge::acceptDefinition() {
+    std::lock_guard<std::mutex> lock(definitionMutex_);
+    
+    if (!definitionState_.isVisible || definitionState_.locations.empty()) {
+        return std::nullopt;
+    }
+    
+    EditorLocation result = definitionState_.locations[definitionState_.selectedIndex];
+    dismissDefinition();
+    return result;
+}
+
+void LspEditorBridge::dismissDefinition() {
+    std::lock_guard<std::mutex> lock(definitionMutex_);
+    definitionState_.isVisible = false;
+    definitionState_.locations.clear();
+    definitionState_.selectedIndex = 0;
+}
+
+// ============================================================================
+// Find References Implementation
+// ============================================================================
+
+void LspEditorBridge::requestReferences(const std::string& filePath, size_t line, size_t column) {
+    if (!initialized_) return;
+    
+    std::string langId;
+    {
+        std::lock_guard<std::mutex> lock(documentsMutex_);
+        auto it = openDocuments_.find(filePath);
+        if (it == openDocuments_.end()) return;
+        langId = it->second.languageId;
+    }
+    
+    auto* client = getClientForLanguage(langId);
+    if (!client || !client->isConnected()) return;
+    
+    referencesPending_ = true;
+    
+    TextDocumentPositionParams params;
+    params.textDocument.uri = pathToUri(filePath);
+    params.position.line = line;
+    params.position.character = column;
+    
+    client->references(params, [this](const std::vector<Location>& locations) {
+        std::lock_guard<std::mutex> lock(referencesMutex_);
+        
+        referencesState_.locations.clear();
+        for (const auto& loc : locations) {
+            EditorLocation editorLoc;
+            editorLoc.filePath = uriToPath(loc.uri);
+            editorLoc.line = loc.range.start.line;
+            editorLoc.column = loc.range.start.character;
+            editorLoc.endLine = loc.range.end.line;
+            editorLoc.endColumn = loc.range.end.character;
+            referencesState_.locations.push_back(editorLoc);
+        }
+        
+        referencesState_.isVisible = !referencesState_.locations.empty();
+        referencesState_.selectedIndex = 0;
+        referencesState_.requestType = "references";
+        referencesPending_ = false;
+    });
+}
+
+std::optional<EditorLocation> LspEditorBridge::acceptReference() {
+    std::lock_guard<std::mutex> lock(referencesMutex_);
+    
+    if (!referencesState_.isVisible || referencesState_.locations.empty()) {
+        return std::nullopt;
+    }
+    
+    EditorLocation result = referencesState_.locations[referencesState_.selectedIndex];
+    dismissReferences();
+    return result;
+}
+
+void LspEditorBridge::dismissReferences() {
+    std::lock_guard<std::mutex> lock(referencesMutex_);
+    referencesState_.isVisible = false;
+    referencesState_.locations.clear();
+    referencesState_.selectedIndex = 0;
+}
+
+// ============================================================================
+// Document Symbols Implementation
+// ============================================================================
+
+static std::string symbolKindToString(SymbolKind kind) {
+    switch (kind) {
+        case SymbolKind::File: return "file";
+        case SymbolKind::Module: return "module";
+        case SymbolKind::Namespace: return "namespace";
+        case SymbolKind::Package: return "package";
+        case SymbolKind::Class: return "class";
+        case SymbolKind::Method: return "method";
+        case SymbolKind::Property: return "property";
+        case SymbolKind::Field: return "field";
+        case SymbolKind::Constructor: return "constructor";
+        case SymbolKind::Enum: return "enum";
+        case SymbolKind::Interface: return "interface";
+        case SymbolKind::Function: return "function";
+        case SymbolKind::Variable: return "variable";
+        case SymbolKind::Constant: return "constant";
+        case SymbolKind::String: return "string";
+        case SymbolKind::Number: return "number";
+        case SymbolKind::Boolean: return "boolean";
+        case SymbolKind::Array: return "array";
+        default: return "unknown";
+    }
+}
+
+static EditorSymbol convertDocumentSymbol(const DocumentSymbol& sym) {
+    EditorSymbol result;
+    result.name = sym.name;
+    result.detail = sym.detail.value_or("");
+    result.kind = symbolKindToString(sym.kind);
+    result.line = sym.selectionRange.start.line;
+    result.column = sym.selectionRange.start.character;
+    result.endLine = sym.range.end.line;
+    result.endColumn = sym.range.end.character;
+    
+    for (const auto& child : sym.children) {
+        result.children.push_back(convertDocumentSymbol(child));
+    }
+    
+    return result;
+}
+
+void LspEditorBridge::requestDocumentSymbols(const std::string& filePath) {
+    if (!initialized_) return;
+    
+    std::string langId;
+    {
+        std::lock_guard<std::mutex> lock(documentsMutex_);
+        auto it = openDocuments_.find(filePath);
+        if (it == openDocuments_.end()) return;
+        langId = it->second.languageId;
+    }
+    
+    auto* client = getClientForLanguage(langId);
+    if (!client || !client->isConnected()) return;
+    
+    symbolsPending_ = true;
+    
+    TextDocumentIdentifier docId;
+    docId.uri = pathToUri(filePath);
+    
+    client->documentSymbol(docId, [this](const std::vector<DocumentSymbol>& symbols) {
+        std::lock_guard<std::mutex> lock(symbolsMutex_);
+        
+        allSymbols_.clear();
+        symbolOutlineState_.symbols.clear();
+        
+        for (const auto& sym : symbols) {
+            EditorSymbol editorSym = convertDocumentSymbol(sym);
+            allSymbols_.push_back(editorSym);
+            symbolOutlineState_.symbols.push_back(editorSym);
+        }
+        
+        symbolOutlineState_.isVisible = !symbolOutlineState_.symbols.empty();
+        symbolOutlineState_.selectedIndex = 0;
+        symbolOutlineState_.filterText = "";
+        symbolsPending_ = false;
+    });
+}
+
+std::optional<EditorLocation> LspEditorBridge::acceptSymbol() {
+    std::lock_guard<std::mutex> lock(symbolsMutex_);
+    
+    if (!symbolOutlineState_.isVisible || symbolOutlineState_.symbols.empty()) {
+        return std::nullopt;
+    }
+    
+    const auto& sym = symbolOutlineState_.symbols[symbolOutlineState_.selectedIndex];
+    EditorLocation result;
+    result.filePath = "";  // Same file
+    result.line = sym.line;
+    result.column = sym.column;
+    result.endLine = sym.endLine;
+    result.endColumn = sym.endColumn;
+    
+    dismissSymbolOutline();
+    return result;
+}
+
+void LspEditorBridge::dismissSymbolOutline() {
+    std::lock_guard<std::mutex> lock(symbolsMutex_);
+    symbolOutlineState_.isVisible = false;
+    symbolOutlineState_.symbols.clear();
+    symbolOutlineState_.selectedIndex = 0;
+    symbolOutlineState_.filterText = "";
+}
+
+static bool symbolMatchesFilter(const EditorSymbol& sym, const std::string& filter) {
+    // Case-insensitive substring match
+    std::string lowerName = sym.name;
+    std::string lowerFilter = filter;
+    std::transform(lowerName.begin(), lowerName.end(), lowerName.begin(), ::tolower);
+    std::transform(lowerFilter.begin(), lowerFilter.end(), lowerFilter.begin(), ::tolower);
+    return lowerName.find(lowerFilter) != std::string::npos;
+}
+
+static void collectMatchingSymbols(const std::vector<EditorSymbol>& symbols, 
+                                   const std::string& filter,
+                                   std::vector<EditorSymbol>& result) {
+    for (const auto& sym : symbols) {
+        if (symbolMatchesFilter(sym, filter)) {
+            result.push_back(sym);
+        }
+        // Also search children
+        collectMatchingSymbols(sym.children, filter, result);
+    }
+}
+
+void LspEditorBridge::filterSymbols(const std::string& filter) {
+    std::lock_guard<std::mutex> lock(symbolsMutex_);
+    
+    symbolOutlineState_.filterText = filter;
+    symbolOutlineState_.symbols.clear();
+    
+    if (filter.empty()) {
+        // Show all symbols
+        symbolOutlineState_.symbols = allSymbols_;
+    } else {
+        // Filter symbols
+        collectMatchingSymbols(allSymbols_, filter, symbolOutlineState_.symbols);
+    }
+    
+    symbolOutlineState_.selectedIndex = 0;
+}
+
+// ============================================================================
+// Code Formatting Implementation
+// ============================================================================
+
+void LspEditorBridge::requestFormatting(const std::string& filePath, size_t tabSize, bool insertSpaces) {
+    if (!initialized_) return;
+    
+    std::string langId;
+    {
+        std::lock_guard<std::mutex> lock(documentsMutex_);
+        auto it = openDocuments_.find(filePath);
+        if (it == openDocuments_.end()) return;
+        langId = it->second.languageId;
+    }
+    
+    auto* client = getClientForLanguage(langId);
+    if (!client || !client->isConnected()) return;
+    
+    formattingPending_ = true;
+    
+    TextDocumentIdentifier docId;
+    docId.uri = pathToUri(filePath);
+    
+    FormattingOptions options;
+    options.tabSize = tabSize;
+    options.insertSpaces = insertSpaces;
+    
+    client->formatting(docId, options, [this](const std::vector<TextEdit>& edits) {
+        std::lock_guard<std::mutex> lock(formattingMutex_);
+        
+        formattingEdits_.clear();
+        for (const auto& edit : edits) {
+            EditorTextEdit editorEdit;
+            editorEdit.startLine = edit.range.start.line;
+            editorEdit.startColumn = edit.range.start.character;
+            editorEdit.endLine = edit.range.end.line;
+            editorEdit.endColumn = edit.range.end.character;
+            editorEdit.newText = edit.newText;
+            formattingEdits_.push_back(editorEdit);
+        }
+        
+        formattingPending_ = false;
+    });
+}
+
+std::vector<EditorTextEdit> LspEditorBridge::getFormattingEdits() {
+    std::lock_guard<std::mutex> lock(formattingMutex_);
+    std::vector<EditorTextEdit> result = std::move(formattingEdits_);
+    formattingEdits_.clear();
+    return result;
+}
+
 } // namespace lsp
 } // namespace bolt
