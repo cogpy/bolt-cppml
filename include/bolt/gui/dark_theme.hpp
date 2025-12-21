@@ -19,6 +19,29 @@ void ApplyBoltDarkTheme();
  */
 void ApplyBoltLightTheme();
 
+/**
+ * Apply enhanced bolt.new/bolt.diy inspired dark theme
+ * Features:
+ * - Deep blue-gray charcoal backgrounds matching bolt.new
+ * - Signature bright blue accent color (#4a9eff)
+ * - Generous rounded corners and modern spacing
+ * - Professional, clean aesthetic
+ * - Optimized for AI IDE interface
+ */
+void ApplyEnhancedBoltDarkTheme();
+
+/**
+ * Apply bolt theme optimized for code editor
+ * Tighter spacing, less rounding, monospace-friendly
+ */
+void ApplyBoltCodeEditorTheme();
+
+/**
+ * Apply high contrast theme for accessibility
+ * Maximum contrast with black backgrounds and white text
+ */
+void ApplyBoltHighContrastTheme();
+
 } // namespace gui
 } // namespace bolt
 

@@ -173,6 +173,7 @@ add_library(bolt_lib
     src/bolt/gui/widgets.cpp
     src/bolt/gui/widget_registration.cpp
     src/bolt/gui/dark_theme.cpp
+    src/bolt/gui/enhanced_dark_theme.cpp
     src/bolt/gui/lsp_ui_components.cpp
     # DrawKern components
     src/bolt/drawkern/drawkern.cpp

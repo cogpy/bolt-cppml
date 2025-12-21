@@ -117,6 +117,11 @@ void BoltGuiApp::SetTheme(ThemeMode theme) {
 }
 
 void BoltGuiApp::ApplyDarkTheme() {
+    // Use the enhanced bolt.new-inspired theme
+    ApplyEnhancedBoltDarkTheme();
+    return;
+    
+    // Legacy theme code below (kept for reference)
     ImGuiStyle& style = ImGui::GetStyle();
     
     // Modern dark theme with AI/development focus

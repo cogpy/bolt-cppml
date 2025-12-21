@@ -39,7 +39,11 @@ jobs:
       run: |
         git clone https://github.com/microsoft/vcpkg.git vcpkg_tool
         ./vcpkg_tool/bootstrap-vcpkg.sh
-        ./vcpkg_tool/vcpkg install
+    
+    - name: Install dependencies via vcpkg
+      run: |
+        cd $GITHUB_WORKSPACE
+        ./vcpkg_tool/vcpkg install --triplet=x64-linux
     
     - name: Build project
       run: |

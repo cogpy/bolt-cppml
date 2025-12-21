@@ -1,4 +1,4 @@
-name: Debian Package Build
+name: Aptitude/APT Repository Package
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-deb:
+  build-apt-package:
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -36,7 +36,9 @@ jobs:
           git \
           debhelper \
           devscripts \
-          dh-make
+          dh-make \
+          reprepro \
+          gnupg
     
     - name: Install vcpkg
       run: |
@@ -58,11 +60,12 @@ jobs:
               -DBUILD_SHARED_LIBS=ON ..
         make -j$(nproc)
     
-    - name: Create Debian package structure
+    - name: Create Debian package
       run: |
         VERSION=$(git describe --tags --always | sed 's/^v//')
         PACKAGE_NAME="bolt-cppml"
         ARCH="amd64"
+        UBUNTU_VERSION="${{ matrix.ubuntu_version }}"
         
         mkdir -p debian-package/DEBIAN
         mkdir -p debian-package/usr/bin
@@ -77,9 +80,10 @@ jobs:
           cp build/libbolt_lib.so* debian-package/usr/lib/
         fi
         
-        # Copy GGML libraries if they exist
-        if [ -d build/ggml/ggml.cpp/src ]; then
-          cp build/ggml/ggml.cpp/src/libggml*.so* debian-package/usr/lib/ 2>/dev/null || true
+        # Copy GGML libraries
+        if [ -d build/bin ]; then
+          cp build/bin/libggml*.so* debian-package/usr/lib/ 2>/dev/null || true
+          cp build/bin/libllama*.so* debian-package/usr/lib/ 2>/dev/null || true
         fi
         
         # Create control file
@@ -99,8 +103,9 @@ jobs:
           - GGML integration for AI model inference
           - RWKV implementation for RNN capabilities
           - Multi-cursor support and syntax highlighting
-          - Integrated debugger
+          - Integrated debugger with breakpoints
           - WebSocket server for real-time collaboration
+          - Comprehensive ImGui dark-mode interface
         Homepage: https://github.com/cogpy/bolt-cppml
         EOF
         
@@ -134,15 +139,64 @@ jobs:
         if ls debian-package/usr/lib/libggml*.so* 1> /dev/null 2>&1; then
           chmod 644 debian-package/usr/lib/libggml*.so*
         fi
+        if ls debian-package/usr/lib/libllama*.so* 1> /dev/null 2>&1; then
+          chmod 644 debian-package/usr/lib/libllama*.so*
+        fi
         
         # Build .deb package
-        dpkg-deb --build debian-package ${PACKAGE_NAME}_${VERSION}_${ARCH}.deb
+        dpkg-deb --build debian-package ${PACKAGE_NAME}_${VERSION}_${ARCH}_ubuntu${UBUNTU_VERSION}.deb
+    
+    - name: Create APT repository structure
+      run: |
+        VERSION=$(git describe --tags --always | sed 's/^v//')
+        PACKAGE_NAME="bolt-cppml"
+        UBUNTU_VERSION="${{ matrix.ubuntu_version }}"
+        
+        mkdir -p apt-repo/conf
+        mkdir -p apt-repo/dists
+        mkdir -p apt-repo/pool/main
+        
+        # Create repository configuration
+        cat > apt-repo/conf/distributions << EOF
+        Origin: Bolt C++
+        Label: Bolt C++ Repository
+        Codename: ubuntu-${UBUNTU_VERSION}
+        Architectures: amd64
+        Components: main
+        Description: Bolt C++ IDE packages for Ubuntu ${UBUNTU_VERSION}
+        EOF
+        
+        # Copy .deb to pool
+        cp ${PACKAGE_NAME}_${VERSION}_${ARCH}_ubuntu${UBUNTU_VERSION}.deb apt-repo/pool/main/
+        
+        # Create Packages file
+        cd apt-repo
+        dpkg-scanpackages pool/main /dev/null | gzip -9c > dists/Packages.gz
+        
+        # Create Release file
+        cat > dists/Release << EOF
+        Origin: Bolt C++
+        Label: Bolt C++ Repository
+        Suite: ubuntu-${UBUNTU_VERSION}
+        Codename: ubuntu-${UBUNTU_VERSION}
+        Version: ${VERSION}
+        Architectures: amd64
+        Components: main
+        Description: Bolt C++ IDE packages for Ubuntu ${UBUNTU_VERSION}
+        Date: $(date -R)
+        EOF
     
     - name: Upload Debian package
       uses: actions/upload-artifact@v4
       with:
         name: debian-package-ubuntu-${{ matrix.ubuntu_version }}
         path: '*.deb'
+    
+    - name: Upload APT repository
+      uses: actions/upload-artifact@v4
+      with:
+        name: apt-repo-ubuntu-${{ matrix.ubuntu_version }}
+        path: 'apt-repo/**'
     
     - name: Create Release
       if: startsWith(github.ref, 'refs/tags/')
