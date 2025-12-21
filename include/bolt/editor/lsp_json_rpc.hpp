@@ -76,6 +76,7 @@ private:
 public:
     JsonValue() : type_(Null) {}
     JsonValue(const std::string& value) : type_(String), stringValue_(value) {}
+    JsonValue(const char* value) : type_(String), stringValue_(value) {}  // Prevent implicit bool conversion
     JsonValue(double value) : type_(Number), numberValue_(value) {}
     JsonValue(bool value) : type_(Bool), boolValue_(value) {}
     

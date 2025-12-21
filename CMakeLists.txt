@@ -164,6 +164,7 @@ add_library(bolt_lib
     src/bolt/editor/lsp_server.cpp
     src/bolt/editor/lsp_client.cpp
     src/bolt/editor/lsp_plugin_adapter.cpp
+    src/bolt/editor/lsp_server_configs.cpp
     # AI components (conditional)
     src/bolt/ai/ggml.cpp
     src/bolt/ai/rwkv_wrapper.cpp
@@ -422,6 +423,10 @@ add_executable(demo_lsp_integration demo_lsp_integration.cpp)
 # LSP Editor Integration Demo (standalone)
 add_executable(demo_lsp_editor_integration demo_lsp_editor_integration.cpp)
 # Using standalone version to avoid compilation issues
+
+# External LSP Integration Demo (tests real language servers)
+add_executable(demo_external_lsp demo_external_lsp.cpp)
+target_link_libraries(demo_external_lsp PRIVATE bolt_lib)
 
 # Network Optimizations Demo
 add_executable(demo_network_optimizations demo_network_optimizations.cpp)

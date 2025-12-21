@@ -1,6 +1,7 @@
 #include "bolt/editor/lsp_json_rpc.hpp"
 #include <sstream>
 #include <iostream>
+#include <json/json.h>
 
 namespace bolt {
 namespace lsp {
@@ -57,78 +58,64 @@ std::string JsonValue::toString() const {
     return "null";
 }
 
-std::shared_ptr<JsonValue> JsonValue::fromString(const std::string& json) {
-    // Very basic JSON parsing - in a real implementation, use a proper JSON library
+// Helper function to convert Json::Value to JsonValue
+static std::shared_ptr<JsonValue> convertFromJsonCpp(const Json::Value& jval) {
     auto value = std::make_shared<JsonValue>();
     
-    std::string trimmed = json;
-    // Remove whitespace
-    trimmed.erase(0, trimmed.find_first_not_of(" \t\n\r"));
-    trimmed.erase(trimmed.find_last_not_of(" \t\n\r") + 1);
-    
-    if (trimmed.empty() || trimmed == "null") {
+    if (jval.isNull()) {
         return value; // null
     }
     
-    if (trimmed == "true") {
-        value->setBool(true);
+    if (jval.isBool()) {
+        value->setBool(jval.asBool());
         return value;
     }
     
-    if (trimmed == "false") {
-        value->setBool(false);
+    if (jval.isInt() || jval.isInt64() || jval.isUInt() || jval.isUInt64() || jval.isDouble()) {
+        value->setNumber(jval.asDouble());
         return value;
     }
     
-    if (trimmed[0] == '"' && trimmed.back() == '"') {
-        // String
-        std::string str = trimmed.substr(1, trimmed.length() - 2);
-        // Basic unescaping
-        std::string unescaped;
-        for (size_t i = 0; i < str.length(); ++i) {
-            if (str[i] == '\\' && i + 1 < str.length()) {
-                switch (str[i + 1]) {
-                    case '"': unescaped += '"'; i++; break;
-                    case '\\': unescaped += '\\'; i++; break;
-                    case 'n': unescaped += '\n'; i++; break;
-                    case 'r': unescaped += '\r'; i++; break;
-                    case 't': unescaped += '\t'; i++; break;
-                    default: unescaped += str[i]; break;
-                }
-            } else {
-                unescaped += str[i];
-            }
-        }
-        value->setString(unescaped);
+    if (jval.isString()) {
+        value->setString(jval.asString());
         return value;
     }
     
-    if ((trimmed[0] >= '0' && trimmed[0] <= '9') || trimmed[0] == '-') {
-        // Number
-        try {
-            double num = std::stod(trimmed);
-            value->setNumber(num);
-            return value;
-        } catch (...) {
-            // Invalid number, return null
-        }
-    }
-    
-    if (trimmed[0] == '{') {
-        // Object - very basic parsing
-        value->setObject();
-        // In a real implementation, properly parse the object
-        return value;
-    }
-    
-    if (trimmed[0] == '[') {
-        // Array - very basic parsing
+    if (jval.isArray()) {
         value->setArray();
-        // In a real implementation, properly parse the array
+        for (Json::ArrayIndex i = 0; i < jval.size(); ++i) {
+            value->addArrayElement(convertFromJsonCpp(jval[i]));
+        }
         return value;
     }
     
-    return value; // null for invalid JSON
+    if (jval.isObject()) {
+        value->setObject();
+        for (const auto& key : jval.getMemberNames()) {
+            value->setProperty(key, convertFromJsonCpp(jval[key]));
+        }
+        return value;
+    }
+    
+    return value; // null for unknown types
+}
+
+std::shared_ptr<JsonValue> JsonValue::fromString(const std::string& json) {
+    if (json.empty()) {
+        return std::make_shared<JsonValue>();
+    }
+    
+    Json::Value root;
+    Json::CharReaderBuilder builder;
+    std::string errors;
+    std::istringstream stream(json);
+    
+    if (!Json::parseFromStream(builder, stream, &root, &errors)) {
+        // Parse error - return null
+        return std::make_shared<JsonValue>();
+    }
+    
+    return convertFromJsonCpp(root);
 }
 
 // JSON-RPC Handler implementation

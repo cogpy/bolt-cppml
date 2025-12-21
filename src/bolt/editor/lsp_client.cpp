@@ -311,8 +311,29 @@ bool LspClient::isConnected() const {
 void LspClient::initialize(std::function<void(bool)> callback) {
     auto params = std::make_shared<JsonValue>();
     params->setObject();
+    params->setProperty("processId", std::make_shared<JsonValue>(static_cast<double>(getpid())));
     params->setProperty("rootPath", std::make_shared<JsonValue>(config_.rootPath));
     params->setProperty("rootUri", std::make_shared<JsonValue>("file://" + config_.rootPath));
+    
+    // Add client capabilities
+    auto capabilities = std::make_shared<JsonValue>();
+    capabilities->setObject();
+    
+    auto textDocumentCapabilities = std::make_shared<JsonValue>();
+    textDocumentCapabilities->setObject();
+    
+    auto completionCapabilities = std::make_shared<JsonValue>();
+    completionCapabilities->setObject();
+    completionCapabilities->setProperty("dynamicRegistration", std::make_shared<JsonValue>(false));
+    textDocumentCapabilities->setProperty("completion", completionCapabilities);
+    
+    auto hoverCapabilities = std::make_shared<JsonValue>();
+    hoverCapabilities->setObject();
+    hoverCapabilities->setProperty("dynamicRegistration", std::make_shared<JsonValue>(false));
+    textDocumentCapabilities->setProperty("hover", hoverCapabilities);
+    
+    capabilities->setProperty("textDocument", textDocumentCapabilities);
+    params->setProperty("capabilities", capabilities);
     
     sendRequest("initialize", params, [this, callback](std::shared_ptr<JsonValue> result) {
         initialized_ = (result != nullptr);
@@ -443,12 +464,23 @@ void LspClient::messageProcessorFunc() {
         if (connection_->hasMessage()) {
             std::string message = connection_->receiveMessage();
             if (!message.empty()) {
+                // Debug: print received message
+                // std::cerr << "[LSP] Received: " << message.substr(0, 200) << "...\n";
+                
                 // Process response
                 auto json = JsonValue::fromString(message);
                 if (json && json->getType() == JsonValue::Object) {
                     auto idProperty = json->getProperty("id");
-                    if (idProperty && idProperty->getType() == JsonValue::String) {
-                        std::string id = idProperty->asString();
+                    std::string id;
+                    if (idProperty) {
+                        if (idProperty->getType() == JsonValue::String) {
+                            id = idProperty->asString();
+                        } else if (idProperty->getType() == JsonValue::Number) {
+                            // Handle numeric id (some servers return id as number)
+                            id = std::to_string(static_cast<int>(idProperty->asNumber()));
+                        }
+                    }
+                    if (!id.empty()) {
                         
                         std::lock_guard<std::mutex> lock(requestMutex_);
                         auto it = pendingRequests_.find(id);
