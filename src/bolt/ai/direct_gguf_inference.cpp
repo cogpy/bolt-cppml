@@ -11,7 +11,7 @@
 #include <filesystem>
 
 #ifdef LLAMA_AVAILABLE
-#include <llama-cpp.h>
+#include <llama.h>
 #endif
 
 namespace bolt {
@@ -21,6 +21,8 @@ struct DirectGGUFInference::ModelData {
 #ifdef LLAMA_AVAILABLE
     llama_model* model = nullptr;
     llama_context* ctx = nullptr;
+    const llama_vocab* vocab = nullptr;
+    llama_sampler* sampler = nullptr;
 #endif
     std::string model_info;
     bool initialized = false;
@@ -35,12 +37,16 @@ DirectGGUFInference::DirectGGUFInference()
 
 DirectGGUFInference::~DirectGGUFInference() {
 #ifdef LLAMA_AVAILABLE
+    if (model_data_->sampler) {
+        llama_sampler_free(model_data_->sampler);
+        model_data_->sampler = nullptr;
+    }
     if (model_data_->ctx) {
         llama_free(model_data_->ctx);
         model_data_->ctx = nullptr;
     }
     if (model_data_->model) {
-        llama_free_model(model_data_->model);
+        llama_model_free(model_data_->model);
         model_data_->model = nullptr;
     }
     llama_backend_free();
@@ -72,23 +78,31 @@ bool DirectGGUFInference::load_model(const std::string& model_path) {
     model_params.use_mmap = true;
     model_params.use_mlock = false;
 
-    model_data_->model = llama_load_model_from_file(model_path.c_str(), model_params);
+    model_data_->model = llama_model_load_from_file(model_path.c_str(), model_params);
     if (!model_data_->model) {
         std::cout << "❌ Failed to load model via llama.cpp" << std::endl;
         return false;
     }
 
+    // Get vocabulary from model
+    model_data_->vocab = llama_model_get_vocab(model_data_->model);
+
     llama_context_params ctx_params = llama_context_default_params();
     ctx_params.n_ctx = 2048;
-    ctx_params.seed = 0;
 
-    model_data_->ctx = llama_new_context_with_model(model_data_->model, ctx_params);
+    model_data_->ctx = llama_init_from_model(model_data_->model, ctx_params);
     if (!model_data_->ctx) {
         std::cout << "❌ Failed to create llama context" << std::endl;
-        llama_free_model(model_data_->model);
+        llama_model_free(model_data_->model);
         model_data_->model = nullptr;
         return false;
     }
+
+    // Initialize sampler chain
+    auto sparams = llama_sampler_chain_default_params();
+    model_data_->sampler = llama_sampler_chain_init(sparams);
+    llama_sampler_chain_add(model_data_->sampler, llama_sampler_init_temp(0.7f));
+    llama_sampler_chain_add(model_data_->sampler, llama_sampler_init_dist(0));
 
     model_loaded_ = true;
     model_data_->initialized = true;
@@ -155,7 +169,7 @@ std::string DirectGGUFInference::generate_internal(const std::string& prompt, in
 #ifndef LLAMA_AVAILABLE
     return get_smart_fallback(prompt);
 #else
-    if (!model_data_->initialized || !model_data_->ctx) {
+    if (!model_data_->initialized || !model_data_->ctx || !model_data_->vocab) {
         return get_smart_fallback(prompt);
     }
 
@@ -165,72 +179,54 @@ std::string DirectGGUFInference::generate_internal(const std::string& prompt, in
     system_prefix += prompt;
 
     llama_context* ctx = model_data_->ctx;
+    const llama_vocab* vocab = model_data_->vocab;
 
-    // Tokenize input
+    // Tokenize input using new API (vocab-based)
     std::vector<llama_token> tokens_in(system_prefix.size() + 8);
-    int n_in = llama_tokenize(ctx, system_prefix.c_str(), tokens_in.data(), (int)tokens_in.size(), true, true);
+    int n_in = llama_tokenize(vocab, system_prefix.c_str(), (int)system_prefix.size(), 
+                              tokens_in.data(), (int)tokens_in.size(), true, true);
     if (n_in < 0) return get_smart_fallback(prompt);
     tokens_in.resize(n_in);
 
-    // Eval input
-    int n_ctx = llama_n_ctx(ctx);
-    int n_batch = 64;
-    llama_batch batch = llama_batch_init(n_batch, 0, 1);
-
-    int consumed = 0;
-    while (consumed < (int)tokens_in.size()) {
-        int to_eval = std::min(n_batch, (int)tokens_in.size() - consumed);
-        batch.n_tokens = 0;
-        for (int i = 0; i < to_eval; ++i) {
-            llama_batch_add(batch, tokens_in[consumed + i], consumed + i, { 0 }, true);
-        }
-        if (llama_decode(ctx, batch) != 0) {
-            llama_batch_free(batch);
-            return get_smart_fallback(prompt);
-        }
-        consumed += to_eval;
+    // Create batch for input tokens
+    llama_batch batch = llama_batch_get_one(tokens_in.data(), (int)tokens_in.size());
+    
+    // Decode input
+    if (llama_decode(ctx, batch) != 0) {
+        return get_smart_fallback(prompt);
     }
 
-    // Sampling loop
+    // Sampling loop using new sampler API
     std::string out;
     out.reserve((size_t)max_tokens * 4);
 
-    std::vector<float> logits(llama_n_vocab(model_data_->model));
-    std::vector<llama_token_data> candidates;
-    candidates.reserve(logits.size());
+    int n_vocab = llama_vocab_n_tokens(vocab);
+    llama_token eos_token = llama_vocab_eos(vocab);
 
     for (int i = 0; i < max_tokens; ++i) {
-        const float* cur_logits = llama_get_logits_ith(ctx, llama_get_kv_cache_token_count(ctx) - 1);
-        std::copy(cur_logits, cur_logits + (int)logits.size(), logits.begin());
+        // Sample next token using the sampler chain
+        llama_token id = llama_sampler_sample(model_data_->sampler, ctx, -1);
+        
+        // Accept the token
+        llama_sampler_accept(model_data_->sampler, id);
 
-        candidates.clear();
-        for (int id = 0; id < (int)logits.size(); ++id) {
-            candidates.push_back({ id, logits[id], 0.0f });
-        }
-        llama_token_data_array cur_p = { candidates.data(), candidates.size(), false };
+        if (id == eos_token) break;
 
-        // Temperature sampling
-        llama_sample_temperature(ctx, &cur_p, temperature);
-        llama_token id = llama_sample_token(ctx, &cur_p);
-
-        if (id == llama_token_eos(model_data_->model)) break;
-
-        // Append to output
-        char buf[8];
-        int n = llama_token_to_piece(ctx, id, buf, sizeof(buf), 0, true);
-        if (n > 0) out.append(buf, buf + n);
+        // Convert token to text
+        char buf[256];
+        int n = llama_token_to_piece(vocab, id, buf, sizeof(buf), 0, true);
+        if (n > 0) out.append(buf, n);
 
         // Feed back the token
-        llama_batch batch_next = llama_batch_init(1, 0, 1);
-        llama_batch_add(batch_next, id, tokens_in.size() + i, { 0 }, true);
+        llama_batch batch_next = llama_batch_get_one(&id, 1);
         if (llama_decode(ctx, batch_next) != 0) {
-            llama_batch_free(batch_next);
             break;
         }
-        llama_batch_free(batch_next);
     }
 
-    llama_batch_free(batch);
+    // Reset sampler for next generation
+    llama_sampler_reset(model_data_->sampler);
+
     return out.empty() ? get_smart_fallback(prompt) : out;
 #endif
 }
@@ -314,88 +310,164 @@ std::string DirectGGUFInference::get_smart_fallback(const std::string& input) {
 }
 
 std::string DirectGGUFInference::get_coding_help(const std::string& input) {
-    return "🔧 **C++ Development Help**:\n\n"
-           "Based on your question about: \"" + input + "\"\n\n"
-           "**Quick C++ Tips**:\n"
-           "• Use `std::unique_ptr` for single ownership\n"
-           "• Use `std::shared_ptr` for shared ownership\n"
-           "• Prefer `auto` for type deduction\n"
-           "• Use RAII for resource management\n"
-           "• Consider `const` for immutable data\n\n"
-           "**Need specific help?** Load a GGUF model for detailed AI assistance!";
+    std::string lower = input;
+    std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
+
+    if (lower.find("smart pointer") != std::string::npos || 
+        lower.find("unique_ptr") != std::string::npos ||
+        lower.find("shared_ptr") != std::string::npos) {
+        return "📘 **Smart Pointers in Modern C++**\n\n"
+               "**`std::unique_ptr`** - Exclusive ownership:\n"
+               "```cpp\n"
+               "auto ptr = std::make_unique<MyClass>(args...);\n"
+               "// Automatically deleted when out of scope\n"
+               "```\n\n"
+               "**`std::shared_ptr`** - Shared ownership:\n"
+               "```cpp\n"
+               "auto ptr = std::make_shared<MyClass>(args...);\n"
+               "// Reference counted, deleted when last reference goes away\n"
+               "```\n\n"
+               "**Best Practice**: Prefer `unique_ptr` unless you need shared ownership.";
+    }
+
+    if (lower.find("template") != std::string::npos) {
+        return "📘 **C++ Templates**\n\n"
+               "**Function Template**:\n"
+               "```cpp\n"
+               "template<typename T>\n"
+               "T max(T a, T b) { return (a > b) ? a : b; }\n"
+               "```\n\n"
+               "**Class Template**:\n"
+               "```cpp\n"
+               "template<typename T>\n"
+               "class Container {\n"
+               "    T data;\n"
+               "public:\n"
+               "    void set(T value) { data = value; }\n"
+               "    T get() const { return data; }\n"
+               "};\n"
+               "```\n\n"
+               "Templates enable generic programming and type-safe code reuse.";
+    }
+
+    return "💻 **C++ Coding Help**\n\n"
+           "I can help with:\n"
+           "• Smart pointers and memory management\n"
+           "• Templates and generic programming\n"
+           "• STL containers and algorithms\n"
+           "• Modern C++ features (C++11/14/17/20)\n"
+           "• Design patterns and best practices\n\n"
+           "Please ask a specific question about your code!";
 }
 
 std::string DirectGGUFInference::get_algorithm_help(const std::string& input) {
-    return "🎯 **Algorithm Guidance**:\n\n"
-           "For your question: \"" + input + "\"\n\n"
-           "**Common C++ Algorithms**:\n"
-           "• `std::sort()` - O(n log n) sorting\n"
-           "• `std::binary_search()` - O(log n) search\n"
-           "• `std::find()` - Linear search\n"
-           "• `std::transform()` - Apply operation to range\n"
-           "• `std::accumulate()` - Reduce range to single value\n\n"
-           "Load a GGUF model for detailed algorithmic analysis and examples!";
+    std::string lower = input;
+    std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
+
+    if (lower.find("sort") != std::string::npos) {
+        return "📊 **Sorting Algorithms**\n\n"
+               "| Algorithm | Time (Avg) | Time (Worst) | Space | Stable |\n"
+               "|-----------|------------|--------------|-------|--------|\n"
+               "| Quick Sort | O(n log n) | O(n²) | O(log n) | No |\n"
+               "| Merge Sort | O(n log n) | O(n log n) | O(n) | Yes |\n"
+               "| Heap Sort | O(n log n) | O(n log n) | O(1) | No |\n\n"
+               "**C++ STL**: Use `std::sort()` (introsort) for most cases.";
+    }
+
+    if (lower.find("search") != std::string::npos) {
+        return "🔍 **Search Algorithms**\n\n"
+               "**Binary Search** - O(log n) for sorted arrays:\n"
+               "```cpp\n"
+               "auto it = std::lower_bound(vec.begin(), vec.end(), target);\n"
+               "if (it != vec.end() && *it == target) { /* found */ }\n"
+               "```\n\n"
+               "**Hash Table** - O(1) average:\n"
+               "```cpp\n"
+               "std::unordered_map<Key, Value> map;\n"
+               "if (map.count(key)) { /* found */ }\n"
+               "```";
+    }
+
+    return "📈 **Algorithm Complexity Guide**\n\n"
+           "| Complexity | Name | Example |\n"
+           "|------------|------|--------|\n"
+           "| O(1) | Constant | Array access |\n"
+           "| O(log n) | Logarithmic | Binary search |\n"
+           "| O(n) | Linear | Linear search |\n"
+           "| O(n log n) | Linearithmic | Merge sort |\n"
+           "| O(n²) | Quadratic | Bubble sort |\n\n"
+           "Ask about specific algorithms for detailed explanations!";
 }
 
-// Factory implementations
+// DirectGGUFFactory implementationn
 std::unique_ptr<DirectGGUFInference> DirectGGUFFactory::create_from_file(const std::string& model_path) {
     auto inference = std::make_unique<DirectGGUFInference>();
     if (inference->load_model(model_path)) {
-        std::cout << "✅ Created GGUF inference engine from: " << model_path << std::endl;
         return inference;
     }
-    std::cout << "⚠️ Failed to load model, using fallback mode" << std::endl;
-    return inference;
+    return nullptr;
 }
 
 std::unique_ptr<DirectGGUFInference> DirectGGUFFactory::create_auto_detect() {
-    auto inference = std::make_unique<DirectGGUFInference>();
     auto models = find_available_models();
-    for (const auto& model : models) {
-        if (inference->load_model(model)) {
-            std::cout << "✅ Auto-loaded model: " << model << std::endl;
+    
+    if (!models.empty()) {
+        auto inference = std::make_unique<DirectGGUFInference>();
+        if (inference->load_model(models[0])) {
             return inference;
         }
     }
-    std::cout << "⚠️ No GGUF models found, using intelligent fallback responses" << std::endl;
-    return inference;
+    
+    // Return a fallback instance that uses smart responses
+    return std::make_unique<DirectGGUFInference>();
 }
 
 std::vector<std::string> DirectGGUFFactory::find_available_models() {
     std::vector<std::string> models;
-
-    // Common model locations
+    
+    // Common locations to search for GGUF models
     std::vector<std::string> search_paths = {
-        "./models/",
-        "./ggml/llama.cpp/models/",
-        "/workspace/models/",
-        "/workspace/ggml/llama.cpp/models/",
-        std::string(getenv("HOME") ? getenv("HOME") : "") + "/.cache/huggingface/",
-        "./"
+        "./models",
+        "../models",
+        "~/.local/share/bolt/models",
+        "/usr/local/share/bolt/models",
+        "~/.cache/huggingface/hub"
     };
-
-    // Look for .gguf files in these directories (non-recursive quick scan)
-    for (const auto& dir : search_paths) {
-        std::error_code ec;
-        if (!std::filesystem::is_directory(dir, ec)) continue;
-        for (auto& entry : std::filesystem::directory_iterator(dir, ec)) {
-            if (ec) break;
-            if (!entry.is_regular_file()) continue;
-            auto path = entry.path();
-            if (path.extension() == ".gguf") {
-                models.push_back(path.string());
+    
+    for (const auto& base_path : search_paths) {
+        std::string expanded_path = base_path;
+        
+        // Expand ~ to home directory
+        if (!expanded_path.empty() && expanded_path[0] == '~') {
+            const char* home = std::getenv("HOME");
+            if (home) {
+                expanded_path = std::string(home) + expanded_path.substr(1);
             }
         }
+        
+        try {
+            if (std::filesystem::exists(expanded_path)) {
+                for (const auto& entry : std::filesystem::recursive_directory_iterator(expanded_path)) {
+                    if (entry.is_regular_file()) {
+                        std::string ext = entry.path().extension().string();
+                        if (ext == ".gguf" || ext == ".bin") {
+                            models.push_back(entry.path().string());
+                        }
+                    }
+                }
+            }
+        } catch (const std::exception&) {
+            // Ignore filesystem errors
+        }
     }
-
+    
     return models;
 }
 
 bool DirectGGUFFactory::download_test_model(const std::string& output_path) {
-    std::cout << "📥 Downloading test model functionality not implemented yet" << std::endl;
-    std::cout << "💡 You can manually download a small GGUF model from:" << std::endl;
-    std::cout << "   • Hugging Face: https://huggingface.co/models?library=gguf" << std::endl;
-    std::cout << "   • TinyLlama: https://huggingface.co/PY007/TinyLlama-1.1B-Chat-v0.3-GGUF" << std::endl;
+    // For now, just return false - downloading models requires additional setup
+    std::cout << "⚠️  Model download not implemented. Please download a GGUF model manually." << std::endl;
+    std::cout << "   Suggested: https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF" << std::endl;
     return false;
 }
 

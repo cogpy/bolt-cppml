@@ -87,41 +87,34 @@ if(NOT IMGUI_FOUND)
     endif()
 endif()
 
-# Add GGML as subdirectory (conditional)
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/ggml/ggml.cpp")
-    add_subdirectory(ggml/ggml.cpp)
-    set(GGML_AVAILABLE TRUE)
-else()
-    set(GGML_AVAILABLE FALSE)
-    message(WARNING "GGML not found - AI functionality will be simulated")
-endif()
+# UNIFIED GGML APPROACH: Use llama.cpp as the single source of GGML
+# This eliminates version conflicts between standalone ggml.cpp and llama.cpp's embedded GGML
+# The standalone ggml/ggml.cpp is no longer used - llama.cpp provides all GGML functionality
 
-# Add llama.cpp as subdirectory (conditional)
-# Note: Currently disabled by default due to GGML API version incompatibility
-# The llama.cpp submodule requires newer GGML APIs not present in ggml.cpp submodule
-option(ENABLE_LLAMA_CPP "Enable llama.cpp integration" OFF)
+option(ENABLE_LLAMA_CPP "Enable llama.cpp integration (provides GGML)" ON)
 
 if(ENABLE_LLAMA_CPP AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/ggml/llama.cpp/CMakeLists.txt")
-    message(STATUS "Configuring llama.cpp integration...")
+    message(STATUS "Configuring llama.cpp integration (unified GGML source)...")
     
     # Configure llama.cpp build options
-    set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
     set(LLAMA_CURL OFF CACHE BOOL "" FORCE)
     set(LLAMA_BUILD_TESTS OFF CACHE BOOL "" FORCE)
     set(LLAMA_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
     set(LLAMA_BUILD_SERVER OFF CACHE BOOL "" FORCE)
     
-    # Add llama.cpp subdirectory
-    add_subdirectory(ggml/llama.cpp EXCLUDE_FROM_ALL)
+    # Add llama.cpp subdirectory - this provides both llama and ggml targets
+    add_subdirectory(ggml/llama.cpp)
     
     set(LLAMA_AVAILABLE TRUE)
-    message(STATUS "llama.cpp integration enabled")
+    set(GGML_AVAILABLE TRUE)  # GGML is now provided by llama.cpp
+    message(STATUS "llama.cpp integration enabled - GGML provided by llama.cpp")
 else()
     set(LLAMA_AVAILABLE FALSE)
+    set(GGML_AVAILABLE FALSE)
     if(ENABLE_LLAMA_CPP)
-        message(WARNING "llama.cpp enabled but not found at ggml/llama.cpp - direct GGUF inference will be disabled")
+        message(WARNING "llama.cpp enabled but not found at ggml/llama.cpp - AI functionality will be disabled")
     else()
-        message(STATUS "llama.cpp disabled - direct GGUF inference will be disabled")
+        message(WARNING "llama.cpp disabled - AI functionality will be disabled")
     endif()
 endif()
 
@@ -285,22 +278,19 @@ if(HAVE_CURL)
     target_link_libraries(bolt_lib PUBLIC CURL::libcurl)
 endif()
 
-# Link GGML if available
-if(GGML_AVAILABLE)
+# Link GGML and llama.cpp (unified approach - both provided by llama.cpp)
+if(GGML_AVAILABLE AND LLAMA_AVAILABLE)
+    # GGML headers are in llama.cpp's ggml/include subdirectory
+    # llama.cpp headers are in llama.cpp/include
     target_include_directories(bolt_lib PUBLIC
-        ${PROJECT_SOURCE_DIR}/ggml/ggml.cpp/include
+        ${PROJECT_SOURCE_DIR}/ggml/llama.cpp/ggml/include
+        ${PROJECT_SOURCE_DIR}/ggml/llama.cpp/include
         ${PROJECT_SOURCE_DIR}/ggml/rwkv.cpp
     )
-    target_link_libraries(bolt_lib PUBLIC ggml)
-endif()
-
-# Link llama.cpp if available
-if(LLAMA_AVAILABLE)
-    target_include_directories(bolt_lib PUBLIC
-        ${PROJECT_SOURCE_DIR}/ggml/llama.cpp/include
-    )
-    target_link_libraries(bolt_lib PUBLIC llama)
-    target_compile_definitions(bolt_lib PUBLIC LLAMA_AVAILABLE=1)
+    # Link both ggml and llama libraries from llama.cpp
+    target_link_libraries(bolt_lib PUBLIC ggml llama)
+    target_compile_definitions(bolt_lib PUBLIC LLAMA_AVAILABLE=1 GGML_AVAILABLE=1)
+    message(STATUS "Linked GGML and llama from llama.cpp")
 endif()
 
 # Main executable
