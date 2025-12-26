@@ -148,6 +148,7 @@ public:
     // Memory management
     void set_global(const std::string& name, const DISValue& value);
     DISValue get_global(const std::string& name) const;
+    std::vector<std::string> get_global_names() const;
     
     // AI integration
     void set_ai_handler(std::function<std::string(const std::string&, const std::string&)> handler);

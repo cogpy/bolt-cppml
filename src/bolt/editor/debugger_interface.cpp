@@ -348,16 +348,82 @@ size_t DebuggerInterface::get_call_stack_depth() const {
 }
 
 std::vector<std::string> DebuggerInterface::get_stack_contents() const {
-    // Note: This is a simplified implementation since std::stack doesn't provide iteration
     std::vector<std::string> contents;
-    contents.push_back("Stack size: " + std::to_string(vm_->stack_size()));
-    // TODO: Add actual stack content inspection when VM provides access
+
+    size_t stack_sz = vm_->stack_size();
+    contents.push_back("Stack size: " + std::to_string(stack_sz));
+
+    if (stack_sz == 0) {
+        contents.push_back("  (empty)");
+        return contents;
+    }
+
+    // Note: Since stack doesn't provide iteration, we can only show top
+    if (stack_sz > 0) {
+        try {
+            auto top_value = vm_->peek();
+            std::string value_str;
+            switch (top_value.type) {
+                case drawkern::DISValue::INT:
+                    value_str = "INT: " + std::to_string(top_value.int_val);
+                    break;
+                case drawkern::DISValue::FLOAT:
+                    value_str = "FLOAT: " + std::to_string(top_value.float_val);
+                    break;
+                case drawkern::DISValue::STRING:
+                    value_str = "STRING: \"" + top_value.string_val + "\"";
+                    break;
+                case drawkern::DISValue::LIST:
+                    value_str = "LIST: [" + std::to_string(top_value.list_val.size()) + " elements]";
+                    break;
+                case drawkern::DISValue::REF:
+                    value_str = "REF: " + std::to_string(reinterpret_cast<uintptr_t>(top_value.ptr_val));
+                    break;
+            }
+            contents.push_back("  [TOP] " + value_str);
+        } catch (...) {
+            contents.push_back("  [TOP] <error reading>");
+        }
+    }
+
+    if (stack_sz > 1) {
+        contents.push_back("  ... (" + std::to_string(stack_sz - 1) + " more items)");
+    }
+
     return contents;
 }
 
 std::map<std::string, std::string> DebuggerInterface::get_global_variables() const {
     std::map<std::string, std::string> variables;
-    // TODO: Implement once VM provides access to globals inspection
+
+    // Get all global variable names from the VM
+    auto global_names = vm_->get_global_names();
+
+    for (const auto& name : global_names) {
+        auto value = vm_->get_global(name);
+        std::string value_str;
+
+        switch (value.type) {
+            case drawkern::DISValue::INT:
+                value_str = std::to_string(value.int_val);
+                break;
+            case drawkern::DISValue::FLOAT:
+                value_str = std::to_string(value.float_val);
+                break;
+            case drawkern::DISValue::STRING:
+                value_str = "\"" + value.string_val + "\"";
+                break;
+            case drawkern::DISValue::LIST:
+                value_str = "[list: " + std::to_string(value.list_val.size()) + " items]";
+                break;
+            case drawkern::DISValue::REF:
+                value_str = "(ref: " + std::to_string(reinterpret_cast<uintptr_t>(value.ptr_val)) + ")";
+                break;
+        }
+
+        variables[name] = value_str;
+    }
+
     return variables;
 }
 

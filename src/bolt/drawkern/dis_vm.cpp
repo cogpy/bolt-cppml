@@ -170,6 +170,21 @@ DISValue DISVM::get_global(const std::string& name) const {
     return it != globals_.end() ? it->second : DISValue(int64_t(0));
 }
 
+std::vector<std::string> DISVM::get_global_names() const {
+    std::vector<std::string> names;
+    names.reserve(globals_.size());
+    for (const auto& pair : globals_) {
+        names.push_back(pair.first);
+    }
+    // Also include program globals
+    for (const auto& pair : program_.globals) {
+        if (globals_.find(pair.first) == globals_.end()) {
+            names.push_back(pair.first);
+        }
+    }
+    return names;
+}
+
 void DISVM::set_ai_handler(std::function<std::string(const std::string&, const std::string&)> handler) {
     ai_handler_ = handler;
 }
