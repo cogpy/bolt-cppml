@@ -170,7 +170,15 @@ jobs:
       - name: Run unit tests
         working-directory: build
         run: |
-          export LD_LIBRARY_PATH="${PWD}:${PWD}/ggml/ggml.cpp/src:$LD_LIBRARY_PATH"
+          # Set LD_LIBRARY_PATH to include all directories with shared libraries
+          # The llama.cpp libraries are built in build/bin/, not in build/ggml/ggml.cpp/src/
+          export LD_LIBRARY_PATH="${PWD}/bin:${PWD}:${PWD}/ggml/llama.cpp/src:$LD_LIBRARY_PATH"
+          echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH"
+          
+          # Verify shared libraries exist
+          echo "Checking for shared libraries..."
+          find . -name "*.so*" -type f 2>/dev/null | head -20
+          
           ctest --build-config ${{ matrix.build_type }} --output-on-failure --timeout 120 -j $(nproc)
 
       - name: Upload test results
@@ -438,7 +446,8 @@ jobs:
         env:
           ${{ matrix.env_var }}: ""
         run: |
-          export LD_LIBRARY_PATH="${PWD}:${PWD}/ggml/ggml.cpp/src:$LD_LIBRARY_PATH"
+          # Set LD_LIBRARY_PATH to include all directories with shared libraries
+          export LD_LIBRARY_PATH="${PWD}/bin:${PWD}:${PWD}/ggml/llama.cpp/src:$LD_LIBRARY_PATH"
           export ${{ matrix.env_var }}
           ctest --output-on-failure --timeout 300 || true
 
@@ -533,7 +542,8 @@ jobs:
       - name: Run E2E test suite
         working-directory: build
         run: |
-          export LD_LIBRARY_PATH="${PWD}:${PWD}/ggml/ggml.cpp/src:$LD_LIBRARY_PATH"
+          # Set LD_LIBRARY_PATH to include all directories with shared libraries
+          export LD_LIBRARY_PATH="${PWD}/bin:${PWD}:${PWD}/ggml/llama.cpp/src:$LD_LIBRARY_PATH"
 
           # Run comprehensive E2E tests
           if [ -x "./bolt_e2e_tests" ]; then

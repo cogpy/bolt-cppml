@@ -1,27 +1,23 @@
-# This starter workflow is for a CMake project running on multiple platforms. There is a different starter workflow if you just want a single platform.
-# See: https://github.com/actions/starter-workflows/blob/main/ci/cmake-single-platform.yml
+# CMake Multi-Platform Build and Test Workflow
+# Covers Linux (GCC, Clang) and Windows (MSVC) builds with comprehensive testing
 name: CMake on multiple platforms
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "develop", "feature/**" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "main", "develop" ]
+  workflow_dispatch:
+
+env:
+  BUILD_TYPE: Release
 
 jobs:
   build:
     runs-on: ${{ matrix.os }}
 
     strategy:
-      # Set fail-fast to false to ensure that feedback is delivered for all matrix combinations. Consider changing this to true when your workflow is stable.
       fail-fast: false
-
-      # Set up a matrix to run the following 3 configurations:
-      # 1. <Windows, Release, latest MSVC compiler toolchain on the default runner image, default generator>
-      # 2. <Linux, Release, latest GCC compiler toolchain on the default runner image, default generator>
-      # 3. <Linux, Release, latest Clang compiler toolchain on the default runner image, default generator>
-      #
-      # To add more build types (Release, Debug, RelWithDebInfo, etc.) customize the build_type list.
       matrix:
         os: [ubuntu-latest, windows-latest]
         build_type: [Release]
@@ -46,6 +42,8 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+      with:
+        submodules: recursive
 
     - name: Install dependencies (Linux)
       if: runner.os == 'Linux'
@@ -61,15 +59,12 @@ jobs:
           pkg-config
 
     - name: Set reusable strings
-      # Turn repeated input strings (such as the build output directory) into step outputs. These step outputs can be used throughout the workflow file.
       id: strings
       shell: bash
       run: |
         echo "build-output-dir=${{ github.workspace }}/build" >> "$GITHUB_OUTPUT"
 
     - name: Configure CMake
-      # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
-      # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
       run: >
         cmake -B ${{ steps.strings.outputs.build-output-dir }}
         -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }}
@@ -78,20 +73,47 @@ jobs:
         -S ${{ github.workspace }}
 
     - name: Build
-      # Build your program with the given configuration. Note that --config is needed because the default Windows generator is a multi-config generator (Visual Studio generator).
       run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --config ${{ matrix.build_type }}
 
     - name: Test (Linux)
       if: runner.os == 'Linux'
       working-directory: ${{ steps.strings.outputs.build-output-dir }}
-      # Set LD_LIBRARY_PATH to find shared libraries built by the project
       run: |
-        export LD_LIBRARY_PATH="${{ github.workspace }}/build:${{ github.workspace }}/build/ggml/ggml.cpp/src:$LD_LIBRARY_PATH"
+        # Set LD_LIBRARY_PATH to include all directories with shared libraries
+        # The llama.cpp libraries are built in build/bin/, not in build/ggml/ggml.cpp/src/
+        export LD_LIBRARY_PATH="${PWD}/bin:${PWD}:${PWD}/ggml/llama.cpp/src:$LD_LIBRARY_PATH"
         echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH"
-        ctest --build-config ${{ matrix.build_type }} --output-on-failure
+        
+        # Verify shared libraries exist
+        echo "Checking for shared libraries..."
+        find . -name "*.so*" -type f 2>/dev/null | head -20
+        
+        # Run tests with detailed output
+        ctest --build-config ${{ matrix.build_type }} --output-on-failure --timeout 120
 
     - name: Test (Windows)
       if: runner.os == 'Windows'
       working-directory: ${{ steps.strings.outputs.build-output-dir }}
-      # Execute tests defined by the CMake configuration
-      run: ctest --build-config ${{ matrix.build_type }} --output-on-failure
+      run: |
+        # Add build directories to PATH for DLL discovery
+        $env:PATH = "${{ steps.strings.outputs.build-output-dir }}\bin;${{ steps.strings.outputs.build-output-dir }}\${{ matrix.build_type }};$env:PATH"
+        ctest --build-config ${{ matrix.build_type }} --output-on-failure --timeout 120
+
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-results-${{ matrix.os }}-${{ matrix.c_compiler }}-${{ matrix.build_type }}
+        path: ${{ steps.strings.outputs.build-output-dir }}/Testing/
+        retention-days: 7
+
+    - name: Upload build artifacts
+      if: matrix.build_type == 'Release'
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-artifacts-${{ matrix.os }}-${{ matrix.c_compiler }}
+        path: |
+          ${{ steps.strings.outputs.build-output-dir }}/bolt*
+          ${{ steps.strings.outputs.build-output-dir }}/bin/*.so*
+          ${{ steps.strings.outputs.build-output-dir }}/${{ matrix.build_type }}/bolt*
+        retention-days: 7
