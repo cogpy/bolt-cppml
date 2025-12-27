@@ -6,7 +6,7 @@
  */
 
 #include <bolt/test_framework.hpp>
-#include <bolt/core/bolt.hpp>
+#include <bolt/bolt.hpp>
 #include <bolt/core/memory_manager.hpp>
 #include <bolt/core/chat_store.hpp>
 #include <bolt/core/editor_store.hpp>
@@ -38,10 +38,10 @@ BOLT_TEST(E2E_Workflow, CompleteEditorSessionLifecycle) {
     // Simulate a complete editor session from startup to shutdown
 
     // 1. Initialize core components
-    bolt::core::MemoryManager memManager;
-    bolt::core::ChatStore chatStore;
-    bolt::core::EditorStore editorStore;
-    bolt::core::WorkbenchStore workbenchStore;
+    bolt::MemoryManager memManager;
+    bolt::ChatStore chatStore;
+    bolt::EditorStore editorStore;
+    bolt::WorkbenchStore workbenchStore;
 
     BOLT_ASSERT(memManager.getAvailableMemory() > 0);
 
@@ -75,7 +75,7 @@ int main() {
 }
 
 BOLT_TEST(E2E_Workflow, MultiFileEditingSession) {
-    bolt::core::EditorStore editorStore;
+    bolt::EditorStore editorStore;
 
     // Open multiple files
     std::vector<std::string> fileIds;
@@ -106,8 +106,8 @@ BOLT_TEST(E2E_Workflow, MultiFileEditingSession) {
 }
 
 BOLT_TEST(E2E_Workflow, ChatAndEditorIntegration) {
-    bolt::core::ChatStore chatStore;
-    bolt::core::EditorStore editorStore;
+    bolt::ChatStore chatStore;
+    bolt::EditorStore editorStore;
 
     // Create a chat session
     auto sessionId = chatStore.createSession();
@@ -138,8 +138,8 @@ BOLT_TEST(E2E_Workflow, ChatAndEditorIntegration) {
 // ============================================
 
 BOLT_TEST(E2E_Memory, LargeFileHandling) {
-    bolt::core::EditorStore editorStore;
-    bolt::core::MemoryManager memManager;
+    bolt::EditorStore editorStore;
+    bolt::MemoryManager memManager;
 
     // Create a large file (1MB of content)
     std::stringstream largeContent;
@@ -163,7 +163,7 @@ BOLT_TEST(E2E_Memory, LargeFileHandling) {
 }
 
 BOLT_TEST(E2E_Memory, RapidFileOpenClose) {
-    bolt::core::EditorStore editorStore;
+    bolt::EditorStore editorStore;
 
     // Rapidly open and close files to test memory handling
     for (int iteration = 0; iteration < 100; iteration++) {
@@ -346,13 +346,13 @@ BOLT_TEST(E2E_Editor, ThemeSystemApplication) {
 // ============================================
 
 BOLT_TEST(E2E_Plugin, PluginLifecycle) {
-    bolt::core::PluginSystem pluginSystem;
+    bolt::PluginSystem pluginSystem;
 
     // Check initial state
     BOLT_ASSERT_EQ(0u, pluginSystem.getLoadedPluginCount());
 
     // Register a mock plugin
-    bolt::core::PluginInfo mockPlugin;
+    bolt::PluginInfo mockPlugin;
     mockPlugin.name = "TestPlugin";
     mockPlugin.version = "1.0.0";
     mockPlugin.description = "A test plugin";
@@ -376,7 +376,7 @@ BOLT_TEST(E2E_Plugin, PluginLifecycle) {
 }
 
 BOLT_TEST(E2E_Plugin, PluginEventSystem) {
-    bolt::core::PluginSystem pluginSystem;
+    bolt::PluginSystem pluginSystem;
 
     int eventCount = 0;
 
@@ -390,7 +390,7 @@ BOLT_TEST(E2E_Plugin, PluginEventSystem) {
     });
 
     // Register and load a plugin
-    bolt::core::PluginInfo plugin;
+    bolt::PluginInfo plugin;
     plugin.name = "EventTestPlugin";
     plugin.version = "1.0.0";
     pluginSystem.registerPlugin(plugin);
@@ -409,10 +409,10 @@ BOLT_TEST(E2E_Plugin, PluginEventSystem) {
 // ============================================
 
 BOLT_TEST(E2E_Logging, CompleteLoggingWorkflow) {
-    bolt::core::Logger& logger = bolt::core::Logger::getInstance();
+    bolt::Logger& logger = bolt::Logger::getInstance();
 
     // Set log level
-    logger.setLevel(bolt::core::LogLevel::DEBUG);
+    logger.setLevel(bolt::LogLevel::DEBUG);
 
     // Log various levels
     logger.debug("Debug message from E2E test");
@@ -425,7 +425,7 @@ BOLT_TEST(E2E_Logging, CompleteLoggingWorkflow) {
 }
 
 BOLT_TEST(E2E_Logging, FileLogging) {
-    bolt::core::Logger& logger = bolt::core::Logger::getInstance();
+    bolt::Logger& logger = bolt::Logger::getInstance();
 
     // Configure file logging
     std::string logFile = "/tmp/bolt_e2e_test.log";
@@ -497,7 +497,7 @@ BOLT_TEST(E2E_Collaboration, ConcurrentEditSimulation) {
 // ============================================
 
 BOLT_TEST(E2E_Network, WebSocketServerStartStop) {
-    bolt::network::WebSocketServer server;
+    bolt::WebSocketServer server;
 
     // Configure server
     server.setPort(0); // Use any available port
@@ -527,7 +527,7 @@ BOLT_TEST(E2E_Network, WebSocketServerStartStop) {
 // ============================================
 
 BOLT_TEST(E2E_Performance, EditorResponseTime) {
-    bolt::core::EditorStore editorStore;
+    bolt::EditorStore editorStore;
 
     auto start = std::chrono::high_resolution_clock::now();
 
@@ -546,7 +546,7 @@ BOLT_TEST(E2E_Performance, EditorResponseTime) {
 }
 
 BOLT_TEST(E2E_Performance, BulkOperations) {
-    bolt::core::ChatStore chatStore;
+    bolt::ChatStore chatStore;
 
     auto start = std::chrono::high_resolution_clock::now();
 
@@ -575,7 +575,7 @@ BOLT_TEST(E2E_Performance, BulkOperations) {
 // ============================================
 
 BOLT_TEST(E2E_ErrorHandling, GracefulDegradation) {
-    bolt::core::EditorStore editorStore;
+    bolt::EditorStore editorStore;
 
     // Try to access non-existent file
     auto content = editorStore.getContent("nonexistent_id");
@@ -591,7 +591,7 @@ BOLT_TEST(E2E_ErrorHandling, GracefulDegradation) {
 }
 
 BOLT_TEST(E2E_ErrorHandling, InvalidInputHandling) {
-    bolt::core::ChatStore chatStore;
+    bolt::ChatStore chatStore;
 
     // Empty session ID
     chatStore.addMessage("", "user", "Test");
@@ -619,12 +619,12 @@ BOLT_TEST(E2E_FullIntegration, CompleteUserSession) {
     // This test simulates a complete user session from start to finish
 
     // 1. Initialize all stores
-    bolt::core::MemoryManager memManager;
-    bolt::core::ChatStore chatStore;
-    bolt::core::EditorStore editorStore;
-    bolt::core::WorkbenchStore workbenchStore;
-    bolt::core::PluginSystem pluginSystem;
-    bolt::core::Logger& logger = bolt::core::Logger::getInstance();
+    bolt::MemoryManager memManager;
+    bolt::ChatStore chatStore;
+    bolt::EditorStore editorStore;
+    bolt::WorkbenchStore workbenchStore;
+    bolt::PluginSystem pluginSystem;
+    bolt::Logger& logger = bolt::Logger::getInstance();
 
     logger.info("Starting complete user session test");
 

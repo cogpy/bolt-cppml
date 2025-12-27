@@ -6,7 +6,8 @@
 #include <optional>
 #include <unordered_map>
 #include <mutex>
-#include <json/json.h>
+#include <memory>
+#include "bolt/editor/lsp_json_rpc.hpp"
 
 namespace bolt {
 namespace lsp {
@@ -59,52 +60,51 @@ class LSPClient {
 public:
     explicit LSPClient(const std::string& server_command);
     ~LSPClient();
-    
+
     // Lifecycle
     bool initialize(const std::string& root_uri);
     void shutdown();
     bool isInitialized() const { return initialized_; }
-    
+
     // Document synchronization
     void didOpen(const std::string& uri, const std::string& language_id, const std::string& text);
     void didChange(const std::string& uri, int version, const std::vector<TextDocumentContentChangeEvent>& changes);
     void didClose(const std::string& uri);
-    
+
     // Language features
     std::vector<CompletionItem> completion(const std::string& uri, int line, int character);
     std::optional<Location> gotoDefinition(const std::string& uri, int line, int character);
     std::vector<Location> findReferences(const std::string& uri, int line, int character, bool include_declaration = false);
     std::optional<Hover> hover(const std::string& uri, int line, int character);
-    
+
     // Diagnostics
     std::vector<Diagnostic> getDiagnostics(const std::string& uri);
-    
+
 private:
     std::string server_command_;
     bool initialized_;
     int next_request_id_;
-    
+
     // Diagnostics storage
     std::unordered_map<std::string, std::vector<Diagnostic>> diagnostics_;
     std::mutex diagnostics_mutex_;
-    
-    // Communication
-    Json::Value sendRequest(const std::string& method, const Json::Value& params);
-    void sendNotification(const std::string& method, const Json::Value& params);
-    
+
+    // Communication - using internal JsonValue instead of Json::Value
+    std::shared_ptr<JsonValue> sendRequest(const std::string& method, std::shared_ptr<JsonValue> params);
+    void sendNotification(const std::string& method, std::shared_ptr<JsonValue> params);
+
     // Server process management
     bool startServer();
     void stopServer();
-    
+
     // Message handling
     bool sendMessage(const std::string& message);
-    Json::Value waitForResponse(int request_id);
-    void handleNotification(const Json::Value& notification);
-    void handleDiagnostics(const Json::Value& params);
-    
+    std::shared_ptr<JsonValue> waitForResponse(int request_id);
+    void handleNotification(std::shared_ptr<JsonValue> notification);
+    void handleDiagnostics(std::shared_ptr<JsonValue> params);
+
     // Utilities
-    Json::Value buildClientCapabilities();
-    std::string jsonToString(const Json::Value& json);
+    std::shared_ptr<JsonValue> buildClientCapabilities();
 };
 
 // LSP Manager - manages multiple LSP clients for different languages
@@ -115,22 +115,22 @@ public:
         static LSPManager instance;
         return instance;
     }
-    
+
     // Register language server
     void registerServer(const std::string& language_id, const std::string& server_command);
-    
+
     // Get client for language
     LSPClient* getClient(const std::string& language_id);
-    
+
     // Initialize all registered servers
     void initializeAll(const std::string& root_uri);
-    
+
     // Shutdown all servers
     void shutdownAll();
-    
+
 private:
     LSPManager() = default;
-    
+
     std::unordered_map<std::string, std::unique_ptr<LSPClient>> clients_;
     std::unordered_map<std::string, std::string> server_commands_;
     std::mutex mutex_;
