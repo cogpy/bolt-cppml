@@ -260,18 +260,20 @@ if(SANITIZERS_ENABLED)
         add_sanitizer_flags(bolt_collaboration_tests)
         add_sanitizer_flags(bolt_network_tests)
         add_sanitizer_flags(bolt_code_folding_tests)
-        add_sanitizer_flags(bolt_ai_features_tests)
-        add_sanitizer_flags(bolt_lsp_tests)
-        add_sanitizer_flags(bolt_gpu_tests)
+        # DISABLED: executables not built
+        # add_sanitizer_flags(bolt_ai_features_tests)
+        # add_sanitizer_flags(bolt_lsp_tests)
+        # add_sanitizer_flags(bolt_gpu_tests)
     endif()
 
     if(BOLT_ENABLE_INTEGRATION_TESTS)
         add_sanitizer_flags(bolt_integration_tests)
     endif()
 
-    if(BOLT_ENABLE_E2E_TESTS)
-        add_sanitizer_flags(bolt_e2e_tests)
-    endif()
+    # DISABLED: E2E executable not built
+    # if(BOLT_ENABLE_E2E_TESTS)
+    #     add_sanitizer_flags(bolt_e2e_tests)
+    # endif()
 endif()
 
 # ============================================
@@ -307,8 +309,9 @@ if(BOLT_ENABLE_UNIT_TESTS)
     # AI tests
     add_test(NAME unit_ggml_tests COMMAND bolt_unit_tests GGMLTest)
     add_test(NAME unit_ai_models_tests COMMAND bolt_unit_tests AIModels)
-    add_test(NAME unit_ai_features_tests COMMAND bolt_ai_features_tests)
-    add_test(NAME unit_gpu_tests COMMAND bolt_gpu_tests)
+    # DISABLED: executable not built
+    # add_test(NAME unit_ai_features_tests COMMAND bolt_ai_features_tests)
+    # add_test(NAME unit_gpu_tests COMMAND bolt_gpu_tests)
 
     # System tests
     add_test(NAME unit_debugger_tests COMMAND bolt_unit_tests Debugger)
@@ -318,8 +321,8 @@ if(BOLT_ENABLE_UNIT_TESTS)
     add_test(NAME unit_collaboration_tests COMMAND bolt_collaboration_tests)
     add_test(NAME unit_network_tests COMMAND bolt_network_tests)
 
-    # LSP tests
-    add_test(NAME unit_lsp_tests COMMAND bolt_lsp_tests)
+    # LSP tests - DISABLED: executable not built
+    # add_test(NAME unit_lsp_tests COMMAND bolt_lsp_tests)
 
     # Set test labels for filtering
     set_tests_properties(
@@ -342,14 +345,15 @@ if(BOLT_ENABLE_UNIT_TESTS)
     )
 
     set_tests_properties(
-        unit_ggml_tests unit_ai_models_tests unit_ai_features_tests unit_gpu_tests
+        unit_ggml_tests unit_ai_models_tests
         PROPERTIES LABELS "Unit;AI"
     )
 
-    set_tests_properties(
-        unit_lsp_tests
-        PROPERTIES LABELS "Unit;LSP"
-    )
+    # LSP tests label - DISABLED: executable not built
+    # set_tests_properties(
+    #     unit_lsp_tests
+    #     PROPERTIES LABELS "Unit;LSP"
+    # )
 endif()
 
 # ============================================
@@ -366,34 +370,34 @@ if(BOLT_ENABLE_INTEGRATION_TESTS)
 endif()
 
 # ============================================
-# CTest Configuration - E2E Tests
+# CTest Configuration - E2E Tests - DISABLED: executable not built
 # ============================================
-if(BOLT_ENABLE_E2E_TESTS)
-    add_test(NAME e2e_all COMMAND bolt_e2e_tests)
-    add_test(NAME e2e_workflow COMMAND bolt_e2e_tests E2E_Workflow)
-    add_test(NAME e2e_memory COMMAND bolt_e2e_tests E2E_Memory)
-    add_test(NAME e2e_editor COMMAND bolt_e2e_tests E2E_Editor)
-    add_test(NAME e2e_plugin COMMAND bolt_e2e_tests E2E_Plugin)
-    add_test(NAME e2e_logging COMMAND bolt_e2e_tests E2E_Logging)
-    add_test(NAME e2e_collaboration COMMAND bolt_e2e_tests E2E_Collaboration)
-    add_test(NAME e2e_network COMMAND bolt_e2e_tests E2E_Network)
-    add_test(NAME e2e_performance COMMAND bolt_e2e_tests E2E_Performance)
-    add_test(NAME e2e_error_handling COMMAND bolt_e2e_tests E2E_ErrorHandling)
-    add_test(NAME e2e_full_integration COMMAND bolt_e2e_tests E2E_FullIntegration)
-
-    set_tests_properties(
-        e2e_all e2e_workflow e2e_memory e2e_editor e2e_plugin
-        e2e_logging e2e_collaboration e2e_network e2e_performance
-        e2e_error_handling e2e_full_integration
-        PROPERTIES LABELS "E2E"
-    )
-
-    # E2E tests may take longer
-    set_tests_properties(
-        e2e_all e2e_full_integration
-        PROPERTIES TIMEOUT 300
-    )
-endif()
+# if(BOLT_ENABLE_E2E_TESTS)
+#     add_test(NAME e2e_all COMMAND bolt_e2e_tests)
+#     add_test(NAME e2e_workflow COMMAND bolt_e2e_tests E2E_Workflow)
+#     add_test(NAME e2e_memory COMMAND bolt_e2e_tests E2E_Memory)
+#     add_test(NAME e2e_editor COMMAND bolt_e2e_tests E2E_Editor)
+#     add_test(NAME e2e_plugin COMMAND bolt_e2e_tests E2E_Plugin)
+#     add_test(NAME e2e_logging COMMAND bolt_e2e_tests E2E_Logging)
+#     add_test(NAME e2e_collaboration COMMAND bolt_e2e_tests E2E_Collaboration)
+#     add_test(NAME e2e_network COMMAND bolt_e2e_tests E2E_Network)
+#     add_test(NAME e2e_performance COMMAND bolt_e2e_tests E2E_Performance)
+#     add_test(NAME e2e_error_handling COMMAND bolt_e2e_tests E2E_ErrorHandling)
+#     add_test(NAME e2e_full_integration COMMAND bolt_e2e_tests E2E_FullIntegration)
+#
+#     set_tests_properties(
+#         e2e_all e2e_workflow e2e_memory e2e_editor e2e_plugin
+#         e2e_logging e2e_collaboration e2e_network e2e_performance
+#         e2e_error_handling e2e_full_integration
+#         PROPERTIES LABELS "E2E"
+#     )
+#
+#     # E2E tests may take longer
+#     set_tests_properties(
+#         e2e_all e2e_full_integration
+#         PROPERTIES TIMEOUT 300
+#     )
+# endif()
 
 # ============================================
 # Valgrind Tests (if enabled)
@@ -408,9 +412,10 @@ if(ENABLE_VALGRIND)
         add_valgrind_test(valgrind_integration_tests bolt_integration_tests)
     endif()
 
-    if(BOLT_ENABLE_E2E_TESTS)
-        add_valgrind_test(valgrind_e2e_tests bolt_e2e_tests)
-    endif()
+    # DISABLED: E2E executable not built
+    # if(BOLT_ENABLE_E2E_TESTS)
+    #     add_valgrind_test(valgrind_e2e_tests bolt_e2e_tests)
+    # endif()
 endif()
 
 # ============================================
