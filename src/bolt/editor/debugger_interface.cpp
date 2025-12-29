@@ -492,7 +492,15 @@ void DebuggerInterface::highlight_current_line() {
     
     auto [file_path, line] = find_line_for_pc(vm_->get_pc());
     if (!file_path.empty()) {
-        // TODO: Implement editor integration for highlighting current debug line
+        // Highlight the current debug line in the editor
+        if (editor_) {
+            // Store current debug location
+            current_debug_file_ = file_path;
+            current_debug_line_ = line;
+            
+            // TODO: Call editor API to highlight line when editor interface is available
+            // editor_->highlightLine(file_path, line, HighlightType::DebugCurrent);
+        }
         log_debug_message("Highlighting line " + std::to_string(line) + " in " + file_path);
     }
 }
@@ -502,7 +510,14 @@ void DebuggerInterface::clear_current_line_highlight() {
         return;
     }
     
-    // TODO: Implement editor integration for clearing debug line highlight
+    // Clear the current debug line highlight in the editor
+    if (editor_ && !current_debug_file_.empty()) {
+        // TODO: Call editor API to clear highlight when editor interface is available
+        // editor_->clearHighlight(current_debug_file_, current_debug_line_, HighlightType::DebugCurrent);
+        
+        current_debug_file_.clear();
+        current_debug_line_ = 0;
+    }
     log_debug_message("Cleared current line highlight");
 }
 
@@ -511,7 +526,16 @@ void DebuggerInterface::refresh_breakpoint_markers() {
         return;
     }
     
-    // TODO: Implement editor integration for refreshing breakpoint markers
+    // Refresh all breakpoint markers in the editor
+    if (editor_) {
+        // TODO: Call editor API to refresh breakpoint markers when editor interface is available
+        // for (const auto& [pc, bp] : breakpoints_) {
+        //     auto [file_path, line] = find_line_for_pc(pc);
+        //     if (!file_path.empty()) {
+        //         editor_->setBreakpointMarker(file_path, line, bp.enabled);
+        //     }
+        // }
+    }
     log_debug_message("Refreshed breakpoint markers");
 }
 

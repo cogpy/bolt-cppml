@@ -246,3 +246,134 @@ void ApplyBoltHighContrastTheme() {
 
 } // namespace gui
 } // namespace bolt
+
+// Enhanced code editor specific styling
+void ApplyBoltCodeEditorEnhancements() {
+#ifdef BOLT_HAVE_IMGUI
+    ImGuiStyle& style = ImGui::GetStyle();
+    
+    // Tighter spacing for code editor
+    style.ItemSpacing = ImVec2(4.0f, 4.0f);
+    style.ItemInnerSpacing = ImVec2(4.0f, 4.0f);
+    style.FramePadding = ImVec2(8.0f, 4.0f);
+    
+    // Monospace-friendly settings
+    style.IndentSpacing = 20.0f;  // Matches typical code indentation
+    
+    // Reduce rounding for code editor (more rectangular, professional)
+    style.FrameRounding = 4.0f;
+    style.ChildRounding = 6.0f;
+    
+    // Syntax highlighting colors (can be used with ImGui::PushStyleColor)
+    // These match popular dark themes like VS Code Dark+
+    
+    // Note: These would be applied contextually in the editor code:
+    // - Keywords: ImVec4(0.86f, 0.56f, 0.77f, 1.00f)  // #db8fc4 (purple)
+    // - Strings: ImVec4(0.81f, 0.65f, 0.49f, 1.00f)   // #cea67d (orange)
+    // - Comments: ImVec4(0.38f, 0.51f, 0.38f, 1.00f)  // #618261 (green)
+    // - Numbers: ImVec4(0.71f, 0.85f, 0.71f, 1.00f)   // #b5d9b5 (light green)
+    // - Functions: ImVec4(0.86f, 0.86f, 0.61f, 1.00f) // #dbdb9c (yellow)
+    // - Types: ImVec4(0.31f, 0.78f, 0.78f, 1.00f)     // #4fc7c7 (cyan)
+#endif
+}
+
+// Terminal/console theme variant
+void ApplyBoltTerminalTheme() {
+#ifdef BOLT_HAVE_IMGUI
+    ApplyEnhancedBoltDarkTheme();
+    
+    ImGuiStyle& style = ImGui::GetStyle();
+    ImVec4* colors = style.Colors;
+    
+    // Even darker background for terminal
+    const ImVec4 terminal_bg = ImVec4(0.06f, 0.07f, 0.09f, 1.00f);  // #0f1117
+    colors[ImGuiCol_WindowBg] = terminal_bg;
+    colors[ImGuiCol_ChildBg] = terminal_bg;
+    
+    // Terminal green accent
+    const ImVec4 terminal_green = ImVec4(0.26f, 0.78f, 0.50f, 1.00f);
+    colors[ImGuiCol_Text] = terminal_green;
+    
+    // Minimal padding for terminal
+    style.WindowPadding = ImVec2(8.0f, 8.0f);
+    style.FramePadding = ImVec2(8.0f, 4.0f);
+    style.ItemSpacing = ImVec2(4.0f, 2.0f);
+    
+    // No rounding for terminal (classic look)
+    style.WindowRounding = 0.0f;
+    style.ChildRounding = 0.0f;
+    style.FrameRounding = 0.0f;
+    style.ScrollbarRounding = 0.0f;
+#endif
+}
+
+// Debugger panel theme variant
+void ApplyBoltDebuggerTheme() {
+#ifdef BOLT_HAVE_IMGUI
+    ApplyEnhancedBoltDarkTheme();
+    
+    ImGuiStyle& style = ImGui::GetStyle();
+    ImVec4* colors = style.Colors;
+    
+    // Debugger-specific accent colors
+    const ImVec4 debug_orange = ImVec4(0.95f, 0.61f, 0.26f, 1.00f);  // #f29c43 (breakpoint)
+    const ImVec4 debug_red = ImVec4(0.95f, 0.38f, 0.38f, 1.00f);     // #f26161 (error)
+    const ImVec4 debug_yellow = ImVec4(0.95f, 0.77f, 0.26f, 1.00f);  // #f2c443 (current line)
+    
+    // Use orange for active elements in debugger
+    colors[ImGuiCol_Button] = debug_orange;
+    colors[ImGuiCol_ButtonHovered] = ImVec4(1.00f, 0.67f, 0.32f, 1.00f);
+    colors[ImGuiCol_ButtonActive] = ImVec4(0.90f, 0.55f, 0.20f, 1.00f);
+    
+    // Highlight breakpoints in red
+    colors[ImGuiCol_CheckMark] = debug_red;
+    
+    // Current line in yellow
+    colors[ImGuiCol_HeaderActive] = ImVec4(0.95f, 0.77f, 0.26f, 0.70f);
+#endif
+}
+
+// File browser/tree view theme variant
+void ApplyBoltFileTreeTheme() {
+#ifdef BOLT_HAVE_IMGUI
+    ApplyEnhancedBoltDarkTheme();
+    
+    ImGuiStyle& style = ImGui::GetStyle();
+    ImVec4* colors = style.Colors;
+    
+    // Compact spacing for file tree
+    style.ItemSpacing = ImVec2(4.0f, 2.0f);
+    style.ItemInnerSpacing = ImVec2(4.0f, 2.0f);
+    style.FramePadding = ImVec2(4.0f, 2.0f);
+    style.IndentSpacing = 16.0f;
+    
+    // Subtle selection highlight
+    colors[ImGuiCol_Header] = ImVec4(0.29f, 0.62f, 1.00f, 0.20f);
+    colors[ImGuiCol_HeaderHovered] = ImVec4(0.29f, 0.62f, 1.00f, 0.35f);
+    colors[ImGuiCol_HeaderActive] = ImVec4(0.29f, 0.62f, 1.00f, 0.50f);
+    
+    // Minimal rounding for tree nodes
+    style.FrameRounding = 4.0f;
+#endif
+}
+
+// Settings/preferences panel theme
+void ApplyBoltSettingsTheme() {
+#ifdef BOLT_HAVE_IMGUI
+    ApplyEnhancedBoltDarkTheme();
+    
+    ImGuiStyle& style = ImGui::GetStyle();
+    
+    // Extra padding for settings (more comfortable)
+    style.WindowPadding = ImVec2(20.0f, 20.0f);
+    style.FramePadding = ImVec2(16.0f, 10.0f);
+    style.ItemSpacing = ImVec2(16.0f, 12.0f);
+    
+    // Larger controls for settings
+    style.GrabMinSize = 16.0f;
+    style.ScrollbarSize = 18.0f;
+#endif
+}
+
+} // namespace gui
+} // namespace bolt

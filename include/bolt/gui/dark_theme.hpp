@@ -42,6 +42,36 @@ void ApplyBoltCodeEditorTheme();
  */
 void ApplyBoltHighContrastTheme();
 
+/**
+ * Apply enhanced code editor specific styling
+ * Tighter spacing, monospace-friendly settings
+ */
+void ApplyBoltCodeEditorEnhancements();
+
+/**
+ * Apply terminal/console theme variant
+ * Even darker background with terminal green accent
+ */
+void ApplyBoltTerminalTheme();
+
+/**
+ * Apply debugger panel theme variant
+ * Orange/red accent colors for breakpoints and errors
+ */
+void ApplyBoltDebuggerTheme();
+
+/**
+ * Apply file browser/tree view theme variant
+ * Compact spacing for file tree navigation
+ */
+void ApplyBoltFileTreeTheme();
+
+/**
+ * Apply settings/preferences panel theme
+ * Extra padding and larger controls for comfort
+ */
+void ApplyBoltSettingsTheme();
+
 } // namespace gui
 } // namespace bolt
 

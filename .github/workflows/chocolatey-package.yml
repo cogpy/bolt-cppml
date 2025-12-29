@@ -45,7 +45,14 @@ jobs:
         New-Item -ItemType Directory -Force -Path "choco-package\bin"
         
         # Copy binaries
+        if (-Not (Test-Path "build\Release\bolt.exe")) {
+            Write-Error "Error: bolt.exe not found in build output"
+            Write-Host "Build may have failed. Checking build directory..."
+            Get-ChildItem -Path "build\Release" -Recurse
+            exit 1
+        }
         Copy-Item "build\Release\bolt.exe" "choco-package\bin\"
+        
         if (Test-Path "build\Release\bolt_lib.dll") {
             Copy-Item "build\Release\bolt_lib.dll" "choco-package\bin\"
         }

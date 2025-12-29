@@ -329,8 +329,23 @@ void DebuggerUI::handle_breakpoint_toggle(size_t pc) {
 }
 
 void DebuggerUI::handle_breakpoint_condition_edit(size_t pc, const std::string& condition) {
-    // TODO: Implement conditional breakpoints
-    std::cout << "🔧 Breakpoint condition edit not implemented yet: PC " << pc << " -> " << condition << std::endl;
+    if (!debugger_) {
+        std::cout << "❌ No debugger attached" << std::endl;
+        return;
+    }
+    
+    // Set or update the breakpoint condition
+    if (condition.empty()) {
+        // Remove condition (make it unconditional)
+        debugger_->set_breakpoint_condition(pc, "");
+        std::cout << "✅ Removed condition from breakpoint at PC " << pc << std::endl;
+    } else {
+        // Set new condition
+        debugger_->set_breakpoint_condition(pc, condition);
+        std::cout << "✅ Set breakpoint condition at PC " << pc << ": " << condition << std::endl;
+    }
+    
+    status_message_ = "Breakpoint condition updated";
 }
 
 void DebuggerUI::handle_add_watch_expression() {

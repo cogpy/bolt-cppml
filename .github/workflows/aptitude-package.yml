@@ -123,7 +123,14 @@ jobs:
         
         # Copy documentation
         cp README.md debian-package/usr/share/doc/${PACKAGE_NAME}/
-        cp LICENSE debian-package/usr/share/doc/${PACKAGE_NAME}/copyright
+        if [ -f LICENSE ]; then
+          cp LICENSE debian-package/usr/share/doc/${PACKAGE_NAME}/copyright
+        elif [ -f LICENSE.md ]; then
+          cp LICENSE.md debian-package/usr/share/doc/${PACKAGE_NAME}/copyright
+        else
+          echo "MIT License" > debian-package/usr/share/doc/${PACKAGE_NAME}/copyright
+          echo "Copyright (c) 2025 Bolt C++ Team" >> debian-package/usr/share/doc/${PACKAGE_NAME}/copyright
+        fi
         
         # Copy icon if exists
         if [ -f generated-icon.png ]; then
@@ -132,6 +139,14 @@ jobs:
         
         # Set permissions
         chmod 755 debian-package/DEBIAN
+        
+        # Verify binary exists before setting permissions
+        if [ ! -f debian-package/usr/bin/bolt ]; then
+          echo "Error: bolt binary not found in build output"
+          echo "Build may have failed. Checking build directory..."
+          ls -la build/
+          exit 1
+        fi
         chmod 755 debian-package/usr/bin/bolt
         if [ -f debian-package/usr/lib/libbolt_lib.so ]; then
           chmod 644 debian-package/usr/lib/libbolt_lib.so*
