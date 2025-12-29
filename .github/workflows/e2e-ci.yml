@@ -104,7 +104,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          submodules: recursive
 
       - name: Cache vcpkg
         uses: actions/cache@v4
@@ -224,7 +223,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          submodules: recursive
 
       - name: Cache vcpkg
         uses: actions/cache@v4
@@ -337,7 +335,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          submodules: recursive
 
       - name: Cache vcpkg
         uses: actions/cache@v4
@@ -418,7 +415,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          submodules: recursive
 
       - name: Install dependencies
         run: |
@@ -469,7 +465,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          submodules: recursive
 
       - name: Download Linux build artifacts
         uses: actions/download-artifact@v4
@@ -521,7 +516,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          submodules: recursive
 
       - name: Install dependencies
         run: |
@@ -590,7 +584,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          submodules: recursive
 
       - name: Install dependencies
         run: |

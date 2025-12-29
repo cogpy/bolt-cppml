@@ -73,7 +73,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          submodules: recursive
 
       - name: Install dependencies
         run: |
@@ -149,7 +148,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          submodules: recursive
 
       - name: Install packaging dependencies
         run: |
@@ -282,7 +280,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          submodules: recursive
 
       - name: Setup MSVC
         uses: ilammy/msvc-dev-cmd@v1
@@ -441,7 +438,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          submodules: recursive
 
       - name: Install dependencies
         run: |
