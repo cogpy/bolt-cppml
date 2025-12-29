@@ -12,7 +12,8 @@ DebuggerInterface::DebuggerInterface()
     , state_(DebugState::STOPPED)
     , event_callback_(nullptr)
     , editor_(nullptr)
-    , debug_output_enabled_(true) {
+    , debug_output_enabled_(true)
+    , current_debug_line_(0) {
     
     setup_vm_handlers();
 }

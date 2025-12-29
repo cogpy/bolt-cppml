@@ -147,6 +147,10 @@ private:
     std::vector<std::string> debug_log_;
     bool debug_output_enabled_;
     
+    // Current debug position tracking
+    std::string current_debug_file_;
+    size_t current_debug_line_;
+    
     // Internal helpers
     void transition_state(DebugState new_state, const std::string& message = "");
     void fire_event(DebugEvent event, const std::string& message = "");
