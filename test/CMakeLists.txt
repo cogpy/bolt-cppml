@@ -319,7 +319,9 @@ if(BOLT_ENABLE_UNIT_TESTS)
     add_test(NAME unit_memory_leak_detector_tests COMMAND bolt_unit_tests MemoryLeakDetector)
     add_test(NAME unit_sanitizer_integration_tests COMMAND bolt_sanitizer_tests SanitizerIntegration)
     add_test(NAME unit_collaboration_tests COMMAND bolt_collaboration_tests)
-    add_test(NAME unit_network_tests COMMAND bolt_network_tests)
+    # Network tests - DISABLED: Requires network server, times out in CI
+    # The executable is still built and can be run manually for local testing
+    # add_test(NAME unit_network_tests COMMAND bolt_network_tests)
 
     # LSP tests - DISABLED: executable not built
     # add_test(NAME unit_lsp_tests COMMAND bolt_lsp_tests)
