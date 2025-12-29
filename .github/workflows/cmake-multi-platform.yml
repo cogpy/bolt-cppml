@@ -42,7 +42,6 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
-      with:
 
     - name: Install dependencies (Linux)
       if: runner.os == 'Linux'
