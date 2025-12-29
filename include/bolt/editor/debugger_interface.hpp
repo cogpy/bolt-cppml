@@ -96,6 +96,7 @@ public:
     void clear_all_breakpoints();
     bool toggle_breakpoint(size_t pc);
     bool enable_breakpoint(size_t pc, bool enabled);
+    bool set_breakpoint_condition(size_t pc, const std::string& condition);
     std::vector<BreakpointInfo> get_all_breakpoints() const;
     bool has_breakpoint(size_t pc) const;
     

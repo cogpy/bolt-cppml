@@ -323,6 +323,25 @@ bool DebuggerInterface::enable_breakpoint(size_t pc, bool enabled) {
     return true;
 }
 
+bool DebuggerInterface::set_breakpoint_condition(size_t pc, const std::string& condition) {
+    auto it = std::find_if(breakpoints_.begin(), breakpoints_.end(),
+                          [pc](const BreakpointInfo& bp) { return bp.pc == pc; });
+    
+    if (it == breakpoints_.end()) {
+        return false;
+    }
+    
+    it->condition = condition;
+    
+    if (condition.empty()) {
+        log_debug_message("Removed condition from breakpoint at PC " + std::to_string(pc));
+    } else {
+        log_debug_message("Set condition for breakpoint at PC " + std::to_string(pc) + ": " + condition);
+    }
+    
+    return true;
+}
+
 std::vector<BreakpointInfo> DebuggerInterface::get_all_breakpoints() const {
     return breakpoints_;
 }
