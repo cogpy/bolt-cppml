@@ -244,9 +244,6 @@ void ApplyBoltHighContrastTheme() {
 #endif
 }
 
-} // namespace gui
-} // namespace bolt
-
 // Enhanced code editor specific styling
 void ApplyBoltCodeEditorEnhancements() {
 #ifdef BOLT_HAVE_IMGUI
