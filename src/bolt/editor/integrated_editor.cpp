@@ -932,5 +932,228 @@ void IntegratedEditor::setTabPinned(size_t tabId, bool isPinned) {
     tabBar_.setTabPinned(tabId, isPinned);
 }
 
+// ============================================================================
+// Debugger-Editor Integration: Line highlighting
+// ============================================================================
+
+void IntegratedEditor::highlightLine(const std::string& filePath, size_t line, HighlightType type) {
+    lineHighlights_[filePath][line].insert(type);
+
+    // If this is a debug highlight, scroll to make the line visible
+    if (type == HighlightType::DebugCurrent || type == HighlightType::DebugBreakpoint) {
+        revealLine(filePath, line, true);
+    }
+}
+
+void IntegratedEditor::clearHighlight(const std::string& filePath, size_t line, HighlightType type) {
+    auto fileIt = lineHighlights_.find(filePath);
+    if (fileIt != lineHighlights_.end()) {
+        auto lineIt = fileIt->second.find(line);
+        if (lineIt != fileIt->second.end()) {
+            lineIt->second.erase(type);
+            // Clean up empty entries
+            if (lineIt->second.empty()) {
+                fileIt->second.erase(lineIt);
+            }
+            if (fileIt->second.empty()) {
+                lineHighlights_.erase(fileIt);
+            }
+        }
+    }
+}
+
+void IntegratedEditor::clearAllHighlights(const std::string& filePath) {
+    lineHighlights_.erase(filePath);
+}
+
+void IntegratedEditor::clearAllHighlightsOfType(HighlightType type) {
+    for (auto& [filePath, lines] : lineHighlights_) {
+        for (auto lineIt = lines.begin(); lineIt != lines.end(); ) {
+            lineIt->second.erase(type);
+            if (lineIt->second.empty()) {
+                lineIt = lines.erase(lineIt);
+            } else {
+                ++lineIt;
+            }
+        }
+    }
+    // Clean up empty file entries
+    for (auto it = lineHighlights_.begin(); it != lineHighlights_.end(); ) {
+        if (it->second.empty()) {
+            it = lineHighlights_.erase(it);
+        } else {
+            ++it;
+        }
+    }
+}
+
+bool IntegratedEditor::hasHighlight(const std::string& filePath, size_t line, HighlightType type) const {
+    auto fileIt = lineHighlights_.find(filePath);
+    if (fileIt != lineHighlights_.end()) {
+        auto lineIt = fileIt->second.find(line);
+        if (lineIt != fileIt->second.end()) {
+            return lineIt->second.count(type) > 0;
+        }
+    }
+    return false;
+}
+
+std::vector<std::pair<size_t, IntegratedEditor::HighlightType>> IntegratedEditor::getHighlights(const std::string& filePath) const {
+    std::vector<std::pair<size_t, HighlightType>> result;
+    auto fileIt = lineHighlights_.find(filePath);
+    if (fileIt != lineHighlights_.end()) {
+        for (const auto& [line, types] : fileIt->second) {
+            for (const auto& type : types) {
+                result.emplace_back(line, type);
+            }
+        }
+    }
+    return result;
+}
+
+// ============================================================================
+// Debugger-Editor Integration: Breakpoint markers
+// ============================================================================
+
+void IntegratedEditor::setBreakpointMarker(const std::string& filePath, size_t line, bool enabled) {
+    breakpointMarkers_[filePath][line] = enabled;
+}
+
+void IntegratedEditor::clearBreakpointMarker(const std::string& filePath, size_t line) {
+    auto fileIt = breakpointMarkers_.find(filePath);
+    if (fileIt != breakpointMarkers_.end()) {
+        fileIt->second.erase(line);
+        if (fileIt->second.empty()) {
+            breakpointMarkers_.erase(fileIt);
+        }
+    }
+}
+
+void IntegratedEditor::clearAllBreakpointMarkers(const std::string& filePath) {
+    breakpointMarkers_.erase(filePath);
+}
+
+bool IntegratedEditor::hasBreakpointMarker(const std::string& filePath, size_t line) const {
+    auto fileIt = breakpointMarkers_.find(filePath);
+    if (fileIt != breakpointMarkers_.end()) {
+        return fileIt->second.count(line) > 0;
+    }
+    return false;
+}
+
+std::vector<std::pair<size_t, bool>> IntegratedEditor::getBreakpointMarkers(const std::string& filePath) const {
+    std::vector<std::pair<size_t, bool>> result;
+    auto fileIt = breakpointMarkers_.find(filePath);
+    if (fileIt != breakpointMarkers_.end()) {
+        for (const auto& [line, enabled] : fileIt->second) {
+            result.emplace_back(line, enabled);
+        }
+    }
+    return result;
+}
+
+// ============================================================================
+// Debugger-Editor Integration: Navigation
+// ============================================================================
+
+void IntegratedEditor::scrollToLine(const std::string& filePath, size_t line) {
+    auto* doc = editorStore_.getCurrentDocument();
+    if (doc && doc->filePath == filePath) {
+        // Update scroll position to the target line
+        doc->scroll.line = static_cast<int>(line);
+        doc->scroll.character = 0;
+    }
+}
+
+void IntegratedEditor::revealLine(const std::string& filePath, size_t line, bool center) {
+    // First ensure the document is open and focused
+    focusDocument(filePath);
+
+    auto* doc = editorStore_.getCurrentDocument();
+    if (doc && doc->filePath == filePath) {
+        if (center) {
+            // Adjust scroll to center the line (assuming ~30 visible lines)
+            size_t visibleLines = 30;
+            if (line > visibleLines / 2) {
+                doc->scroll.line = static_cast<int>(line - visibleLines / 2);
+            } else {
+                doc->scroll.line = 0;
+            }
+        } else {
+            doc->scroll.line = static_cast<int>(line);
+        }
+        doc->scroll.character = 0;
+
+        // Move cursor to the beginning of the target line
+        size_t offset = 0;
+        size_t currentLine = 0;
+        for (size_t i = 0; i < doc->value.length() && currentLine < line; ++i) {
+            if (doc->value[i] == '\n') {
+                currentLine++;
+                offset = i + 1;
+            }
+        }
+        doc->cursor.position = offset;
+    }
+}
+
+void IntegratedEditor::focusDocument(const std::string& filePath) {
+    // Set as selected file in editor store
+    editorStore_.setSelectedFile(filePath);
+
+    // If using tabs, switch to the appropriate tab
+    switchToTabByPath(filePath);
+
+    // If using split view, focus the pane containing this document
+    if (splitViewManager_.isEnabled()) {
+        std::string paneId = findPaneWithDocument(filePath);
+        if (!paneId.empty()) {
+            focusPane(paneId);
+        }
+    }
+}
+
+// ============================================================================
+// Debugger-Editor Integration: Source mapping
+// ============================================================================
+
+void IntegratedEditor::registerSourceMapping(const std::string& filePath, size_t line, size_t pc) {
+    std::string key = filePath + ":" + std::to_string(line);
+    lineToPc_[key] = pc;
+    pcToLine_[pc] = {filePath, line};
+}
+
+void IntegratedEditor::clearSourceMappings(const std::string& filePath) {
+    // Remove all mappings for this file
+    std::string prefix = filePath + ":";
+
+    // Find and remove line->PC mappings
+    for (auto it = lineToPc_.begin(); it != lineToPc_.end(); ) {
+        if (it->first.compare(0, prefix.length(), prefix) == 0) {
+            // Also remove the corresponding PC->line mapping
+            pcToLine_.erase(it->second);
+            it = lineToPc_.erase(it);
+        } else {
+            ++it;
+        }
+    }
+}
+
+std::optional<size_t> IntegratedEditor::getPCForLine(const std::string& filePath, size_t line) const {
+    std::string key = filePath + ":" + std::to_string(line);
+    auto it = lineToPc_.find(key);
+    if (it != lineToPc_.end()) {
+        return it->second;
+    }
+    return std::nullopt;
+}
+
+std::optional<std::pair<std::string, size_t>> IntegratedEditor::getLineForPC(size_t pc) const {
+    auto it = pcToLine_.find(pc);
+    if (it != pcToLine_.end()) {
+        return it->second;
+    }
+    return std::nullopt;
+}
 
 } // namespace bolt

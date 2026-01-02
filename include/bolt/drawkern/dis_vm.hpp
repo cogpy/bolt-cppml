@@ -157,6 +157,13 @@ public:
     void set_glyph_renderer(std::function<void(const std::string&)> renderer);
     void set_vm_spawner(std::function<bool(const std::string&)> spawner);
     void set_namespace_mounter(std::function<bool(const std::string&, const std::string&)> mounter);
+
+    // Debugging callbacks
+    void set_step_callback(std::function<void(size_t pc, const std::string& instruction)> callback);
+    void set_breakpoint_callback(std::function<void(size_t pc)> callback);
+    void set_error_callback(std::function<void(const std::string& error)> callback);
+    void set_completion_callback(std::function<void()> callback);
+    void set_output_callback(std::function<void(const std::string& output)> callback);
     
     // Debugging
     void dump_stack() const;
@@ -203,6 +210,13 @@ private:
     std::function<void(const std::string&)> glyph_renderer_;
     std::function<bool(const std::string&)> vm_spawner_;
     std::function<bool(const std::string&, const std::string&)> namespace_mounter_;
+
+    // Debugging callbacks
+    std::function<void(size_t, const std::string&)> step_callback_;
+    std::function<void(size_t)> breakpoint_callback_;
+    std::function<void(const std::string&)> error_callback_;
+    std::function<void()> completion_callback_;
+    std::function<void(const std::string&)> output_callback_;
     
     // Instruction execution
     void execute_instruction(const DISInstruction& inst);
