@@ -76,31 +76,48 @@ bool DISVM::run() {
 
 void DISVM::step() {
     if (!running_ || halted_ || pc_ >= program_.instructions.size()) {
+        // Check if program completed
+        if (pc_ >= program_.instructions.size() && completion_callback_) {
+            completion_callback_();
+        }
         return;
     }
-    
+
     // Check for breakpoint at current PC
     if (has_breakpoint(pc_) && !at_breakpoint_) {
         at_breakpoint_ = true;
         std::cout << "🔴 Breakpoint hit at PC " << pc_ << std::endl;
+
+        // Invoke breakpoint callback
+        if (breakpoint_callback_) {
+            breakpoint_callback_(pc_);
+        }
         return; // Pause execution at breakpoint
     }
-    
+
     at_breakpoint_ = false;
     const DISInstruction& inst = program_.instructions[pc_];
-    
+
     try {
+        // Get instruction info for callback
+        std::string inst_info = get_instruction_info(pc_);
+
         execute_instruction(inst);
-        
+
+        // Invoke step callback after successful execution
+        if (step_callback_) {
+            step_callback_(pc_, inst_info);
+        }
+
         // Advance PC unless it was modified by a jump/call instruction
-        if (inst.opcode != DISOpcode::JMP && 
-            inst.opcode != DISOpcode::JMPT && 
-            inst.opcode != DISOpcode::JMPF && 
+        if (inst.opcode != DISOpcode::JMP &&
+            inst.opcode != DISOpcode::JMPT &&
+            inst.opcode != DISOpcode::JMPF &&
             inst.opcode != DISOpcode::CALL &&
             inst.opcode != DISOpcode::RET) {
             pc_++;
         }
-        
+
         // Handle step mode
         if (step_mode_) {
             if (step_depth_ > 0 && call_stack_.size() < step_depth_) {
@@ -113,7 +130,13 @@ void DISVM::step() {
             }
         }
     } catch (const std::exception& e) {
-        runtime_error("Exception during execution: " + std::string(e.what()));
+        std::string error_msg = "Exception during execution: " + std::string(e.what());
+        runtime_error(error_msg);
+
+        // Invoke error callback
+        if (error_callback_) {
+            error_callback_(error_msg);
+        }
     }
 }
 
@@ -199,6 +222,26 @@ void DISVM::set_vm_spawner(std::function<bool(const std::string&)> spawner) {
 
 void DISVM::set_namespace_mounter(std::function<bool(const std::string&, const std::string&)> mounter) {
     namespace_mounter_ = mounter;
+}
+
+void DISVM::set_step_callback(std::function<void(size_t pc, const std::string& instruction)> callback) {
+    step_callback_ = callback;
+}
+
+void DISVM::set_breakpoint_callback(std::function<void(size_t pc)> callback) {
+    breakpoint_callback_ = callback;
+}
+
+void DISVM::set_error_callback(std::function<void(const std::string& error)> callback) {
+    error_callback_ = callback;
+}
+
+void DISVM::set_completion_callback(std::function<void()> callback) {
+    completion_callback_ = callback;
+}
+
+void DISVM::set_output_callback(std::function<void(const std::string& output)> callback) {
+    output_callback_ = callback;
 }
 
 void DISVM::execute_instruction(const DISInstruction& inst) {
@@ -445,20 +488,31 @@ void DISVM::handle_io_ops(const DISInstruction& inst) {
             if (!check_stack_size(1)) break;
             {
                 DISValue value = pop();
+                std::string output;
                 if (value.type == DISValue::STRING) {
-                    std::cout << value.string_val;
+                    output = value.string_val;
                 } else if (value.type == DISValue::INT) {
-                    std::cout << value.int_val;
+                    output = std::to_string(value.int_val);
+                } else if (value.type == DISValue::FLOAT) {
+                    output = std::to_string(value.float_val);
                 }
+
+                // Print to stdout
+                std::cout << output;
                 std::cout.flush();
+
+                // Also invoke output callback for debugger integration
+                if (output_callback_) {
+                    output_callback_(output);
+                }
             }
             break;
-            
+
         case DISOpcode::READ:
             // Simplified - just push a placeholder
             push(DISValue("input"));
             break;
-            
+
         default:
             break;
     }

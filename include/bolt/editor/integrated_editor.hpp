@@ -16,6 +16,9 @@
 #include "bolt/ai/ai_completion_provider.hpp"
 #include <string>
 #include <memory>
+#include <map>
+#include <set>
+#include <optional>
 
 namespace bolt {
 
@@ -178,10 +181,55 @@ public:
     void setTabDirty(size_t tabId, bool isDirty);
     void setTabPinned(size_t tabId, bool isPinned);
 
+    // Debugger-Editor Integration: Line highlighting
+    enum class HighlightType {
+        DebugCurrent,       // Current execution line (yellow/orange)
+        DebugBreakpoint,    // Breakpoint hit (red)
+        DebugStepTarget,    // Step target line (green)
+        SearchResult,       // Search result highlight
+        Error,              // Error line (red underline)
+        Warning             // Warning line (yellow underline)
+    };
+
+    void highlightLine(const std::string& filePath, size_t line, HighlightType type);
+    void clearHighlight(const std::string& filePath, size_t line, HighlightType type);
+    void clearAllHighlights(const std::string& filePath);
+    void clearAllHighlightsOfType(HighlightType type);
+    bool hasHighlight(const std::string& filePath, size_t line, HighlightType type) const;
+    std::vector<std::pair<size_t, HighlightType>> getHighlights(const std::string& filePath) const;
+
+    // Debugger-Editor Integration: Breakpoint markers
+    void setBreakpointMarker(const std::string& filePath, size_t line, bool enabled);
+    void clearBreakpointMarker(const std::string& filePath, size_t line);
+    void clearAllBreakpointMarkers(const std::string& filePath);
+    bool hasBreakpointMarker(const std::string& filePath, size_t line) const;
+    std::vector<std::pair<size_t, bool>> getBreakpointMarkers(const std::string& filePath) const;
+
+    // Debugger-Editor Integration: Navigation
+    void scrollToLine(const std::string& filePath, size_t line);
+    void revealLine(const std::string& filePath, size_t line, bool center = true);
+    void focusDocument(const std::string& filePath);
+
+    // Debugger-Editor Integration: Source mapping
+    void registerSourceMapping(const std::string& filePath, size_t line, size_t pc);
+    void clearSourceMappings(const std::string& filePath);
+    std::optional<size_t> getPCForLine(const std::string& filePath, size_t line) const;
+    std::optional<std::pair<std::string, size_t>> getLineForPC(size_t pc) const;
+
 private:
     IntegratedEditor();
     void detectAndUpdateFolding(const std::string& filePath, const std::string& content);
     void synchronizeFoldingState(const std::string& filePath);
+
+    // Line highlight storage: filePath -> {line -> set of HighlightType}
+    std::map<std::string, std::map<size_t, std::set<HighlightType>>> lineHighlights_;
+
+    // Breakpoint marker storage: filePath -> {line -> enabled}
+    std::map<std::string, std::map<size_t, bool>> breakpointMarkers_;
+
+    // Source mapping: filePath:line -> PC, and PC -> {filePath, line}
+    std::map<std::string, size_t> lineToPc_;
+    std::map<size_t, std::pair<std::string, size_t>> pcToLine_;
 };
 
 } // namespace bolt

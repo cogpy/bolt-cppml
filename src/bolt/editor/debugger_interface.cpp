@@ -4,6 +4,7 @@
 #include <iostream>
 #include <sstream>
 #include <algorithm>
+#include <set>
 
 namespace bolt {
 
@@ -509,18 +510,22 @@ void DebuggerInterface::highlight_current_line() {
     if (!editor_ || !is_debugging()) {
         return;
     }
-    
+
     auto [file_path, line] = find_line_for_pc(vm_->get_pc());
     if (!file_path.empty()) {
-        // Highlight the current debug line in the editor
-        if (editor_) {
-            // Store current debug location
-            current_debug_file_ = file_path;
-            current_debug_line_ = line;
-            
-            // TODO: Call editor API to highlight line when editor interface is available
-            // editor_->highlightLine(file_path, line, HighlightType::DebugCurrent);
+        // Clear any previous debug current line highlight
+        if (!current_debug_file_.empty()) {
+            editor_->clearHighlight(current_debug_file_, current_debug_line_,
+                                   IntegratedEditor::HighlightType::DebugCurrent);
         }
+
+        // Store current debug location
+        current_debug_file_ = file_path;
+        current_debug_line_ = line;
+
+        // Highlight the current execution line in the editor
+        editor_->highlightLine(file_path, line, IntegratedEditor::HighlightType::DebugCurrent);
+
         log_debug_message("Highlighting line " + std::to_string(line) + " in " + file_path);
     }
 }
@@ -529,12 +534,12 @@ void DebuggerInterface::clear_current_line_highlight() {
     if (!editor_) {
         return;
     }
-    
+
     // Clear the current debug line highlight in the editor
-    if (editor_ && !current_debug_file_.empty()) {
-        // TODO: Call editor API to clear highlight when editor interface is available
-        // editor_->clearHighlight(current_debug_file_, current_debug_line_, HighlightType::DebugCurrent);
-        
+    if (!current_debug_file_.empty()) {
+        editor_->clearHighlight(current_debug_file_, current_debug_line_,
+                               IntegratedEditor::HighlightType::DebugCurrent);
+
         current_debug_file_.clear();
         current_debug_line_ = 0;
     }
@@ -545,17 +550,32 @@ void DebuggerInterface::refresh_breakpoint_markers() {
     if (!editor_) {
         return;
     }
-    
-    // Refresh all breakpoint markers in the editor
-    if (editor_) {
-        // TODO: Call editor API to refresh breakpoint markers when editor interface is available
-        // for (const auto& [pc, bp] : breakpoints_) {
-        //     auto [file_path, line] = find_line_for_pc(pc);
-        //     if (!file_path.empty()) {
-        //         editor_->setBreakpointMarker(file_path, line, bp.enabled);
-        //     }
-        // }
+
+    // Clear all existing breakpoint markers first
+    // Collect unique file paths from breakpoints
+    std::set<std::string> affectedFiles;
+    for (const auto& bp : breakpoints_) {
+        if (!bp.file_path.empty()) {
+            affectedFiles.insert(bp.file_path);
+        }
     }
+
+    // Clear markers for all affected files
+    for (const auto& file : affectedFiles) {
+        editor_->clearAllBreakpointMarkers(file);
+    }
+
+    // Set breakpoint markers for all current breakpoints
+    for (const auto& bp : breakpoints_) {
+        auto [file_path, line] = find_line_for_pc(bp.pc);
+        if (!file_path.empty()) {
+            editor_->setBreakpointMarker(file_path, line, bp.enabled);
+        } else if (!bp.file_path.empty()) {
+            // Use stored file_path if available
+            editor_->setBreakpointMarker(bp.file_path, bp.line_number, bp.enabled);
+        }
+    }
+
     log_debug_message("Refreshed breakpoint markers");
 }
 
@@ -608,8 +628,58 @@ void DebuggerInterface::log_debug_message(const std::string& message) {
 }
 
 void DebuggerInterface::update_breakpoint_mapping() {
-    // TODO: Implement file/line to PC mapping based on debug info
-    // This would require source-level debugging support in the VM
+    // Update source mappings in the editor based on VM debug info
+    if (!editor_) {
+        return;
+    }
+
+    // Clear existing mappings
+    file_line_to_pc_.clear();
+    pc_to_file_line_.clear();
+
+    // Get program size to iterate through all PCs
+    size_t program_size = vm_->get_program_size();
+
+    // Build source mappings from VM debug information
+    // This creates a mapping between source lines and program counters
+    for (size_t pc = 0; pc < program_size; ++pc) {
+        // Get source info for this PC from VM (if available)
+        std::string source_info = vm_->get_instruction_info(pc);
+
+        // Parse source info to extract file and line
+        // Format expected: "instruction_name (file:line)" or similar
+        size_t file_start = source_info.find('(');
+        size_t colon = source_info.rfind(':');
+        size_t file_end = source_info.rfind(')');
+
+        if (file_start != std::string::npos && colon != std::string::npos &&
+            file_end != std::string::npos && colon > file_start && colon < file_end) {
+
+            std::string file_path = source_info.substr(file_start + 1, colon - file_start - 1);
+            std::string line_str = source_info.substr(colon + 1, file_end - colon - 1);
+
+            try {
+                size_t line = std::stoul(line_str);
+
+                // Add to local mappings
+                std::string key = file_path + ":" + std::to_string(line);
+                if (file_line_to_pc_.find(key) == file_line_to_pc_.end()) {
+                    // Only store first PC for each line
+                    file_line_to_pc_[key] = pc;
+                }
+                pc_to_file_line_[pc] = {file_path, line};
+
+                // Also register with editor for external access
+                editor_->registerSourceMapping(file_path, line, pc);
+            } catch (...) {
+                // Invalid line number, skip
+            }
+        }
+    }
+
+    log_debug_message("Updated breakpoint mappings: " +
+                     std::to_string(file_line_to_pc_.size()) + " line->PC, " +
+                     std::to_string(pc_to_file_line_.size()) + " PC->line");
 }
 
 size_t DebuggerInterface::find_pc_for_line(const std::string& file_path, size_t line) const {
@@ -642,8 +712,59 @@ std::string DebuggerInterface::evaluate_watch_expression(const std::string& expr
 }
 
 void DebuggerInterface::setup_vm_handlers() {
-    // TODO: Set up VM handlers for AI integration, glyph rendering, etc.
-    // This would allow the debugger to intercept and display VM operations
+    // Set up VM handlers for AI integration, glyph rendering, and debugging
+
+    // Register a step handler to update UI after each instruction
+    vm_->set_step_callback([this](size_t pc, const std::string& instruction) {
+        // Update current execution position
+        auto [file_path, line] = find_line_for_pc(pc);
+        if (!file_path.empty()) {
+            current_debug_file_ = file_path;
+            current_debug_line_ = line;
+        }
+
+        // Log instruction execution if debug output is enabled
+        if (debug_output_enabled_) {
+            log_debug_message("Executed: [" + std::to_string(pc) + "] " + instruction);
+        }
+    });
+
+    // Register a breakpoint hit handler
+    vm_->set_breakpoint_callback([this](size_t pc) {
+        transition_state(DebugState::PAUSED, "Breakpoint hit at PC " + std::to_string(pc));
+        fire_event(DebugEvent::BREAKPOINT_HIT, "Stopped at breakpoint");
+
+        // Highlight the breakpoint line
+        auto [file_path, line] = find_line_for_pc(pc);
+        if (!file_path.empty() && editor_) {
+            editor_->highlightLine(file_path, line, IntegratedEditor::HighlightType::DebugBreakpoint);
+        }
+
+        // Update watch expressions
+        update_watch_expressions();
+    });
+
+    // Register an error handler
+    vm_->set_error_callback([this](const std::string& error) {
+        transition_state(DebugState::ERROR, error);
+        fire_event(DebugEvent::ERROR_OCCURRED, error);
+        log_debug_message("VM Error: " + error);
+    });
+
+    // Register a completion handler
+    vm_->set_completion_callback([this]() {
+        transition_state(DebugState::FINISHED, "Program completed");
+        fire_event(DebugEvent::EXECUTION_FINISHED, "Program execution completed normally");
+        clear_current_line_highlight();
+    });
+
+    // Register a glyph output handler for AI visualization
+    vm_->set_output_callback([this](const std::string& output) {
+        // Store output for display in debugger UI
+        log_debug_message("Output: " + output);
+    });
+
+    log_debug_message("VM handlers initialized");
 }
 
 } // namespace bolt
