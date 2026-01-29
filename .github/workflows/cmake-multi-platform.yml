@@ -56,13 +56,17 @@ jobs:
           zlib1g-dev \
           pkg-config
 
-    - name: Install dependencies (Windows)
+    - name: Install vcpkg (Windows)
       if: runner.os == 'Windows'
       run: |
-        # Install vcpkg for Windows dependencies
         git clone https://github.com/microsoft/vcpkg.git vcpkg_tool
         .\vcpkg_tool\bootstrap-vcpkg.bat
-        .\vcpkg_tool\vcpkg install curl:x64-windows openssl:x64-windows zlib:x64-windows jsoncpp:x64-windows
+
+    - name: Install dependencies via vcpkg (Windows)
+      if: runner.os == 'Windows'
+      run: |
+        # Use manifest mode - vcpkg reads from vcpkg.json
+        .\vcpkg_tool\vcpkg install --triplet=x64-windows
 
     - name: Set reusable strings
       id: strings

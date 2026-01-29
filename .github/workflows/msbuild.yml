@@ -28,9 +28,11 @@ jobs:
         git clone https://github.com/microsoft/vcpkg.git vcpkg_tool
         .\vcpkg_tool\bootstrap-vcpkg.bat
 
-    - name: Install dependencies via vcpkg
+    - name: Install dependencies via vcpkg (manifest mode)
       run: |
-        .\vcpkg_tool\vcpkg install curl:x64-windows openssl:x64-windows zlib:x64-windows jsoncpp:x64-windows
+        # In manifest mode, vcpkg reads from vcpkg.json automatically
+        # We just need to run vcpkg install without package arguments
+        .\vcpkg_tool\vcpkg install --triplet=x64-windows
 
     - name: Configure CMake
       run: |
