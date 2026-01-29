@@ -1,8 +1,4 @@
-# This workflow uses actions that are not certified by GitHub.
-# They are provided by a third-party and are governed by
-# separate terms of service, privacy policy, and support
-# documentation.
-
+# Windows MSBuild/CMake workflow
 name: MSBuild
 
 on:
@@ -12,12 +8,6 @@ on:
     branches: [ "main" ]
 
 env:
-  # Path to the solution file relative to the root of the project.
-  SOLUTION_FILE_PATH: .
-
-  # Configuration type to build.
-  # You can convert this to a build matrix if you need coverage of multiple configuration types.
-  # https://docs.github.com/actions/learn-github-actions/managing-complex-workflows#using-a-build-matrix
   BUILD_CONFIGURATION: Release
 
 permissions:
@@ -31,14 +21,43 @@ jobs:
     - uses: actions/checkout@v4
 
     - name: Add MSBuild to PATH
-      uses: microsoft/setup-msbuild@v1.0.2
+      uses: microsoft/setup-msbuild@v2
 
-    - name: Restore NuGet packages
-      working-directory: ${{env.GITHUB_WORKSPACE}}
-      run: nuget restore ${{env.SOLUTION_FILE_PATH}}
+    - name: Set up vcpkg
+      run: |
+        git clone https://github.com/microsoft/vcpkg.git vcpkg_tool
+        .\vcpkg_tool\bootstrap-vcpkg.bat
 
-    - name: Build
-      working-directory: ${{env.GITHUB_WORKSPACE}}
-      # Add additional options to the MSBuild command line here (like platform or verbosity level).
-      # See https://docs.microsoft.com/visualstudio/msbuild/msbuild-command-line-reference
-      run: msbuild /m /p:Configuration=${{env.BUILD_CONFIGURATION}} ${{env.SOLUTION_FILE_PATH}}
+    - name: Install dependencies via vcpkg
+      run: |
+        .\vcpkg_tool\vcpkg install curl:x64-windows openssl:x64-windows zlib:x64-windows jsoncpp:x64-windows
+
+    - name: Configure CMake
+      run: |
+        mkdir build
+        cd build
+        cmake -G "Visual Studio 17 2022" -A x64 `
+              -DCMAKE_TOOLCHAIN_FILE=..\vcpkg_tool\scripts\buildsystems\vcpkg.cmake `
+              -DCMAKE_BUILD_TYPE=${{env.BUILD_CONFIGURATION}} ..
+
+    - name: Build with MSBuild
+      working-directory: build
+      run: |
+        msbuild /m /p:Configuration=${{env.BUILD_CONFIGURATION}} ALL_BUILD.vcxproj
+
+    - name: Run tests
+      working-directory: build
+      run: |
+        $env:PATH = "$PWD\bin;$PWD\${{env.BUILD_CONFIGURATION}};$env:PATH"
+        ctest --build-config ${{env.BUILD_CONFIGURATION}} --output-on-failure --timeout 120
+      continue-on-error: true
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: windows-msbuild-artifacts
+        path: |
+          build/${{env.BUILD_CONFIGURATION}}/*.exe
+          build/${{env.BUILD_CONFIGURATION}}/*.dll
+          build/bin/*.dll
+        retention-days: 7

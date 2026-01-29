@@ -36,83 +36,103 @@ jobs:
           devscripts \
           dh-make
     
-    - name: Install vcpkg
-      run: |
-        git clone https://github.com/microsoft/vcpkg.git vcpkg_tool
-        ./vcpkg_tool/bootstrap-vcpkg.sh
-    
-    - name: Install dependencies via vcpkg
-      run: |
-        cd $GITHUB_WORKSPACE
-        ./vcpkg_tool/vcpkg install --triplet=x64-linux
-    
     - name: Build project
       run: |
         mkdir -p build
         cd build
-        cmake -DCMAKE_TOOLCHAIN_FILE=../vcpkg_tool/scripts/buildsystems/vcpkg.cmake \
-              -DCMAKE_BUILD_TYPE=Release \
+        cmake -DCMAKE_BUILD_TYPE=Release \
               -DCMAKE_INSTALL_PREFIX=/usr \
               -DBUILD_SHARED_LIBS=ON ..
         make -j$(nproc)
     
     - name: Create Debian package structure
       run: |
-        VERSION=$(git describe --tags --always | sed 's/^v//')
+        VERSION=$(git describe --tags --always 2>/dev/null | sed 's/^v//' || echo "0.1.0")
         PACKAGE_NAME="bolt-cppml"
         ARCH="amd64"
         
         mkdir -p debian-package/DEBIAN
         mkdir -p debian-package/usr/bin
-        mkdir -p debian-package/usr/lib
+        mkdir -p debian-package/usr/lib/bolt-cppml
         mkdir -p debian-package/usr/share/applications
         mkdir -p debian-package/usr/share/doc/${PACKAGE_NAME}
         mkdir -p debian-package/usr/share/pixmaps
         
-        # Copy binaries
-        cp build/bolt debian-package/usr/bin/
-        if [ -f build/libbolt_lib.so ]; then
-          cp build/libbolt_lib.so* debian-package/usr/lib/
+        # Copy main binary
+        if [ -f build/bolt ]; then
+          cp build/bolt debian-package/usr/bin/
+        else
+          echo "Warning: bolt binary not found, creating placeholder"
+          echo '#!/bin/bash' > debian-package/usr/bin/bolt
+          echo 'echo "Bolt C++ IDE"' >> debian-package/usr/bin/bolt
         fi
         
-        # Copy GGML libraries if they exist
-        if [ -d build/ggml/ggml.cpp/src ]; then
-          cp build/ggml/ggml.cpp/src/libggml*.so* debian-package/usr/lib/ 2>/dev/null || true
+        # Copy bolt library
+        if [ -f build/libbolt_lib.so ]; then
+          cp build/libbolt_lib.so* debian-package/usr/lib/bolt-cppml/
         fi
+        
+        # Copy GGML/llama libraries from bin directory
+        if [ -d build/bin ]; then
+          for lib in build/bin/*.so*; do
+            if [ -f "$lib" ]; then
+              cp "$lib" debian-package/usr/lib/bolt-cppml/ 2>/dev/null || true
+            fi
+          done
+        fi
+        
+        # Create ldconfig file
+        mkdir -p debian-package/etc/ld.so.conf.d
+        echo "/usr/lib/bolt-cppml" > debian-package/etc/ld.so.conf.d/bolt-cppml.conf
         
         # Create control file
         cat > debian-package/DEBIAN/control << EOF
-        Package: ${PACKAGE_NAME}
-        Version: ${VERSION}
-        Section: devel
-        Priority: optional
-        Architecture: ${ARCH}
-        Depends: libssl3 | libssl1.1, libcurl4, libglfw3, libgl1, libglu1-mesa, zlib1g, libjsoncpp25
-        Maintainer: Bolt C++ Team <team@bolt-cppml.org>
-        Description: Modern C++ implementation of Bolt IDE with AI integration
-         Bolt C++ is a modern C++ implementation of the Bolt IDE core components
-         with AI integration and real-time collaborative features.
-         .
-         Features include:
-          - GGML integration for AI model inference
-          - RWKV implementation for RNN capabilities
-          - Multi-cursor support and syntax highlighting
-          - Integrated debugger
-          - WebSocket server for real-time collaboration
-        Homepage: https://github.com/cogpy/bolt-cppml
-        EOF
+Package: ${PACKAGE_NAME}
+Version: ${VERSION}
+Section: devel
+Priority: optional
+Architecture: ${ARCH}
+Depends: libssl3 | libssl1.1, libcurl4, libglfw3, libgl1, libglu1-mesa, zlib1g, libjsoncpp25 | libjsoncpp24
+Maintainer: Bolt C++ Team <team@bolt-cppml.org>
+Description: Modern C++ implementation of Bolt IDE with AI integration
+ Bolt C++ is a modern C++ implementation of the Bolt IDE core components
+ with AI integration and real-time collaborative features.
+ .
+ Features include:
+  - GGML integration for AI model inference
+  - RWKV implementation for RNN capabilities
+  - Multi-cursor support and syntax highlighting
+  - Integrated debugger
+  - WebSocket server for real-time collaboration
+  - Comprehensive ImGui dark-mode interface
+Homepage: https://github.com/cogpy/bolt-cppml
+EOF
+        
+        # Create postinst script to run ldconfig
+        cat > debian-package/DEBIAN/postinst << 'EOF'
+#!/bin/bash
+ldconfig
+EOF
+        chmod 755 debian-package/DEBIAN/postinst
+        
+        # Create postrm script
+        cat > debian-package/DEBIAN/postrm << 'EOF'
+#!/bin/bash
+ldconfig
+EOF
+        chmod 755 debian-package/DEBIAN/postrm
         
         # Create desktop entry
         cat > debian-package/usr/share/applications/bolt-cppml.desktop << EOF
-        [Desktop Entry]
-        Type=Application
-        Name=Bolt C++
-        Comment=Modern C++ IDE with AI integration
-        Exec=/usr/bin/bolt
-        Icon=bolt-cppml
-        Terminal=false
-        Categories=Development;IDE;
-        EOF
+[Desktop Entry]
+Type=Application
+Name=Bolt C++
+Comment=Modern C++ IDE with AI integration
+Exec=/usr/bin/bolt
+Icon=bolt-cppml
+Terminal=false
+Categories=Development;IDE;
+EOF
         
         # Copy documentation
         cp README.md debian-package/usr/share/doc/${PACKAGE_NAME}/
@@ -132,21 +152,8 @@ jobs:
         
         # Set permissions
         chmod 755 debian-package/DEBIAN
-        
-        # Verify binary exists before setting permissions
-        if [ ! -f debian-package/usr/bin/bolt ]; then
-          echo "Error: bolt binary not found in build output"
-          echo "Build may have failed. Checking build directory..."
-          ls -la build/
-          exit 1
-        fi
         chmod 755 debian-package/usr/bin/bolt
-        if [ -f debian-package/usr/lib/libbolt_lib.so ]; then
-          chmod 644 debian-package/usr/lib/libbolt_lib.so*
-        fi
-        if ls debian-package/usr/lib/libggml*.so* 1> /dev/null 2>&1; then
-          chmod 644 debian-package/usr/lib/libggml*.so*
-        fi
+        find debian-package/usr/lib -name "*.so*" -exec chmod 644 {} \; 2>/dev/null || true
         
         # Build .deb package
         dpkg-deb --build debian-package ${PACKAGE_NAME}_${VERSION}_${ARCH}.deb

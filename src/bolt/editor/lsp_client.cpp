@@ -1,17 +1,25 @@
 #include "bolt/editor/lsp_client.hpp"
 #include "bolt/editor/lsp_protocol.hpp"
 
-#ifndef _WIN32
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#include <io.h>
+#include <process.h>
+// Windows compatibility types
+typedef SSIZE_T ssize_t;
+#define STDIN_FILENO 0
+#define STDOUT_FILENO 1
+#else
 #include <unistd.h>
 #include <sys/wait.h>
 #include <signal.h>
 #include <fcntl.h>
-#else
-#include <windows.h>
-#include <io.h>
+#include <errno.h>
 #endif
 
 #include <cstring>
+#include <algorithm>
 
 namespace bolt {
 namespace lsp {
@@ -49,6 +57,16 @@ void ProcessLspConnection::stop() {
         readerThread_.join();
     }
     
+#ifdef _WIN32
+    if (stdinPipe_ != INVALID_HANDLE_VALUE) {
+        CloseHandle(stdinPipe_);
+        stdinPipe_ = INVALID_HANDLE_VALUE;
+    }
+    if (stdoutPipe_ != INVALID_HANDLE_VALUE) {
+        CloseHandle(stdoutPipe_);
+        stdoutPipe_ = INVALID_HANDLE_VALUE;
+    }
+#else
     // Close pipes
     if (stdinPipe_ >= 0) {
         close(stdinPipe_);
@@ -58,6 +76,7 @@ void ProcessLspConnection::stop() {
         close(stdoutPipe_);
         stdoutPipe_ = -1;
     }
+#endif
 }
 
 void ProcessLspConnection::sendMessage(const std::string& message) {
@@ -105,6 +124,196 @@ void ProcessLspConnection::readerThreadFunc() {
     }
 }
 
+#ifdef _WIN32
+// Windows implementation
+bool ProcessLspConnection::createProcess() {
+    SECURITY_ATTRIBUTES saAttr;
+    saAttr.nLength = sizeof(SECURITY_ATTRIBUTES);
+    saAttr.bInheritHandle = TRUE;
+    saAttr.lpSecurityDescriptor = NULL;
+
+    HANDLE hChildStdinRd = NULL, hChildStdinWr = NULL;
+    HANDLE hChildStdoutRd = NULL, hChildStdoutWr = NULL;
+
+    // Create pipes for child's stdin
+    if (!CreatePipe(&hChildStdinRd, &hChildStdinWr, &saAttr, 0)) {
+        return false;
+    }
+    // Ensure the write handle to the pipe for STDIN is not inherited
+    if (!SetHandleInformation(hChildStdinWr, HANDLE_FLAG_INHERIT, 0)) {
+        CloseHandle(hChildStdinRd);
+        CloseHandle(hChildStdinWr);
+        return false;
+    }
+
+    // Create pipes for child's stdout
+    if (!CreatePipe(&hChildStdoutRd, &hChildStdoutWr, &saAttr, 0)) {
+        CloseHandle(hChildStdinRd);
+        CloseHandle(hChildStdinWr);
+        return false;
+    }
+    // Ensure the read handle to the pipe for STDOUT is not inherited
+    if (!SetHandleInformation(hChildStdoutRd, HANDLE_FLAG_INHERIT, 0)) {
+        CloseHandle(hChildStdinRd);
+        CloseHandle(hChildStdinWr);
+        CloseHandle(hChildStdoutRd);
+        CloseHandle(hChildStdoutWr);
+        return false;
+    }
+
+    // Build command line
+    std::string cmdLine = command_;
+    for (const auto& arg : args_) {
+        cmdLine += " " + arg;
+    }
+
+    STARTUPINFOA si;
+    PROCESS_INFORMATION pi;
+    ZeroMemory(&si, sizeof(si));
+    si.cb = sizeof(si);
+    si.hStdError = hChildStdoutWr;
+    si.hStdOutput = hChildStdoutWr;
+    si.hStdInput = hChildStdinRd;
+    si.dwFlags |= STARTF_USESTDHANDLES;
+    ZeroMemory(&pi, sizeof(pi));
+
+    // Create the child process
+    if (!CreateProcessA(
+            NULL,                           // No module name (use command line)
+            const_cast<char*>(cmdLine.c_str()), // Command line
+            NULL,                           // Process handle not inheritable
+            NULL,                           // Thread handle not inheritable
+            TRUE,                           // Set handle inheritance to TRUE
+            CREATE_NO_WINDOW,               // Creation flags
+            NULL,                           // Use parent's environment block
+            NULL,                           // Use parent's starting directory
+            &si,                            // Pointer to STARTUPINFO structure
+            &pi)                            // Pointer to PROCESS_INFORMATION structure
+    ) {
+        CloseHandle(hChildStdinRd);
+        CloseHandle(hChildStdinWr);
+        CloseHandle(hChildStdoutRd);
+        CloseHandle(hChildStdoutWr);
+        return false;
+    }
+
+    // Close handles to the stdin and stdout pipes no longer needed by the parent process
+    CloseHandle(hChildStdinRd);
+    CloseHandle(hChildStdoutWr);
+
+    // Store handles
+    stdinPipe_ = hChildStdinWr;
+    stdoutPipe_ = hChildStdoutRd;
+    processHandle_ = pi.hProcess;
+    processId_ = pi.dwProcessId;
+
+    // Close thread handle as we don't need it
+    CloseHandle(pi.hThread);
+
+    return true;
+}
+
+void ProcessLspConnection::terminateProcess() {
+    if (processHandle_ != INVALID_HANDLE_VALUE && processHandle_ != NULL) {
+        // Try graceful termination first
+        TerminateProcess(processHandle_, 0);
+        WaitForSingleObject(processHandle_, 1000);
+        CloseHandle(processHandle_);
+        processHandle_ = INVALID_HANDLE_VALUE;
+        processId_ = 0;
+    }
+}
+
+std::string ProcessLspConnection::readLspMessage() {
+    if (stdoutPipe_ == INVALID_HANDLE_VALUE) return "";
+    
+    // Read LSP header
+    std::string header;
+    char ch;
+    DWORD bytesRead;
+    
+    while (true) {
+        // Check if data is available (non-blocking)
+        DWORD bytesAvailable = 0;
+        if (!PeekNamedPipe(stdoutPipe_, NULL, 0, NULL, &bytesAvailable, NULL)) {
+            connected_ = false;
+            return "";
+        }
+        
+        if (bytesAvailable == 0) {
+            // No data available
+            return "";
+        }
+        
+        if (!ReadFile(stdoutPipe_, &ch, 1, &bytesRead, NULL) || bytesRead == 0) {
+            connected_ = false;
+            return "";
+        }
+        
+        header += ch;
+        if (header.length() >= 4 && header.substr(header.length() - 4) == "\r\n\r\n") {
+            break;
+        }
+        
+        // Prevent infinite loop
+        if (header.length() > 1000) {
+            return "";
+        }
+    }
+    
+    // Parse Content-Length
+    size_t contentLength = 0;
+    size_t pos = header.find("Content-Length: ");
+    if (pos != std::string::npos) {
+        pos += 16; // Length of "Content-Length: "
+        size_t endPos = header.find("\r\n", pos);
+        if (endPos != std::string::npos) {
+            std::string lengthStr = header.substr(pos, endPos - pos);
+            contentLength = std::stoul(lengthStr);
+        }
+    }
+    
+    if (contentLength == 0) {
+        return "";
+    }
+    
+    // Read message content
+    std::string content;
+    content.reserve(contentLength);
+    
+    while (content.length() < contentLength) {
+        char buffer[1024];
+        DWORD toRead = static_cast<DWORD>(std::min(sizeof(buffer), contentLength - content.length()));
+        DWORD bytesReadNow;
+        
+        if (!ReadFile(stdoutPipe_, buffer, toRead, &bytesReadNow, NULL) || bytesReadNow == 0) {
+            connected_ = false;
+            return "";
+        }
+        
+        content.append(buffer, bytesReadNow);
+    }
+    
+    return content;
+}
+
+void ProcessLspConnection::writeLspMessage(const std::string& message) {
+    if (stdinPipe_ == INVALID_HANDLE_VALUE) return;
+    
+    // Create LSP header
+    std::string header = "Content-Length: " + std::to_string(message.length()) + "\r\n\r\n";
+    std::string fullMessage = header + message;
+    
+    // Write message
+    DWORD bytesWritten;
+    if (!WriteFile(stdinPipe_, fullMessage.c_str(), static_cast<DWORD>(fullMessage.length()), &bytesWritten, NULL) ||
+        bytesWritten != fullMessage.length()) {
+        connected_ = false;
+    }
+}
+
+#else
+// POSIX implementation (Linux/macOS)
 bool ProcessLspConnection::createProcess() {
     int stdinPipes[2], stdoutPipes[2];
     
@@ -248,7 +457,7 @@ std::string ProcessLspConnection::readLspMessage() {
             return "";
         }
         
-        content.append(buffer, bytesRead);
+        content.append(buffer, static_cast<size_t>(bytesRead));
     }
     
     return content;
@@ -266,6 +475,16 @@ void ProcessLspConnection::writeLspMessage(const std::string& message) {
     if (bytesWritten != static_cast<ssize_t>(fullMessage.length())) {
         connected_ = false;
     }
+}
+#endif
+
+// Cross-platform getpid helper
+static int getPlatformPid() {
+#ifdef _WIN32
+    return static_cast<int>(GetCurrentProcessId());
+#else
+    return static_cast<int>(getpid());
+#endif
 }
 
 // LspClient implementation
@@ -311,7 +530,7 @@ bool LspClient::isConnected() const {
 void LspClient::initialize(std::function<void(bool)> callback) {
     auto params = std::make_shared<JsonValue>();
     params->setObject();
-    params->setProperty("processId", std::make_shared<JsonValue>(static_cast<double>(getpid())));
+    params->setProperty("processId", std::make_shared<JsonValue>(static_cast<double>(getPlatformPid())));
     params->setProperty("rootPath", std::make_shared<JsonValue>(config_.rootPath));
     params->setProperty("rootUri", std::make_shared<JsonValue>("file://" + config_.rootPath));
     
@@ -534,30 +753,117 @@ void LspClient::formatting(const TextDocumentIdentifier& document, const Formatt
 
 // Synchronous versions (simplified implementations)
 CompletionList LspClient::completionSync(const TextDocumentPositionParams& params, int timeoutMs) {
-    // In a real implementation, this would wait for the async response with timeout
     CompletionList result;
+    std::mutex mtx;
+    std::condition_variable cv;
+    bool done = false;
+    
+    completion(params, [&](const CompletionList& completions) {
+        std::lock_guard<std::mutex> lock(mtx);
+        result = completions;
+        done = true;
+        cv.notify_one();
+    });
+    
+    std::unique_lock<std::mutex> lock(mtx);
+    cv.wait_for(lock, std::chrono::milliseconds(timeoutMs), [&] { return done; });
+    
     return result;
 }
 
 std::optional<Hover> LspClient::hoverSync(const TextDocumentPositionParams& params, int timeoutMs) {
-    // In a real implementation, this would wait for the async response with timeout
-    return std::nullopt;
+    std::optional<Hover> result;
+    std::mutex mtx;
+    std::condition_variable cv;
+    bool done = false;
+    
+    hover(params, [&](const std::optional<Hover>& hoverResult) {
+        std::lock_guard<std::mutex> lock(mtx);
+        result = hoverResult;
+        done = true;
+        cv.notify_one();
+    });
+    
+    std::unique_lock<std::mutex> lock(mtx);
+    cv.wait_for(lock, std::chrono::milliseconds(timeoutMs), [&] { return done; });
+    
+    return result;
 }
 
 std::vector<Location> LspClient::definitionSync(const TextDocumentPositionParams& params, int timeoutMs) {
-    return {};
+    std::vector<Location> result;
+    std::mutex mtx;
+    std::condition_variable cv;
+    bool done = false;
+    
+    definition(params, [&](const std::vector<Location>& locations) {
+        std::lock_guard<std::mutex> lock(mtx);
+        result = locations;
+        done = true;
+        cv.notify_one();
+    });
+    
+    std::unique_lock<std::mutex> lock(mtx);
+    cv.wait_for(lock, std::chrono::milliseconds(timeoutMs), [&] { return done; });
+    
+    return result;
 }
 
 std::vector<Location> LspClient::referencesSync(const TextDocumentPositionParams& params, int timeoutMs) {
-    return {};
+    std::vector<Location> result;
+    std::mutex mtx;
+    std::condition_variable cv;
+    bool done = false;
+    
+    references(params, [&](const std::vector<Location>& locations) {
+        std::lock_guard<std::mutex> lock(mtx);
+        result = locations;
+        done = true;
+        cv.notify_one();
+    });
+    
+    std::unique_lock<std::mutex> lock(mtx);
+    cv.wait_for(lock, std::chrono::milliseconds(timeoutMs), [&] { return done; });
+    
+    return result;
 }
 
 std::vector<DocumentSymbol> LspClient::documentSymbolSync(const TextDocumentIdentifier& document, int timeoutMs) {
-    return {};
+    std::vector<DocumentSymbol> result;
+    std::mutex mtx;
+    std::condition_variable cv;
+    bool done = false;
+    
+    documentSymbol(document, [&](const std::vector<DocumentSymbol>& symbols) {
+        std::lock_guard<std::mutex> lock(mtx);
+        result = symbols;
+        done = true;
+        cv.notify_one();
+    });
+    
+    std::unique_lock<std::mutex> lock(mtx);
+    cv.wait_for(lock, std::chrono::milliseconds(timeoutMs), [&] { return done; });
+    
+    return result;
 }
 
 std::vector<TextEdit> LspClient::formattingSync(const TextDocumentIdentifier& document, const FormattingOptions& options, int timeoutMs) {
-    return {};
+    std::vector<TextEdit> result;
+    std::mutex mtx;
+    std::condition_variable cv;
+    bool done = false;
+    
+    formatting(document, options, [&](const std::vector<TextEdit>& edits) {
+        std::lock_guard<std::mutex> lock(mtx);
+        result = edits;
+        done = true;
+        cv.notify_one();
+    });
+    
+    std::unique_lock<std::mutex> lock(mtx);
+    cv.wait_for(lock, std::chrono::milliseconds(timeoutMs), [&] { return done; });
+    
+    return result;
 }
 
 void LspClient::messageProcessorFunc() {
@@ -944,8 +1250,14 @@ void LspClientManager::hover(const std::string& filePath, size_t line, size_t ch
 
 void LspClientManager::definition(const std::string& filePath, size_t line, size_t character, 
                                  std::function<void(const std::vector<Location>&)> callback) {
-    // Implementation would go here
-    if (callback) {
+    LspClient* client = getClientForFile(filePath);
+    if (client) {
+        TextDocumentPositionParams params;
+        params.textDocument.uri = filePathToUri(filePath);
+        params.position = Position(line, character);
+        
+        client->definition(params, callback);
+    } else if (callback) {
         callback({});
     }
 }

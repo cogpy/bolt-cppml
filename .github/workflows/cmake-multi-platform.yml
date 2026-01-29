@@ -56,17 +56,34 @@ jobs:
           zlib1g-dev \
           pkg-config
 
+    - name: Install dependencies (Windows)
+      if: runner.os == 'Windows'
+      run: |
+        # Install vcpkg for Windows dependencies
+        git clone https://github.com/microsoft/vcpkg.git vcpkg_tool
+        .\vcpkg_tool\bootstrap-vcpkg.bat
+        .\vcpkg_tool\vcpkg install curl:x64-windows openssl:x64-windows zlib:x64-windows jsoncpp:x64-windows
+
     - name: Set reusable strings
       id: strings
       shell: bash
       run: |
         echo "build-output-dir=${{ github.workspace }}/build" >> "$GITHUB_OUTPUT"
 
-    - name: Configure CMake
+    - name: Configure CMake (Linux)
+      if: runner.os == 'Linux'
       run: >
         cmake -B ${{ steps.strings.outputs.build-output-dir }}
         -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }}
         -DCMAKE_C_COMPILER=${{ matrix.c_compiler }}
+        -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+        -S ${{ github.workspace }}
+
+    - name: Configure CMake (Windows)
+      if: runner.os == 'Windows'
+      run: >
+        cmake -B ${{ steps.strings.outputs.build-output-dir }}
+        -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/vcpkg_tool/scripts/buildsystems/vcpkg.cmake
         -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
         -S ${{ github.workspace }}
 
@@ -78,7 +95,6 @@ jobs:
       working-directory: ${{ steps.strings.outputs.build-output-dir }}
       run: |
         # Set LD_LIBRARY_PATH to include all directories with shared libraries
-        # The llama.cpp libraries are built in build/bin/, not in build/ggml/ggml.cpp/src/
         export LD_LIBRARY_PATH="${PWD}/bin:${PWD}:${PWD}/ggml/llama.cpp/src:$LD_LIBRARY_PATH"
         echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH"
         
@@ -114,4 +130,6 @@ jobs:
           ${{ steps.strings.outputs.build-output-dir }}/bolt*
           ${{ steps.strings.outputs.build-output-dir }}/bin/*.so*
           ${{ steps.strings.outputs.build-output-dir }}/${{ matrix.build_type }}/bolt*
+          ${{ steps.strings.outputs.build-output-dir }}/${{ matrix.build_type }}/*.dll
+          ${{ steps.strings.outputs.build-output-dir }}/${{ matrix.build_type }}/*.exe
         retention-days: 7

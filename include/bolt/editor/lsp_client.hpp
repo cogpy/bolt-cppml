@@ -12,6 +12,11 @@
 #include <mutex>
 #include <condition_variable>
 
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#endif
+
 namespace bolt {
 namespace lsp {
 
@@ -35,10 +40,18 @@ private:
     std::atomic<bool> connected_{false};
     std::atomic<bool> shouldStop_{false};
     
-    // Process handles (platform-specific implementation needed)
+#ifdef _WIN32
+    // Windows handles
+    HANDLE processHandle_ = INVALID_HANDLE_VALUE;
+    DWORD processId_ = 0;
+    HANDLE stdinPipe_ = INVALID_HANDLE_VALUE;
+    HANDLE stdoutPipe_ = INVALID_HANDLE_VALUE;
+#else
+    // POSIX handles
     int processId_ = -1;
     int stdinPipe_ = -1;
     int stdoutPipe_ = -1;
+#endif
     
     std::thread readerThread_;
     std::queue<std::string> messageQueue_;
