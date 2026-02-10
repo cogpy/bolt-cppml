@@ -210,31 +210,25 @@ void GitRepository::setStatusCallback(std::function<void(bool, const std::string
 }
 
 std::pair<bool, std::string> GitRepository::executeGitCommand(const std::vector<std::string>& args) const {
-    std::string command = "git";
+    // Use git -C to avoid changing working directory (thread-safe)
+    std::string command = "git -C \"" + repositoryPath_ + "\"";
     for (const auto& arg : args) {
         command += " " + arg;
     }
+    command += " 2>/dev/null";
     
-    // Change to repository directory
-    std::string currentDir = std::filesystem::current_path().string();
-    std::filesystem::current_path(repositoryPath_);
-    
-    std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(command.c_str(), "r"), pclose);
-    
-    // Restore original directory
-    std::filesystem::current_path(currentDir);
-    
-    if (!pipe) {
+    FILE* rawPipe = popen(command.c_str(), "r");
+    if (!rawPipe) {
         return {false, "Failed to execute git command"};
     }
     
     std::string result;
     char buffer[128];
-    while (fgets(buffer, sizeof(buffer), pipe.get()) != nullptr) {
+    while (fgets(buffer, sizeof(buffer), rawPipe) != nullptr) {
         result += buffer;
     }
     
-    int exitCode = pclose(pipe.release());
+    int exitCode = pclose(rawPipe);
     return {exitCode == 0, result};
 }
 

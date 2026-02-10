@@ -5,13 +5,9 @@
 #include <string>
 #include <stack>
 #include <optional>
+#include "bolt/gui_components.hpp"
 
 namespace bolt {
-
-struct BracketMatch {
-    size_t openPos;
-    size_t closePos;
-};
 
 class BracketMatcher {
 public:

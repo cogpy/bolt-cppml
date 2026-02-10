@@ -19,6 +19,7 @@ struct Token {
 class SyntaxHighlighter {
 private:
     ThreadSafe<std::map<std::string, std::vector<std::pair<std::regex, std::string>>>> rules_;
+    bool enabled_ = true;
 
 public:
     static SyntaxHighlighter& getInstance() {
@@ -35,6 +36,12 @@ public:
         
         rules_.write([&](auto& rulesMap) {
             rulesMap[language] = compiledRules;
+        });
+    }
+
+    void addLanguageRule(const std::string& language, const std::string& pattern, const std::string& tokenType) {
+        rules_.write([&](auto& rulesMap) {
+            rulesMap[language].emplace_back(std::regex(pattern), tokenType);
         });
     }
 
@@ -80,44 +87,31 @@ public:
 
         return tokens;
     }
+
+    // Alias for highlight
+    std::vector<Token> highlightCode(const std::string& code, const std::string& language) {
+        return highlight(code, language);
+    }
+
+    void setEnabled(bool enable) { enabled_ = enable; }
+    bool isEnabled() const { return enabled_; }
+
+    void clearRules() {
+        rules_.write([](auto& rulesMap) { rulesMap.clear(); });
+    }
+
+    void loadDefaultRules() {
+        // Load C++ default rules
+        addLanguageRules("cpp", {
+            {"\\b(int|void|return|if|else|for|while|class|struct|namespace|using|include|template|typename|const|static|virtual|override|public|private|protected)\\b", "keyword"},
+            {"\\d+\\.?\\d*", "number"},
+            {"\"[^\"]*\"", "string"},
+            {"//.*$", "comment"},
+            {"/\\*[\\s\\S]*?\\*/", "comment"}
+        });
+    }
 };
 
 } // namespace bolt
 
 #endif
-#ifndef BOLT_SYNTAX_HIGHLIGHTER_HPP
-#define BOLT_SYNTAX_HIGHLIGHTER_HPP
-
-#include <string>
-#include <vector>
-#include <map>
-#include <regex>
-
-namespace bolt {
-
-struct Token {
-    std::string text;
-    std::string type;
-    size_t position;
-};
-
-class SyntaxHighlighter {
-public:
-    static SyntaxHighlighter& getInstance();
-    
-    void addLanguageRule(const std::string& language, const std::string& pattern, const std::string& tokenType);
-    std::vector<Token> highlightCode(const std::string& code, const std::string& language);
-    void setEnabled(bool enable);
-    bool isEnabled() const;
-    void clearRules();
-    void loadDefaultRules();
-
-private:
-    SyntaxHighlighter() = default;
-    std::map<std::string, std::vector<std::pair<std::regex, std::string>>> languageRules;
-    bool enabled = true;
-};
-
-} // namespace bolt
-
-#endif // BOLT_SYNTAX_HIGHLIGHTER_HPP

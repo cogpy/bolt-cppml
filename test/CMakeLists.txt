@@ -172,6 +172,16 @@ if(BOLT_ENABLE_UNIT_TESTS)
     target_link_libraries(bolt_code_folding_tests PRIVATE bolt_lib)
     target_include_directories(bolt_code_folding_tests PRIVATE ${PROJECT_SOURCE_DIR}/include)
 
+    # Comprehensive E2E unit tests for ALL functions
+    add_executable(bolt_comprehensive_e2e_tests
+        test_runner.cpp
+        test_comprehensive_e2e.cpp
+    )
+
+    target_link_libraries(bolt_comprehensive_e2e_tests PRIVATE bolt_lib)
+    target_include_directories(bolt_comprehensive_e2e_tests PRIVATE ${PROJECT_SOURCE_DIR}/include)
+    target_compile_definitions(bolt_comprehensive_e2e_tests PRIVATE BOLT_INCLUDE_IN_TEST_RUNNER=1)
+
     # AI Features comprehensive tests - DISABLED: API mismatch with test expectations
     # add_executable(bolt_ai_features_tests
     #     test_ai_features.cpp
@@ -329,6 +339,51 @@ if(BOLT_ENABLE_UNIT_TESTS)
     # LSP tests - DISABLED: executable not built
     # add_test(NAME unit_lsp_tests COMMAND bolt_lsp_tests)
 
+    # Comprehensive E2E test CTest registrations
+    add_test(NAME e2e_comprehensive_all COMMAND bolt_comprehensive_e2e_tests)
+    add_test(NAME e2e_string_utils COMMAND bolt_comprehensive_e2e_tests E2E_StringUtils)
+    add_test(NAME e2e_math_utils COMMAND bolt_comprehensive_e2e_tests E2E_MathUtils)
+    add_test(NAME e2e_data_processor COMMAND bolt_comprehensive_e2e_tests E2E_DataProcessor)
+    add_test(NAME e2e_filesystem_utils COMMAND bolt_comprehensive_e2e_tests E2E_FileSystemUtils)
+    add_test(NAME e2e_memory_manager COMMAND bolt_comprehensive_e2e_tests E2E_MemoryManager)
+    add_test(NAME e2e_message_handler COMMAND bolt_comprehensive_e2e_tests E2E_MessageHandler)
+    add_test(NAME e2e_chat_store COMMAND bolt_comprehensive_e2e_tests E2E_ChatStore)
+    add_test(NAME e2e_workbench_store COMMAND bolt_comprehensive_e2e_tests E2E_WorkbenchStore)
+    add_test(NAME e2e_error_handling COMMAND bolt_comprehensive_e2e_tests E2E_ErrorHandling)
+    add_test(NAME e2e_thread_safety COMMAND bolt_comprehensive_e2e_tests E2E_ThreadSafety)
+    add_test(NAME e2e_bracket_matcher COMMAND bolt_comprehensive_e2e_tests E2E_BracketMatcher)
+    add_test(NAME e2e_find_replace COMMAND bolt_comprehensive_e2e_tests E2E_FindReplace)
+    add_test(NAME e2e_syntax_highlighter COMMAND bolt_comprehensive_e2e_tests E2E_SyntaxHighlighter)
+    add_test(NAME e2e_cursor_manager COMMAND bolt_comprehensive_e2e_tests E2E_CursorManager)
+    add_test(NAME e2e_code_folding COMMAND bolt_comprehensive_e2e_tests E2E_CodeFolding)
+    add_test(NAME e2e_tab_bar COMMAND bolt_comprehensive_e2e_tests E2E_TabBar)
+    add_test(NAME e2e_theme_system COMMAND bolt_comprehensive_e2e_tests E2E_ThemeSystem)
+    add_test(NAME e2e_split_view COMMAND bolt_comprehensive_e2e_tests E2E_SplitView)
+    add_test(NAME e2e_keyboard_shortcuts COMMAND bolt_comprehensive_e2e_tests E2E_KeyboardShortcuts)
+    add_test(NAME e2e_minimap COMMAND bolt_comprehensive_e2e_tests E2E_Minimap)
+    add_test(NAME e2e_document_operation COMMAND bolt_comprehensive_e2e_tests E2E_DocumentOperation)
+    add_test(NAME e2e_operational_transform COMMAND bolt_comprehensive_e2e_tests E2E_OperationalTransform)
+    add_test(NAME e2e_network_buffer COMMAND bolt_comprehensive_e2e_tests E2E_NetworkBuffer)
+    add_test(NAME e2e_ring_buffer COMMAND bolt_comprehensive_e2e_tests E2E_RingBuffer)
+    add_test(NAME e2e_zero_copy_buffer COMMAND bolt_comprehensive_e2e_tests E2E_ZeroCopyBuffer)
+    add_test(NAME e2e_network_buffer_pool COMMAND bolt_comprehensive_e2e_tests E2E_NetworkBufferPool)
+    add_test(NAME e2e_message_compression COMMAND bolt_comprehensive_e2e_tests E2E_MessageCompression)
+    add_test(NAME e2e_network_metrics COMMAND bolt_comprehensive_e2e_tests E2E_NetworkMetrics)
+    add_test(NAME e2e_connection_pool COMMAND bolt_comprehensive_e2e_tests E2E_ConnectionPool)
+    add_test(NAME e2e_logging COMMAND bolt_comprehensive_e2e_tests E2E_Logging)
+    add_test(NAME e2e_performance_profiler COMMAND bolt_comprehensive_e2e_tests E2E_PerformanceProfiler)
+    add_test(NAME e2e_memory_leak_detector COMMAND bolt_comprehensive_e2e_tests E2E_MemoryLeakDetector)
+    add_test(NAME e2e_lsp_json_rpc COMMAND bolt_comprehensive_e2e_tests E2E_LspJsonRpc)
+    add_test(NAME e2e_drawkern_vm COMMAND bolt_comprehensive_e2e_tests E2E_DrawkernVM)
+    add_test(NAME e2e_yacc_grammar COMMAND bolt_comprehensive_e2e_tests E2E_YaccGrammar)
+    add_test(NAME e2e_styx_protocol COMMAND bolt_comprehensive_e2e_tests E2E_StyxProtocol)
+    add_test(NAME e2e_git_repository COMMAND bolt_comprehensive_e2e_tests E2E_GitRepository)
+    add_test(NAME e2e_bolt_app COMMAND bolt_comprehensive_e2e_tests E2E_BoltApp)
+    add_test(NAME e2e_benchmark_suite COMMAND bolt_comprehensive_e2e_tests E2E_BenchmarkSuite)
+    add_test(NAME e2e_plugin_system COMMAND bolt_comprehensive_e2e_tests E2E_PluginSystem)
+    add_test(NAME e2e_code_analyzer COMMAND bolt_comprehensive_e2e_tests E2E_CodeAnalyzer)
+    add_test(NAME e2e_cross_module COMMAND bolt_comprehensive_e2e_tests E2E_CrossModule)
+
     # Set runtime library path for all tests (fixes shared library loading)
     set(BOLT_TEST_ENVIRONMENT "LD_LIBRARY_PATH=${CMAKE_BINARY_DIR}:${CMAKE_BINARY_DIR}/bin:$ENV{LD_LIBRARY_PATH}")
 
@@ -343,6 +398,19 @@ if(BOLT_ENABLE_UNIT_TESTS)
         unit_ggml_tests unit_ai_models_tests
         unit_debugger_tests unit_logging_tests unit_memory_leak_detector_tests
         unit_sanitizer_integration_tests unit_collaboration_tests
+        e2e_comprehensive_all
+        e2e_string_utils e2e_math_utils e2e_data_processor e2e_filesystem_utils
+        e2e_memory_manager e2e_message_handler e2e_chat_store e2e_workbench_store
+        e2e_error_handling e2e_thread_safety e2e_bracket_matcher e2e_find_replace
+        e2e_syntax_highlighter e2e_cursor_manager e2e_code_folding e2e_tab_bar
+        e2e_theme_system e2e_split_view e2e_keyboard_shortcuts e2e_minimap
+        e2e_document_operation e2e_operational_transform e2e_network_buffer
+        e2e_ring_buffer e2e_zero_copy_buffer e2e_network_buffer_pool
+        e2e_message_compression e2e_network_metrics e2e_connection_pool
+        e2e_logging e2e_performance_profiler e2e_memory_leak_detector
+        e2e_lsp_json_rpc e2e_drawkern_vm e2e_yacc_grammar e2e_styx_protocol
+        e2e_git_repository e2e_bolt_app e2e_benchmark_suite e2e_plugin_system
+        e2e_code_analyzer e2e_cross_module
         PROPERTIES ENVIRONMENT "${BOLT_TEST_ENVIRONMENT}"
     )
 

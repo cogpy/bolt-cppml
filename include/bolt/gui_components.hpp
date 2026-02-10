@@ -9,9 +9,9 @@
 namespace bolt {
 
 struct BracketMatch {
-    size_t openPosition;
-    size_t closePosition;
-    char bracket;
+    size_t openPos;
+    size_t closePos;
+    char bracket = '\0';
 };
 
 class Workbench {
