@@ -390,7 +390,6 @@ target_link_libraries(demo_logging PRIVATE bolt_lib)
 add_executable(test_logging_simple test_logging_simple.cpp)
 target_link_libraries(test_logging_simple PRIVATE bolt_lib)
 
-#<<<<<<< copilot/fix-18
 # Git Integration Demo
 add_executable(demo_git_integration demo_git_integration.cpp)
 target_link_libraries(demo_git_integration PRIVATE bolt_lib)
@@ -402,8 +401,6 @@ target_link_libraries(test_git_integration PRIVATE bolt_lib)
 # Standalone Git Test (minimal dependencies)
 add_executable(test_git_standalone test_git_standalone.cpp src/bolt/git/git_repository.cpp)
 target_include_directories(test_git_standalone PRIVATE include)
-#=======
-#<<<<<<< copilot/fix-14
 # Performance Profiler Demo
 add_executable(demo_performance_profiler demo_performance_profiler.cpp)
 target_link_libraries(demo_performance_profiler PRIVATE bolt_lib)
@@ -431,7 +428,6 @@ target_link_libraries(demo_code_analyzer PRIVATE bolt_lib)
 # Standalone Code Analyzer Demo (no dependencies on problematic components)
 add_executable(demo_code_analyzer_standalone demo_code_analyzer_standalone.cpp)
 target_include_directories(demo_code_analyzer_standalone PRIVATE include)
-#======
 # LSP Test (temporarily disabled due to missing LSP implementations)
 # add_executable(test_lsp test_lsp.cpp)
 # target_link_libraries(test_lsp PRIVATE bolt_lib)
@@ -458,9 +454,6 @@ target_link_libraries(demo_advanced_lsp PRIVATE bolt_lib)
 # Network Optimizations Demo
 add_executable(demo_network_optimizations demo_network_optimizations.cpp)
 target_link_libraries(demo_network_optimizations PRIVATE bolt_lib)
-
-#>>>>>>> main
-#>>>>>>> main
 
 # GUI Application with AI chat (only if ImGui is available)
 if(IMGUI_FOUND)

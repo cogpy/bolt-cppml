@@ -21,9 +21,10 @@ void runTest(const std::string& testName, void(*testFunc)()) {
 
 // Test singleton pattern
 void testSingleton() {
-    auto& instance1 = bolt::ThemeSystem::getInstance();
-    auto& instance2 = bolt::ThemeSystem::getInstance();
-    assert(&instance1 == &instance2);
+    auto& inst1 = bolt::ThemeSystem::getInstance();
+    auto& inst2 = bolt::ThemeSystem::getInstance();
+    assert(&inst1 == &inst2);
+    (void)inst1; (void)inst2;
 }
 
 // Test default themes loading
@@ -131,10 +132,8 @@ void testThemeEnumeration() {
     assert(themes.size() >= 2); // At least dark and light
     
     // Check that dark and light are present
-    auto darkFound = std::find(themes.begin(), themes.end(), "dark") != themes.end();
-    auto lightFound = std::find(themes.begin(), themes.end(), "light") != themes.end();
-    assert(darkFound);
-    assert(lightFound);
+    assert(std::find(themes.begin(), themes.end(), "dark") != themes.end());
+    assert(std::find(themes.begin(), themes.end(), "light") != themes.end());
 }
 
 // Test current theme name

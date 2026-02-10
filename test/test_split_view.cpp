@@ -37,22 +37,20 @@ void test_split_view_manager_basic() {
     assert(manager.getPaneCount() >= 1);
     
     // Test horizontal split
-    size_t initialCount = manager.getPaneCount();
-    std::string hPaneId = manager.createHorizontalSplit();
+    [[maybe_unused]] size_t initialCount = manager.getPaneCount();
+    auto hPaneId = manager.createHorizontalSplit();
     assert(!hPaneId.empty());
     assert(manager.getPaneCount() == initialCount + 1);
     assert(manager.hasSplits());
     
     // Test vertical split
-    std::string vPaneId = manager.createVerticalSplit();
+    auto vPaneId = manager.createVerticalSplit();
     assert(!vPaneId.empty());
     assert(manager.getPaneCount() == initialCount + 2);
     
     // Verify panes exist
-    auto* hPane = manager.getPane(hPaneId);
-    auto* vPane = manager.getPane(vPaneId);
-    assert(hPane != nullptr);
-    assert(vPane != nullptr);
+    assert(manager.getPane(hPaneId) != nullptr);
+    assert(manager.getPane(vPaneId) != nullptr);
     
     std::cout << "PASS" << std::endl;
 }
@@ -73,11 +71,8 @@ void test_integrated_editor_split() {
     assert(editor.hasSplits());
     
     // Test pane management
-    std::string activeId = editor.getActivePaneId();
-    assert(!activeId.empty());
-    
-    auto* activePane = editor.getActivePane();
-    assert(activePane != nullptr);
+    assert(!editor.getActivePaneId().empty());
+    assert(editor.getActivePane() != nullptr);
     
     auto allIds = editor.getAllPaneIds();
     assert(allIds.size() >= 3);

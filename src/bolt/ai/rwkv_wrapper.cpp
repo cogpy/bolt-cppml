@@ -335,7 +335,7 @@ ggml_tensor* RWKVWrapper::timeMixing(ggml_tensor* x, int layer_idx) {
     }
     
     // Get previous token state (state_pp_)
-    ggml_tensor* last_x = state_ && layer_idx < state_->state_pp_.size() ? 
+    ggml_tensor* last_x = state_ && static_cast<size_t>(layer_idx) < state_->state_pp_.size() ? 
                           state_->state_pp_[layer_idx] : nullptr;
     
     if (!last_x) {
@@ -364,9 +364,9 @@ ggml_tensor* RWKVWrapper::timeMixing(ggml_tensor* x, int layer_idx) {
     auto* r = ggml_mul_mat(context_->get(), Wr, xr_interp);
     
     // Get state variables (last_num, last_den)
-    ggml_tensor* last_num = state_ && layer_idx < state_->state_aa_.size() ? 
+    ggml_tensor* last_num = state_ && static_cast<size_t>(layer_idx) < state_->state_aa_.size() ? 
                             state_->state_aa_[layer_idx] : nullptr;
-    ggml_tensor* last_den = state_ && layer_idx < state_->state_bb_.size() ? 
+    ggml_tensor* last_den = state_ && static_cast<size_t>(layer_idx) < state_->state_bb_.size() ? 
                             state_->state_bb_[layer_idx] : nullptr;
     
     if (!last_num || !last_den) {
@@ -412,7 +412,7 @@ ggml_tensor* RWKVWrapper::timeMixing(ggml_tensor* x, int layer_idx) {
                                  exp_k);
         
         // Update state
-        if (state_ && layer_idx < state_->state_aa_.size()) {
+        if (state_ && static_cast<size_t>(layer_idx) < state_->state_aa_.size()) {
             state_->state_aa_[layer_idx] = new_num;
             state_->state_bb_[layer_idx] = new_den;
             state_->state_pp_[layer_idx] = x;
@@ -446,7 +446,7 @@ ggml_tensor* RWKVWrapper::channelMixing(ggml_tensor* x, int layer_idx) {
     }
     
     // Get previous token state
-    ggml_tensor* last_x = state_ && layer_idx < state_->state_pp_.size() ? 
+    ggml_tensor* last_x = state_ && static_cast<size_t>(layer_idx) < state_->state_pp_.size() ? 
                           state_->state_pp_[layer_idx] : nullptr;
     
     if (!last_x) {
@@ -481,7 +481,7 @@ ggml_tensor* RWKVWrapper::channelMixing(ggml_tensor* x, int layer_idx) {
     auto* output = ggml_mul(context_->get(), r_sigmoid, vk);
     
     // Update state (store current x for next token)
-    if (state_ && layer_idx < state_->state_pp_.size()) {
+    if (state_ && static_cast<size_t>(layer_idx) < state_->state_pp_.size()) {
         state_->state_pp_[layer_idx] = x;
     }
     

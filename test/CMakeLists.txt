@@ -62,6 +62,9 @@ else()
 
     # Add basic test to CTest
     add_test(NAME basic_bolt_test COMMAND bolt_basic_test)
+    set_tests_properties(basic_bolt_test PROPERTIES
+        ENVIRONMENT "LD_LIBRARY_PATH=${CMAKE_BINARY_DIR}:${CMAKE_BINARY_DIR}/bin:$ENV{LD_LIBRARY_PATH}"
+    )
 endif()
 
 # ============================================
@@ -326,6 +329,23 @@ if(BOLT_ENABLE_UNIT_TESTS)
     # LSP tests - DISABLED: executable not built
     # add_test(NAME unit_lsp_tests COMMAND bolt_lsp_tests)
 
+    # Set runtime library path for all tests (fixes shared library loading)
+    set(BOLT_TEST_ENVIRONMENT "LD_LIBRARY_PATH=${CMAKE_BINARY_DIR}:${CMAKE_BINARY_DIR}/bin:$ENV{LD_LIBRARY_PATH}")
+
+    set_tests_properties(
+        unit_all_tests unit_chat_tests unit_memory_tests unit_store_tests
+        unit_string_tests unit_file_tree_tests unit_minimap_tests
+        unit_split_view_tests unit_multi_cursor_tests unit_keyboard_shortcuts_tests
+        unit_theme_system_tests unit_plugin_system_tests unit_code_folding_tests
+        unit_error_handling_tests unit_memory_error_tests unit_message_error_tests
+        unit_store_error_tests unit_editor_error_tests unit_workbench_error_tests
+        unit_error_recovery_tests
+        unit_ggml_tests unit_ai_models_tests
+        unit_debugger_tests unit_logging_tests unit_memory_leak_detector_tests
+        unit_sanitizer_integration_tests unit_collaboration_tests
+        PROPERTIES ENVIRONMENT "${BOLT_TEST_ENVIRONMENT}"
+    )
+
     # Set test labels for filtering
     set_tests_properties(
         unit_all_tests unit_chat_tests unit_memory_tests unit_store_tests
@@ -367,7 +387,9 @@ if(BOLT_ENABLE_INTEGRATION_TESTS)
 
     set_tests_properties(
         integration_all integration_basic
-        PROPERTIES LABELS "Integration"
+        PROPERTIES
+            LABELS "Integration"
+            ENVIRONMENT "LD_LIBRARY_PATH=${CMAKE_BINARY_DIR}:${CMAKE_BINARY_DIR}/bin:$ENV{LD_LIBRARY_PATH}"
     )
 endif()
 

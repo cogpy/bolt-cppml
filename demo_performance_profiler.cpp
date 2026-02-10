@@ -74,10 +74,13 @@ void demonstrateBasicProfiling() {
         BOLT_PROFILE_SCOPE("complex_calculation");
         
         // Simulate some CPU-intensive work
-        volatile double result = 0.0;
+        double result = 0.0;
         for (int i = 0; i < 1000000; ++i) {
             result += std::sin(i) * std::cos(i);
         }
+        // Prevent optimization from eliminating the loop
+        volatile double sink = result;
+        (void)sink;
     }
     
     // Category-specific profiling

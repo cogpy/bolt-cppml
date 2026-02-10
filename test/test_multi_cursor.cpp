@@ -124,24 +124,26 @@ void test_multi_cursor_text_operations() {
     auto cursors = manager.getCursors();
     
     // Check that both cursors moved by text length (order may be different due to sorting)
-    bool foundFirst = false, foundSecond = false;
+    bool mcFoundFirst = false, mcFoundSecond = false;
     for (const auto& cursor : cursors) {
-        if (cursor.line == 0 && cursor.column == 10) foundFirst = true;  // 5 + 5
-        if (cursor.line == 1 && cursor.column == 15) foundSecond = true; // 10 + 5
+        if (cursor.line == 0 && cursor.column == 10) mcFoundFirst = true;  // 5 + 5
+        if (cursor.line == 1 && cursor.column == 15) mcFoundSecond = true; // 10 + 5
     }
-    assert(foundFirst && foundSecond);
+    assert(mcFoundFirst && mcFoundSecond);
+    (void)mcFoundFirst; (void)mcFoundSecond;
     
     // Test deletion
     manager.deleteAtCursors();
     cursors = manager.getCursors();
     
     // Check that both cursors moved back by 1
-    foundFirst = foundSecond = false;
+    bool delFoundFirst = false, delFoundSecond = false;
     for (const auto& cursor : cursors) {
-        if (cursor.line == 0 && cursor.column == 9) foundFirst = true;   // 10 - 1
-        if (cursor.line == 1 && cursor.column == 14) foundSecond = true; // 15 - 1
+        if (cursor.line == 0 && cursor.column == 9) delFoundFirst = true;   // 10 - 1
+        if (cursor.line == 1 && cursor.column == 14) delFoundSecond = true; // 15 - 1
     }
-    assert(foundFirst && foundSecond);
+    assert(delFoundFirst && delFoundSecond);
+    (void)delFoundFirst; (void)delFoundSecond;
     
     std::cout << "PASS" << std::endl;
 }

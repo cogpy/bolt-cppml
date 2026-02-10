@@ -418,7 +418,7 @@ private:
         std::cout << headerTemplate.code << "\n\n";
         
         std::cout << "2. Available Templates:\n";
-        if (auto templateGen = dynamic_cast<TemplateCodeGenerator*>(codeGenerator_.get())) {
+        if ([[maybe_unused]] auto templateGen = dynamic_cast<TemplateCodeGenerator*>(codeGenerator_.get())) {
             // This would work if we had access to the template generator directly
             std::cout << "• C++ Function Template\n";
             std::cout << "• C++ Class Template\n";

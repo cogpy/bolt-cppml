@@ -200,7 +200,7 @@ std::string DirectGGUFInference::generate_internal(const std::string& prompt, in
     std::string out;
     out.reserve((size_t)max_tokens * 4);
 
-    int n_vocab = llama_vocab_n_tokens(vocab);
+    [[maybe_unused]] int n_vocab = llama_vocab_n_tokens(vocab);
     llama_token eos_token = llama_vocab_eos(vocab);
 
     for (int i = 0; i < max_tokens; ++i) {

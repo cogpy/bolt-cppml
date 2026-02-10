@@ -314,7 +314,7 @@ BOLT_TEST(AIModels, TensorOperationPerformance) {
 // ===== Integration Tests =====
 
 BOLT_TEST(AIModels, AIWrapperIntegration) {
-    auto& ggml_wrapper = bolt::GGMLWrapper::getInstance();
+    [[maybe_unused]] auto& ggml_wrapper = bolt::GGMLWrapper::getInstance();
     auto& rwkv_wrapper = bolt::RWKVWrapper::getInstance();
     
     // Test that wrappers exist and are accessible (references are always valid)
