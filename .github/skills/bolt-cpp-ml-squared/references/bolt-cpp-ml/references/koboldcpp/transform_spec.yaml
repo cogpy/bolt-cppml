@@ -1,0 +1,7 @@
+slot_mappings:
+  name: bolt-cpp-ml-koboldcpp
+  description: 'Part of the bolt-cpp-ml skill: Build applications with KoboldCpp LLM
+    inference engine.'
+term_mappings:
+  KoboldCpp: KoboldCpp (within bolt-cpp-ml)
+file_mappings: {}

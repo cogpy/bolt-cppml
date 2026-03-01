@@ -1,0 +1,68 @@
+{
+  "name": "@cogpy/bolt-cpp-ml-extension",
+  "productName": "Bolt C++ ML",
+  "version": "1.0.0",
+  "description": "AI-powered C++ ML development inside Jan. Provides local LLM inference via KoboldCpp/bolt-cppml, E2E test generation, Bolt.new web app scaffolding, and an interactive neuro-nn guided tutorial shell.",
+  "main": "dist/index.js",
+  "node": "dist/node/index.cjs.js",
+  "author": "cogpy <cogpy@regima.com>",
+  "license": "MIT",
+  "scripts": {
+    "build": "tsc --module commonjs && rollup -c rollup.config.ts",
+    "bundle": "npm run build && npm pack",
+    "test": "jest"
+  },
+  "exports": {
+    ".": "./dist/index.js",
+    "./main": "./dist/node/index.cjs.js"
+  },
+  "devDependencies": {
+    "@rollup/plugin-commonjs": "^25.0.7",
+    "@rollup/plugin-node-resolve": "^15.2.3",
+    "@rollup/plugin-typescript": "^11.1.6",
+    "@types/node": "^20.11.4",
+    "rollup": "^2.38.5",
+    "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "@janhq/core": "^0.5.0",
+    "node-fetch": "^3.3.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "files": [
+    "dist/*",
+    "package.json",
+    "README.md"
+  ],
+  "jan": {
+    "extensionPoint": "com.jan.ai.inference",
+    "activationEvents": [
+      "onLanguage:cpp",
+      "onCommand:bolt-cpp-ml.startTutorial",
+      "onCommand:bolt-cpp-ml.runKoboldCpp",
+      "onCommand:bolt-cpp-ml.generateTests"
+    ],
+    "contributes": {
+      "commands": [
+        {
+          "command": "bolt-cpp-ml.startTutorial",
+          "title": "Bolt C++ ML: Start Interactive Tutorial"
+        },
+        {
+          "command": "bolt-cpp-ml.runKoboldCpp",
+          "title": "Bolt C++ ML: Start KoboldCpp Inference Server"
+        },
+        {
+          "command": "bolt-cpp-ml.generateTests",
+          "title": "Bolt C++ ML: Generate E2E Tests for Current Project"
+        },
+        {
+          "command": "bolt-cpp-ml.scaffoldBoltApp",
+          "title": "Bolt C++ ML: Scaffold Bolt.new Web App"
+        }
+      ]
+    }
+  }
+}

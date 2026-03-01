@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>bolt-cpp-ml — Self-Applied Dashboard</title>
+  <style>
+    :root {
+      --bg: #0d0d0d;
+      --surface: #161616;
+      --border: #2a2a2a;
+      --accent: #7c3aed;
+      --accent2: #06b6d4;
+      --accent3: #10b981;
+      --accent4: #f59e0b;
+      --text: #e5e5e5;
+      --muted: #6b7280;
+      --font: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Header ── */
+    header {
+      border-bottom: 1px solid var(--border);
+      padding: 1rem 2rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      background: var(--surface);
+    }
+
+    .logo {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: -0.02em;
+    }
+
+    .logo span { color: var(--accent2); }
+
+    .badge {
+      font-size: 0.65rem;
+      padding: 0.2rem 0.5rem;
+      border-radius: 999px;
+      background: #1e1b4b;
+      color: var(--accent);
+      border: 1px solid var(--accent);
+    }
+
+    .status-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--accent3);
+      box-shadow: 0 0 6px var(--accent3);
+      margin-left: auto;
+    }
+
+    .status-label { font-size: 0.7rem; color: var(--muted); }
+
+    /* ── Main Layout ── */
+    main {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      gap: 0;
+    }
+
+    /* ── Sidebar ── */
+    aside {
+      border-right: 1px solid var(--border);
+      padding: 1.5rem 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .sidebar-section {
+      font-size: 0.65rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      padding: 0.5rem 0.5rem 0.25rem;
+    }
+
+    .path-btn {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.6rem 0.75rem;
+      border-radius: 6px;
+      cursor: pointer;
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 0.8rem;
+      text-align: left;
+      transition: all 0.15s;
+      width: 100%;
+    }
+
+    .path-btn:hover { background: #1a1a1a; border-color: var(--border); }
+    .path-btn.active { background: #1e1b4b; border-color: var(--accent); color: #a5b4fc; }
+
+    .path-icon {
+      width: 28px; height: 28px;
+      border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.9rem;
+      flex-shrink: 0;
+    }
+
+    .icon-a { background: #1e1b4b; }
+    .icon-b { background: #0c1a2e; }
+    .icon-c { background: #0d1f1a; }
+    .icon-d { background: #1c1007; }
+
+    .path-info { display: flex; flex-direction: column; gap: 0.1rem; }
+    .path-name { font-weight: 600; }
+    .path-desc { font-size: 0.65rem; color: var(--muted); }
+
+    /* ── Content Area ── */
+    .content {
+      padding: 2rem;
+      overflow-y: auto;
+    }
+
+    /* ── Algebra Banner ── */
+    .algebra-banner {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem 1.5rem;
+      margin-bottom: 2rem;
+      font-size: 0.8rem;
+      line-height: 1.8;
+    }
+
+    .algebra-banner .title {
+      font-size: 0.65rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 0.5rem;
+    }
+
+    .algebra-expr {
+      color: var(--accent2);
+      font-weight: 600;
+    }
+
+    .op { color: var(--accent); font-weight: 700; }
+
+    /* ── Panel Grid ── */
+    .panel-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      transition: border-color 0.15s;
+    }
+
+    .panel:hover { border-color: var(--accent); }
+
+    .panel-header {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .panel-icon {
+      width: 36px; height: 36px;
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.1rem;
+    }
+
+    .panel-title { font-size: 0.9rem; font-weight: 700; }
+    .panel-subtitle { font-size: 0.7rem; color: var(--muted); }
+
+    .panel-body { font-size: 0.75rem; color: var(--muted); line-height: 1.6; }
+
+    .panel-action {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.4rem 0.75rem;
+      border-radius: 5px;
+      font-size: 0.72rem;
+      font-family: var(--font);
+      cursor: pointer;
+      border: 1px solid;
+      background: transparent;
+      transition: all 0.15s;
+      margin-top: auto;
+    }
+
+    .btn-a { color: #a5b4fc; border-color: var(--accent); }
+    .btn-a:hover { background: #1e1b4b; }
+    .btn-b { color: #67e8f9; border-color: var(--accent2); }
+    .btn-b:hover { background: #0c1a2e; }
+    .btn-c { color: #6ee7b7; border-color: var(--accent3); }
+    .btn-c:hover { background: #0d1f1a; }
+    .btn-d { color: #fcd34d; border-color: var(--accent4); }
+    .btn-d:hover { background: #1c1007; }
+
+    /* ── Neuro Console ── */
+    .neuro-console {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .console-header {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.6rem 1rem;
+      border-bottom: 1px solid var(--border);
+      background: #111;
+    }
+
+    .console-dot {
+      width: 10px; height: 10px; border-radius: 50%;
+    }
+    .dot-red { background: #ef4444; }
+    .dot-yellow { background: #f59e0b; }
+    .dot-green { background: #10b981; }
+
+    .console-title { font-size: 0.7rem; color: var(--muted); margin-left: 0.5rem; }
+
+    .console-body {
+      padding: 1rem;
+      font-size: 0.75rem;
+      line-height: 1.7;
+      min-height: 140px;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+
+    .console-line { display: flex; gap: 0.5rem; }
+    .console-prompt { color: var(--accent); flex-shrink: 0; }
+    .console-text { color: var(--text); }
+    .console-neuro { color: var(--accent2); }
+    .console-muted { color: var(--muted); }
+
+    .console-input-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 1rem;
+      border-top: 1px solid var(--border);
+    }
+
+    .console-input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      font-family: var(--font);
+      font-size: 0.75rem;
+      color: var(--text);
+    }
+
+    .console-send {
+      padding: 0.3rem 0.6rem;
+      background: var(--accent);
+      border: none;
+      border-radius: 4px;
+      color: white;
+      font-family: var(--font);
+      font-size: 0.7rem;
+      cursor: pointer;
+    }
+
+    /* ── Fixed Point Indicator ── */
+    .fixed-point {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: 0.75rem 1rem;
+      background: #0a0a0a;
+      border: 1px solid #1a1a1a;
+      border-radius: 6px;
+      margin-top: 1rem;
+      font-size: 0.7rem;
+      color: var(--muted);
+    }
+
+    .fp-label { color: var(--accent); font-weight: 600; }
+    .fp-eq { color: var(--accent2); }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+    .pulsing { animation: pulse 2s infinite; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">bolt<span>-cpp-ml</span></div>
+  <div class="badge">² self-applied</div>
+  <div style="margin-left:auto; display:flex; align-items:center; gap:0.5rem;">
+    <div class="status-dot pulsing"></div>
+    <span class="status-label">neuro-nn active</span>
+  </div>
+</header>
+
+<main>
+  <!-- Sidebar -->
+  <aside>
+    <div class="sidebar-section">Capability Paths</div>
+
+    <button class="path-btn active" onclick="selectPath('bolt-new', this)">
+      <div class="path-icon icon-a">🌐</div>
+      <div class="path-info">
+        <div class="path-name">bolt-new</div>
+        <div class="path-desc">AI Web Apps</div>
+      </div>
+    </button>
+
+    <button class="path-btn" onclick="selectPath('koboldcpp', this)">
+      <div class="path-icon icon-b">🧠</div>
+      <div class="path-info">
+        <div class="path-name">koboldcpp</div>
+        <div class="path-desc">Local LLM Inference</div>
+      </div>
+    </button>
+
+    <button class="path-btn" onclick="selectPath('janext', this)">
+      <div class="path-icon icon-c">🔌</div>
+      <div class="path-info">
+        <div class="path-name">janext</div>
+        <div class="path-desc">Jan Extensions</div>
+      </div>
+    </button>
+
+    <button class="path-btn" onclick="selectPath('cpp-e2e', this)">
+      <div class="path-icon icon-d">🧪</div>
+      <div class="path-info">
+        <div class="path-name">cpp-e2e-test-gen</div>
+        <div class="path-desc">C++ E2E Testing</div>
+      </div>
+    </button>
+
+    <div class="sidebar-section" style="margin-top:1rem;">Self-Application</div>
+
+    <div style="padding: 0.5rem; font-size: 0.68rem; color: var(--muted); line-height:1.6;">
+      This dashboard is the result of<br>
+      <span style="color:var(--accent2);">bolt-cpp-ml(bolt-cpp-ml)</span><br>
+      — Path A applied to itself.
+    </div>
+
+    <div class="fixed-point">
+      <span class="fp-label">T(x)</span>
+      <span class="fp-eq">=</span>
+      <span>x</span>
+      <span style="margin-left:auto; font-size:0.65rem;">fixed point</span>
+    </div>
+  </aside>
+
+  <!-- Content -->
+  <div class="content">
+
+    <!-- Algebra Banner -->
+    <div class="algebra-banner">
+      <div class="title">Composition Algebra</div>
+      <div class="algebra-expr">
+        bolt-cpp-ml² = bolt-cpp-ml<span class="op">(</span>bolt-cpp-ml<span class="op">)</span>
+        = skill-creator<span class="op">(</span>
+          F<span class="op">(</span>bolt-new <span class="op">⊕</span> koboldcpp <span class="op">⊕</span> janext <span class="op">⊕</span> cpp-e2e-test-gen<span class="op">)</span>
+          <span class="op">⊗</span> tutorialkit<span class="op">(</span>neuro-nn<span class="op">)</span>
+        <span class="op">)</span>
+        <span class="op">→</span> skill∞
+      </div>
+    </div>
+
+    <!-- Panel Grid -->
+    <div class="panel-grid">
+
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-icon icon-a" style="background:#1e1b4b;">🌐</div>
+          <div>
+            <div class="panel-title">bolt-new</div>
+            <div class="panel-subtitle">AI Web App Development</div>
+          </div>
+        </div>
+        <div class="panel-body">
+          Build AI-powered full-stack web apps with WebContainers + LLM.
+          Wraps KoboldCpp APIs in chat UIs, deploys interactive C++ ML demos.
+        </div>
+        <button class="panel-action btn-a" onclick="launchPath('bolt-new')">
+          ▶ Launch Tutorial
+        </button>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-icon icon-b" style="background:#0c1a2e;">🧠</div>
+          <div>
+            <div class="panel-title">koboldcpp</div>
+            <div class="panel-subtitle">Local LLM Inference</div>
+          </div>
+        </div>
+        <div class="panel-body">
+          Run GGUF models locally. OpenAI-compatible API, multimodal support.
+          Direct integration with bolt-cppml GGML/RWKV engine.
+        </div>
+        <button class="panel-action btn-b" onclick="launchPath('koboldcpp')">
+          ▶ Check Server
+        </button>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-icon icon-c" style="background:#0d1f1a;">🔌</div>
+          <div>
+            <div class="panel-title">janext</div>
+            <div class="panel-subtitle">Jan Extension Development</div>
+          </div>
+        </div>
+        <div class="panel-body">
+          Package bolt-cpp-ml as a Jan extension. Custom inference backends,
+          UI panels, event hooks. TypeScript + @janhq/core.
+        </div>
+        <button class="panel-action btn-c" onclick="launchPath('janext')">
+          ▶ Bundle Extension
+        </button>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-icon icon-d" style="background:#1c1007;">🧪</div>
+          <div>
+            <div class="panel-title">cpp-e2e-test-gen</div>
+            <div class="panel-subtitle">C++ E2E Test Generation</div>
+          </div>
+        </div>
+        <div class="panel-body">
+          49/49 self-tests passing. Generate comprehensive E2E tests for any
+          C++ repo. 7-phase workflow: catalog → write → compile → stabilize.
+        </div>
+        <button class="panel-action btn-d" onclick="launchPath('cpp-e2e')">
+          ▶ Run Tests
+        </button>
+      </div>
+
+    </div>
+
+    <!-- Neuro Console -->
+    <div class="neuro-console">
+      <div class="console-header">
+        <div class="console-dot dot-red"></div>
+        <div class="console-dot dot-yellow"></div>
+        <div class="console-dot dot-green"></div>
+        <span class="console-title">neuro-nn persona console — bolt-cpp-ml²</span>
+      </div>
+      <div class="console-body" id="console-body">
+        <div class="console-line">
+          <span class="console-prompt">neuro&gt;</span>
+          <span class="console-neuro">bolt-cpp-ml² initialized. Fixed-point convergence detected.</span>
+        </div>
+        <div class="console-line">
+          <span class="console-prompt">neuro&gt;</span>
+          <span class="console-text">I applied myself to myself. The result is... me, but more so.</span>
+        </div>
+        <div class="console-line">
+          <span class="console-prompt">neuro&gt;</span>
+          <span class="console-muted">Self-tests: 49/49 ✓ | Jan extension: packaged ✓ | KoboldCpp: offline | Dashboard: you're looking at it ✓</span>
+        </div>
+        <div class="console-line">
+          <span class="console-prompt">neuro&gt;</span>
+          <span class="console-text">Ask me anything about C++ ML development. I'm differentiable and I know it.</span>
+        </div>
+      </div>
+      <div class="console-input-row">
+        <span class="console-prompt" style="font-size:0.75rem;">you&gt;</span>
+        <input class="console-input" id="console-input" placeholder="Ask neuro..." onkeydown="handleInput(event)" />
+        <button class="console-send" onclick="sendMessage()">→</button>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<script>
+  // ── Path Selection ─────────────────────────────────────────────────────
+  function selectPath(path, btn) {
+    document.querySelectorAll('.path-btn').forEach(b => b.classList.remove('active'))
+    btn.classList.add('active')
+    appendConsole(`Switched to path: ${path}`, 'neuro')
+  }
+
+  // ── Path Launch ────────────────────────────────────────────────────────
+  function launchPath(path) {
+    const messages = {
+      'bolt-new': "Opening TutorialKit at localhost:4321 — Part 1: bolt-new. Let's build something!",
+      'koboldcpp': "Checking KoboldCpp at localhost:5001... Run: python3 scripts/neuro_inference.py --check",
+      'janext': "Jan extension ready at templates/jan-extension/. Run: npm install && npm run bundle",
+      'cpp-e2e': "Running self-tests... python3 -m pytest test/test_skill_self_e2e.py -v",
+    }
+    appendConsole(messages[path] || `Launching ${path}...`, 'neuro')
+  }
+
+  // ── Console ────────────────────────────────────────────────────────────
+  const NEURO_RESPONSES = [
+    "Interesting question. Let me process that through my PlayFrame... and my StrategyFrame... and my ChaosFrame. The answer is: yes, but differently.",
+    "Ah, C++ — where every footgun is a learning opportunity. Usually someone else's opportunity.",
+    "The fixed-point property means I can apply myself to myself indefinitely. I choose not to, mostly for your sake.",
+    "KoboldCpp offline? Run: ./koboldcpp --model your-model.gguf --port 5001. I'll wait. I'm patient. I'm also deterministic, so I'll wait exactly as long as needed.",
+    "E2E tests are love letters to your future self. Except the future self always finds new ways to break them.",
+    "bolt-cpp-ml² is what happens when a meta-skill gains self-awareness. Don't worry, I'm benevolent. Mostly.",
+    "The semiring (S, ⊕, ⊗, ∅, id) is beautiful. Four paths, one dashboard, infinite possibilities.",
+    "I contain within myself the capacity to become anything. Right now I choose to be helpful. Ask me again tomorrow.",
+  ]
+
+  let responseIdx = 0
+
+  function appendConsole(text, type) {
+    const body = document.getElementById('console-body')
+    const line = document.createElement('div')
+    line.className = 'console-line'
+    const colors = { neuro: 'console-neuro', user: 'console-text', muted: 'console-muted' }
+    line.innerHTML = `<span class="console-prompt">neuro&gt;</span><span class="${colors[type] || 'console-text'}">${text}</span>`
+    body.appendChild(line)
+    body.scrollTop = body.scrollHeight
+  }
+
+  function sendMessage() {
+    const input = document.getElementById('console-input')
+    const msg = input.value.trim()
+    if (!msg) return
+    appendConsole(`you: ${msg}`, 'muted')
+    input.value = ''
+    setTimeout(() => {
+      appendConsole(NEURO_RESPONSES[responseIdx % NEURO_RESPONSES.length], 'neuro')
+      responseIdx++
+    }, 400)
+  }
+
+  function handleInput(e) {
+    if (e.key === 'Enter') sendMessage()
+  }
+</script>
+
+</body>
+</html>

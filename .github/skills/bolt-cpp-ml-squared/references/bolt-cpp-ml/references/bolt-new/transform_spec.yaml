@@ -1,0 +1,7 @@
+slot_mappings:
+  name: bolt-cpp-ml-bolt-new
+  description: 'Part of the bolt-cpp-ml skill: Build AI-powered web development agents
+    using the Bolt.new open-source codebase.'
+term_mappings:
+  Bolt.new: Bolt.new (within bolt-cpp-ml)
+file_mappings: {}
