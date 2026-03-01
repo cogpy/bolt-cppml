@@ -1,0 +1,7 @@
+slot_mappings:
+  name: bolt-cpp-ml-cpp-e2e-test-gen
+  description: 'Part of the bolt-cpp-ml skill: Generate comprehensive end-to-end unit
+    tests for all functions in a C++ repository.'
+term_mappings:
+  C++ E2E Test Generator: C++ E2E Test Generator (within bolt-cpp-ml)
+file_mappings: {}

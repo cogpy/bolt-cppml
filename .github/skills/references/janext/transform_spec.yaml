@@ -1,0 +1,6 @@
+slot_mappings:
+  name: bolt-cpp-ml-janext
+  description: 'Part of the bolt-cpp-ml skill: Create a Jan extension using Typescript.'
+term_mappings:
+  Jan: Jan (within bolt-cpp-ml)
+file_mappings: {}
