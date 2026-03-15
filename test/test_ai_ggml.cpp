@@ -7,6 +7,8 @@ using namespace bolt::test;
 
 // ===== GGML Component Tests =====
 
+#ifdef BOLT_HAVE_GGML
+
 BOLT_TEST(GGMLTest, GGMLContextCreation) {
     const size_t mem_size = 1024 * 1024; // 1MB
     
@@ -19,25 +21,6 @@ BOLT_TEST(GGMLTest, GGMLContextCreation) {
     BOLT_ASSERT_TRUE(tensor != nullptr);
     BOLT_ASSERT_EQ(ggml_nelements(tensor), 100);
     BOLT_ASSERT_TRUE(tensor->type == GGML_TYPE_F32);
-}
-
-BOLT_TEST(GGMLTest, GGMLWrapperBasics) {
-    auto& wrapper = bolt::GGMLWrapper::getInstance();
-    
-    // Test that wrapper exists and is accessible (reference is always valid)
-    // Just verify we can access the instance
-    (void)wrapper; // Suppress unused variable warning
-}
-
-BOLT_TEST(GGMLTest, RWKVWrapperBasics) {
-    auto& wrapper = bolt::RWKVWrapper::getInstance();
-    
-    // Test that wrapper starts uninitialized
-    BOLT_ASSERT_FALSE(wrapper.isInitialized());
-    
-    // Test basic API accessibility
-    BOLT_ASSERT_EQ(wrapper.getNumLayers(), 2);
-    BOLT_ASSERT_EQ(wrapper.getEmbedDim(), 64);
 }
 
 BOLT_TEST(GGMLTest, TensorOperations) {
@@ -71,9 +54,43 @@ BOLT_TEST(GGMLTest, GraphOperations) {
     auto* x = ggml_new_tensor_1d(context.get(), GGML_TYPE_F32, 5);
     auto* y = ggml_dup(context.get(), x);
     
-    // Build graph - this tests that the graph building works
+    // Build graph
     ggml_build_forward_expand(gf, y);
-    
-    // Graph should be valid after building
     BOLT_ASSERT_TRUE(gf != nullptr);
+}
+
+BOLT_TEST(GGMLTest, GGMLWrapperBasics) {
+    auto& wrapper = bolt::GGMLWrapper::getInstance();
+    (void)wrapper;
+}
+
+#else // !BOLT_HAVE_GGML
+
+BOLT_TEST(GGMLTest, GGMLNotAvailable) {
+    // When GGML is not available, GGMLContext should throw
+    BOLT_ASSERT_THROWS(std::runtime_error, {
+        bolt::GGMLContext context(1024);
+    });
+}
+
+BOLT_TEST(GGMLTest, GGMLWrapperStub) {
+    auto& wrapper = bolt::GGMLWrapper::getInstance();
+    // Wrapper should exist but throw on initialize
+    BOLT_ASSERT_THROWS(bolt::GGMLException, {
+        wrapper.initialize("nonexistent.gguf");
+    });
+}
+
+#endif // BOLT_HAVE_GGML
+
+// RWKV wrapper tests work regardless of GGML availability
+BOLT_TEST(GGMLTest, RWKVWrapperBasics) {
+    auto& wrapper = bolt::RWKVWrapper::getInstance();
+    
+    // Test that wrapper starts uninitialized
+    BOLT_ASSERT_FALSE(wrapper.isInitialized());
+    
+    // Test basic API accessibility
+    BOLT_ASSERT_EQ(wrapper.getNumLayers(), 2);
+    BOLT_ASSERT_EQ(wrapper.getEmbedDim(), 64);
 }

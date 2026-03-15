@@ -90,52 +90,52 @@ jobs:
         
         # Create control file
         cat > debian-package/DEBIAN/control << EOF
-Package: ${PACKAGE_NAME}
-Version: ${VERSION}
-Section: devel
-Priority: optional
-Architecture: ${ARCH}
-Depends: libssl3 | libssl1.1, libcurl4, libglfw3, libgl1, libglu1-mesa, zlib1g, libjsoncpp25 | libjsoncpp24
-Maintainer: Bolt C++ Team <team@bolt-cppml.org>
-Description: Modern C++ implementation of Bolt IDE with AI integration
- Bolt C++ is a modern C++ implementation of the Bolt IDE core components
- with AI integration and real-time collaborative features.
- .
- Features include:
-  - GGML integration for AI model inference
-  - RWKV implementation for RNN capabilities
-  - Multi-cursor support and syntax highlighting
-  - Integrated debugger with breakpoints
-  - WebSocket server for real-time collaboration
-  - Comprehensive ImGui dark-mode interface
-Homepage: https://github.com/cogpy/bolt-cppml
-EOF
+        Package: ${PACKAGE_NAME}
+        Version: ${VERSION}
+        Section: devel
+        Priority: optional
+        Architecture: ${ARCH}
+        Depends: libssl3 | libssl1.1, libcurl4, libglfw3, libgl1, libglu1-mesa, zlib1g, libjsoncpp25 | libjsoncpp24
+        Maintainer: Bolt C++ Team <team@bolt-cppml.org>
+        Description: Modern C++ implementation of Bolt IDE with AI integration
+        Bolt C++ is a modern C++ implementation of the Bolt IDE core components
+        with AI integration and real-time collaborative features.
+        .
+        Features include:
+        - GGML integration for AI model inference
+        - RWKV implementation for RNN capabilities
+        - Multi-cursor support and syntax highlighting
+        - Integrated debugger with breakpoints
+        - WebSocket server for real-time collaboration
+        - Comprehensive ImGui dark-mode interface
+        Homepage: https://github.com/cogpy/bolt-cppml
+        EOF
         
         # Create postinst script to run ldconfig
         cat > debian-package/DEBIAN/postinst << 'EOF'
-#!/bin/bash
-ldconfig
-EOF
+        #!/bin/bash
+        ldconfig
+        EOF
         chmod 755 debian-package/DEBIAN/postinst
         
         # Create postrm script
         cat > debian-package/DEBIAN/postrm << 'EOF'
-#!/bin/bash
-ldconfig
-EOF
+        #!/bin/bash
+        ldconfig
+        EOF
         chmod 755 debian-package/DEBIAN/postrm
         
         # Create desktop entry
         cat > debian-package/usr/share/applications/bolt-cppml.desktop << EOF
-[Desktop Entry]
-Type=Application
-Name=Bolt C++
-Comment=Modern C++ IDE with AI integration
-Exec=/usr/bin/bolt
-Icon=bolt-cppml
-Terminal=false
-Categories=Development;IDE;
-EOF
+        [Desktop Entry]
+        Type=Application
+        Name=Bolt C++
+        Comment=Modern C++ IDE with AI integration
+        Exec=/usr/bin/bolt
+        Icon=bolt-cppml
+        Terminal=false
+        Categories=Development;IDE;
+        EOF
         
         # Copy documentation
         cp README.md debian-package/usr/share/doc/${PACKAGE_NAME}/
@@ -174,13 +174,13 @@ EOF
         
         # Create repository configuration
         cat > apt-repo/conf/distributions << EOF
-Origin: Bolt C++
-Label: Bolt C++ Repository
-Codename: ubuntu-${UBUNTU_VERSION}
-Architectures: amd64
-Components: main
-Description: Bolt C++ IDE packages for Ubuntu ${UBUNTU_VERSION}
-EOF
+        Origin: Bolt C++
+        Label: Bolt C++ Repository
+        Codename: ubuntu-${UBUNTU_VERSION}
+        Architectures: amd64
+        Components: main
+        Description: Bolt C++ IDE packages for Ubuntu ${UBUNTU_VERSION}
+        EOF
         
         # Copy .deb to pool
         cp ${PACKAGE_NAME}_${VERSION}_${ARCH}_ubuntu${UBUNTU_VERSION}.deb apt-repo/pool/main/
@@ -192,16 +192,16 @@ EOF
         
         # Create Release file
         cat > dists/ubuntu-${UBUNTU_VERSION}/Release << EOF
-Origin: Bolt C++
-Label: Bolt C++ Repository
-Suite: ubuntu-${UBUNTU_VERSION}
-Codename: ubuntu-${UBUNTU_VERSION}
-Version: ${VERSION}
-Architectures: amd64
-Components: main
-Description: Bolt C++ IDE packages for Ubuntu ${UBUNTU_VERSION}
-Date: $(date -R)
-EOF
+        Origin: Bolt C++
+        Label: Bolt C++ Repository
+        Suite: ubuntu-${UBUNTU_VERSION}
+        Codename: ubuntu-${UBUNTU_VERSION}
+        Version: ${VERSION}
+        Architectures: amd64
+        Components: main
+        Description: Bolt C++ IDE packages for Ubuntu ${UBUNTU_VERSION}
+        Date: $(date -R)
+        EOF
     
     - name: Upload Debian package
       uses: actions/upload-artifact@v4

@@ -7,7 +7,11 @@
 #include <memory>
 #include <variant>
 #include <fstream>
+#include <cstdint>
+
+#ifdef BOLT_HAVE_GGML
 #include <ggml.h>
+#endif
 
 namespace bolt {
 
@@ -18,19 +22,9 @@ constexpr uint32_t GGUF_VERSION_V3 = 3;
 
 // GGUF value types
 enum class GGUFValueType : uint32_t {
-    UINT8 = 0,
-    INT8 = 1,
-    UINT16 = 2,
-    INT16 = 3,
-    UINT32 = 4,
-    INT32 = 5,
-    FLOAT32 = 6,
-    BOOL = 7,
-    STRING = 8,
-    ARRAY = 9,
-    UINT64 = 10,
-    INT64 = 11,
-    FLOAT64 = 12,
+    UINT8 = 0, INT8 = 1, UINT16 = 2, INT16 = 3,
+    UINT32 = 4, INT32 = 5, FLOAT32 = 6, BOOL = 7,
+    STRING = 8, ARRAY = 9, UINT64 = 10, INT64 = 11, FLOAT64 = 12,
 };
 
 // Metadata value variant
@@ -45,6 +39,8 @@ using MetadataValue = std::variant<
     std::vector<float>, std::vector<double>,
     std::vector<bool>, std::vector<std::string>
 >;
+
+#ifdef BOLT_HAVE_GGML
 
 // Tensor information
 struct TensorInfo {
@@ -62,17 +58,12 @@ public:
     explicit GGUFLoader(const std::string& file_path);
     ~GGUFLoader();
     
-    // Load and parse the GGUF file
     bool load();
-    
-    // Check if file is loaded
     bool isLoaded() const { return loaded_; }
     
-    // Metadata access
     bool hasMetadata(const std::string& key) const;
     MetadataValue getMetadata(const std::string& key) const;
     
-    // Convenience methods for common types
     std::string getMetadataString(const std::string& key, const std::string& default_value = "") const;
     int64_t getMetadataInt(const std::string& key, int64_t default_value = 0) const;
     double getMetadataFloat(const std::string& key, double default_value = 0.0) const;
@@ -80,24 +71,20 @@ public:
     std::vector<std::string> getMetadataStringArray(const std::string& key) const;
     std::vector<float> getMetadataFloatArray(const std::string& key) const;
     
-    // Tensor access
     bool hasTensor(const std::string& name) const;
     const TensorInfo* getTensorInfo(const std::string& name) const;
     ggml_tensor* loadTensor(ggml_context* ctx, const std::string& name);
     std::vector<std::string> getTensorNames() const;
     
-    // Model information
     uint32_t getVersion() const { return version_; }
     uint64_t getTensorCount() const { return tensor_count_; }
     uint64_t getMetadataCount() const { return metadata_kv_count_; }
     
-    // Model parameters (convenience methods)
     int getNumLayers() const;
     int getEmbedDim() const;
     int getVocabSize() const;
     std::string getArchitecture() const;
     
-    // Get error message if loading failed
     std::string getError() const { return error_message_; }
     
 private:
@@ -106,41 +93,80 @@ private:
     bool loaded_;
     std::string error_message_;
     
-    // GGUF header
     uint32_t magic_;
     uint32_t version_;
     uint64_t tensor_count_;
     uint64_t metadata_kv_count_;
     
-    // Metadata storage
     std::unordered_map<std::string, MetadataValue> metadata_;
-    
-    // Tensor storage
     std::unordered_map<std::string, TensorInfo> tensors_;
     uint64_t tensor_data_offset_;
-    
-    // Alignment
     uint64_t alignment_;
     
-    // Internal methods
     bool readHeader();
     bool readMetadata();
     bool readTensorInfo();
-    
     bool readString(std::string& str);
     bool readMetadataValue(GGUFValueType type, MetadataValue& value);
     
-    template<typename T>
-    bool readValue(T& value);
-    
-    template<typename T>
-    bool readArray(std::vector<T>& arr, uint64_t count);
+    template<typename T> bool readValue(T& value);
+    template<typename T> bool readArray(std::vector<T>& arr, uint64_t count);
     
     void setError(const std::string& message);
-    
-    // Calculate aligned offset
     uint64_t alignOffset(uint64_t offset) const;
 };
+
+#else // !BOLT_HAVE_GGML
+
+// Stub TensorInfo when GGML is not available
+struct TensorInfo {
+    std::string name;
+    uint32_t n_dims = 0;
+    std::vector<uint64_t> dims;
+    int type = 0;
+    uint64_t offset = 0;
+    size_t size = 0;
+};
+
+// Stub GGUFLoader when GGML is not available
+class GGUFLoader {
+public:
+    explicit GGUFLoader(const std::string& /*file_path*/) : loaded_(false) {}
+    ~GGUFLoader() = default;
+    
+    bool load() { return false; }
+    bool isLoaded() const { return false; }
+    
+    bool hasMetadata(const std::string& /*key*/) const { return false; }
+    MetadataValue getMetadata(const std::string& /*key*/) const { return uint8_t(0); }
+    
+    std::string getMetadataString(const std::string& /*key*/, const std::string& default_value = "") const { return default_value; }
+    int64_t getMetadataInt(const std::string& /*key*/, int64_t default_value = 0) const { return default_value; }
+    double getMetadataFloat(const std::string& /*key*/, double default_value = 0.0) const { return default_value; }
+    bool getMetadataBool(const std::string& /*key*/, bool default_value = false) const { return default_value; }
+    std::vector<std::string> getMetadataStringArray(const std::string& /*key*/) const { return {}; }
+    std::vector<float> getMetadataFloatArray(const std::string& /*key*/) const { return {}; }
+    
+    bool hasTensor(const std::string& /*name*/) const { return false; }
+    const TensorInfo* getTensorInfo(const std::string& /*name*/) const { return nullptr; }
+    std::vector<std::string> getTensorNames() const { return {}; }
+    
+    uint32_t getVersion() const { return 0; }
+    uint64_t getTensorCount() const { return 0; }
+    uint64_t getMetadataCount() const { return 0; }
+    
+    int getNumLayers() const { return 0; }
+    int getEmbedDim() const { return 0; }
+    int getVocabSize() const { return 0; }
+    std::string getArchitecture() const { return ""; }
+    
+    std::string getError() const { return "GGML not available"; }
+    
+private:
+    bool loaded_;
+};
+
+#endif // BOLT_HAVE_GGML
 
 } // namespace bolt
 

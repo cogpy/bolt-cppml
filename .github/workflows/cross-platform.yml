@@ -212,7 +212,7 @@ jobs:
     - name: Setup cross-compilation toolchain
       run: |
         sudo apt-get update
-        sudo apt-get install -y gcc-${{ matrix.gcc }} g++-${{ matrix.gcc }}
+        sudo apt-get install -y gcc-${{ matrix.target.gcc }} g++-${{ matrix.target.gcc }}
         
     - name: Clone vcpkg for cross-compilation
       run: |
@@ -226,9 +226,11 @@ jobs:
       run: |
         mkdir build-cross
         cd build-cross
-        cmake .. -DCMAKE_TOOLCHAIN_FILE=../ssr_deps/vcpkg/scripts/buildsystems/vcpkg.cmake \
-                 -DVCPKG_TARGET_TRIPLET=${{ matrix.triplet }} \
-                 -DCMAKE_BUILD_TYPE=Release
+        # Cross-compile without vcpkg (vcpkg cross-compilation requires custom triplet files)
+        cmake .. -DCMAKE_C_COMPILER=${{ matrix.target.gcc }}-gcc \
+                 -DCMAKE_CXX_COMPILER=${{ matrix.target.gcc }}-g++ \
+                 -DCMAKE_BUILD_TYPE=Release \
+                 -DENABLE_LLAMA_CPP=OFF
         make -j$(nproc) || true
         
   documentation:

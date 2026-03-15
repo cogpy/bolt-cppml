@@ -8,7 +8,8 @@
 
 using namespace bolt::test;
 
-// ===== GGML Integration Tests =====
+#ifdef BOLT_HAVE_GGML
+// ===== GGML Integration Tests (only when GGML is available) =====
 
 BOLT_TEST(AIModels, GGMLBasicTensorOperations) {
     const size_t mem_size = 10 * 1024 * 1024; // 10MB
@@ -357,3 +358,21 @@ BOLT_TEST(AIModels, ModelTestingInfrastructure) {
     // We should have at least basic infrastructure
     BOLT_ASSERT_TRUE(has_tiny_model || has_vocab_files);
 }
+
+
+#else // !BOLT_HAVE_GGML
+
+// Stub tests when GGML is not available
+BOLT_TEST(AIModels, GGMLNotAvailable) {
+    // When GGML is not available, GGMLContext should throw
+    BOLT_ASSERT_THROWS(std::runtime_error, {
+        bolt::GGMLContext context(1024);
+    });
+}
+
+BOLT_TEST(AIModels, RWKVStubAvailable) {
+    auto& wrapper = bolt::RWKVWrapper::getInstance();
+    BOLT_ASSERT_FALSE(wrapper.isInitialized());
+}
+
+#endif // BOLT_HAVE_GGML

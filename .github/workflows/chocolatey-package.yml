@@ -9,21 +9,20 @@ on:
 jobs:
   build-chocolatey:
     runs-on: windows-latest
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-    
+
     - name: Set up vcpkg
       run: |
         git clone https://github.com/microsoft/vcpkg.git vcpkg_tool
         .\vcpkg_tool\bootstrap-vcpkg.bat
-    
+
     - name: Install dependencies via vcpkg (manifest mode)
       run: |
-        # Use manifest mode - vcpkg reads from vcpkg.json
         .\vcpkg_tool\vcpkg install --triplet=x64-windows
-    
+
     - name: Build project
       run: |
         mkdir build
@@ -32,18 +31,19 @@ jobs:
               -DCMAKE_BUILD_TYPE=Release `
               -DBUILD_SHARED_LIBS=ON ..
         cmake --build . --config Release
-    
+
     - name: Create Chocolatey package
+      shell: pwsh
       run: |
         $VERSION = git describe --tags --always 2>$null
         if (-not $VERSION) { $VERSION = "0.1.0" }
         $VERSION = $VERSION -replace '^v',''
         $PACKAGE_NAME = "bolt-cppml"
-        
+
         # Create package directory structure
         New-Item -ItemType Directory -Force -Path "choco-package\tools"
         New-Item -ItemType Directory -Force -Path "choco-package\bin"
-        
+
         # Copy binaries - check multiple possible locations
         $exeFound = $false
         $possiblePaths = @(
@@ -52,7 +52,7 @@ jobs:
             "build\bin\Release\bolt.exe",
             "build\bin\bolt.exe"
         )
-        
+
         foreach ($path in $possiblePaths) {
             if (Test-Path $path) {
                 Copy-Item $path "choco-package\bin\"
@@ -61,95 +61,88 @@ jobs:
                 break
             }
         }
-        
+
         if (-not $exeFound) {
             Write-Host "Warning: bolt.exe not found, creating placeholder"
-            Write-Host "Build directory contents:"
             Get-ChildItem -Path "build" -Recurse -Name "*.exe" | ForEach-Object { Write-Host $_ }
-            # Create a placeholder for testing
-            "@echo off`necho Bolt C++ IDE" | Out-File -FilePath "choco-package\bin\bolt.bat" -Encoding ASCII
+            Set-Content -Path "choco-package\bin\bolt.bat" -Value "@echo off`r`necho Bolt C++ IDE" -Encoding ASCII
         }
-        
+
         # Copy DLLs
-        $dllPaths = @(
-            "build\Release\*.dll",
-            "build\bin\Release\*.dll",
-            "build\bin\*.dll"
-        )
-        
+        $dllPaths = @("build\Release\*.dll", "build\bin\Release\*.dll", "build\bin\*.dll")
         foreach ($path in $dllPaths) {
             if (Test-Path $path) {
                 Copy-Item $path "choco-package\bin\" -ErrorAction SilentlyContinue
             }
         }
-        
+
         # Create nuspec file
-        @"
-<?xml version="1.0" encoding="utf-8"?>
-<package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
-  <metadata>
-    <id>$PACKAGE_NAME</id>
-    <version>$VERSION</version>
-    <title>Bolt C++</title>
-    <authors>Bolt C++ Team</authors>
-    <projectUrl>https://github.com/cogpy/bolt-cppml</projectUrl>
-    <licenseUrl>https://github.com/cogpy/bolt-cppml/blob/main/LICENSE</licenseUrl>
-    <requireLicenseAcceptance>false</requireLicenseAcceptance>
-    <description>Modern C++ implementation of Bolt IDE with AI integration and real-time collaborative features. Features include GGML integration, RWKV implementation, multi-cursor support, integrated debugger, and comprehensive ImGui dark-mode interface.</description>
-    <summary>Bolt C++ - AI-powered C++ IDE</summary>
-    <tags>ide cpp ai development editor llm</tags>
-    <copyright>Copyright 2025 Bolt C++ Team</copyright>
-    <dependencies>
-      <dependency id="vcredist140" version="14.0" />
-    </dependencies>
-  </metadata>
-  <files>
-    <file src="bin\**" target="bin" />
-    <file src="tools\**" target="tools" />
-  </files>
-</package>
-"@ | Out-File -FilePath "choco-package\$PACKAGE_NAME.nuspec" -Encoding UTF8
-        
+        $nuspecContent = @"
+        <?xml version="1.0" encoding="utf-8"?>
+        <package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
+          <metadata>
+            <id>$PACKAGE_NAME</id>
+            <version>$VERSION</version>
+            <title>Bolt C++</title>
+            <authors>Bolt C++ Team</authors>
+            <projectUrl>https://github.com/cogpy/bolt-cppml</projectUrl>
+            <licenseUrl>https://github.com/cogpy/bolt-cppml/blob/main/LICENSE</licenseUrl>
+            <requireLicenseAcceptance>false</requireLicenseAcceptance>
+            <description>Modern C++ implementation of Bolt IDE with AI integration and real-time collaborative features.</description>
+            <summary>Bolt C++ - AI-powered C++ IDE</summary>
+            <tags>ide cpp ai development editor llm</tags>
+            <copyright>Copyright 2025 Bolt C++ Team</copyright>
+            <dependencies>
+              <dependency id="vcredist140" version="14.0" />
+            </dependencies>
+          </metadata>
+          <files>
+            <file src="bin\**" target="bin" />
+            <file src="tools\**" target="tools" />
+          </files>
+        </package>
+        "@
+        # Remove leading whitespace from each line (from YAML indentation)
+        $nuspecContent = ($nuspecContent -split "`n" | ForEach-Object { $_.TrimStart() }) -join "`n"
+        Set-Content -Path "choco-package\$PACKAGE_NAME.nuspec" -Value $nuspecContent -Encoding UTF8
+
         # Create install script
-        @"
-`$ErrorActionPreference = 'Stop'
-`$packageName = '$PACKAGE_NAME'
-`$toolsDir = "`$(Split-Path -parent `$MyInvocation.MyCommand.Definition)"
-`$binDir = Join-Path `$toolsDir '..\bin'
+        $installScript = @"
+        `$ErrorActionPreference = 'Stop'
+        `$packageName = '$PACKAGE_NAME'
+        `$toolsDir = "`$(Split-Path -parent `$MyInvocation.MyCommand.Definition)"
+        `$binDir = Join-Path `$toolsDir '..\bin'
+        Install-ChocolateyPath `$binDir 'Machine'
+        Write-Host "$PACKAGE_NAME has been installed successfully!"
+        "@
+        $installScript = ($installScript -split "`n" | ForEach-Object { $_.TrimStart() }) -join "`n"
+        Set-Content -Path "choco-package\tools\chocolateyinstall.ps1" -Value $installScript -Encoding UTF8
 
-# Add to PATH
-Install-ChocolateyPath `$binDir 'Machine'
-
-Write-Host "$PACKAGE_NAME has been installed successfully!"
-Write-Host "You can now run 'bolt' from the command line."
-"@ | Out-File -FilePath "choco-package\tools\chocolateyinstall.ps1" -Encoding UTF8
-        
         # Create uninstall script
-        @"
-`$ErrorActionPreference = 'Stop'
-`$packageName = '$PACKAGE_NAME'
-`$toolsDir = "`$(Split-Path -parent `$MyInvocation.MyCommand.Definition)"
-`$binDir = Join-Path `$toolsDir '..\bin'
+        $uninstallScript = @"
+        `$ErrorActionPreference = 'Stop'
+        `$packageName = '$PACKAGE_NAME'
+        `$toolsDir = "`$(Split-Path -parent `$MyInvocation.MyCommand.Definition)"
+        `$binDir = Join-Path `$toolsDir '..\bin'
+        Uninstall-ChocolateyPath `$binDir 'Machine'
+        Write-Host "$PACKAGE_NAME has been uninstalled successfully!"
+        "@
+        $uninstallScript = ($uninstallScript -split "`n" | ForEach-Object { $_.TrimStart() }) -join "`n"
+        Set-Content -Path "choco-package\tools\chocolateyuninstall.ps1" -Value $uninstallScript -Encoding UTF8
 
-# Remove from PATH
-Uninstall-ChocolateyPath `$binDir 'Machine'
-
-Write-Host "$PACKAGE_NAME has been uninstalled successfully!"
-"@ | Out-File -FilePath "choco-package\tools\chocolateyuninstall.ps1" -Encoding UTF8
-        
         # Build package
         cd choco-package
         choco pack
-        
+
         # Move package to root
         Move-Item "$PACKAGE_NAME.$VERSION.nupkg" ..
-    
+
     - name: Upload Chocolatey package
       uses: actions/upload-artifact@v4
       with:
         name: chocolatey-package
         path: '*.nupkg'
-    
+
     - name: Create Release
       if: startsWith(github.ref, 'refs/tags/')
       uses: softprops/action-gh-release@v1
@@ -157,7 +150,7 @@ Write-Host "$PACKAGE_NAME has been uninstalled successfully!"
         files: '*.nupkg'
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    
+
     - name: Publish to Chocolatey (optional)
       if: startsWith(github.ref, 'refs/tags/') && env.CHOCO_API_KEY != ''
       env:

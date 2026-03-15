@@ -7,6 +7,8 @@
 #include <stdexcept>
 #include <mutex>
 #include <thread>
+
+#ifdef BOLT_HAVE_GGML
 #include <ggml.h>
 #include <ggml-backend.h>
 #include <ggml-cpu.h>
@@ -23,6 +25,7 @@
 #ifdef GGML_USE_VULKAN
 #include <ggml-vulkan.h>
 #endif
+#endif // BOLT_HAVE_GGML
 
 namespace bolt {
 namespace ai {
@@ -42,23 +45,21 @@ enum class GPUBackendType {
  * GPU device information structure
  */
 struct GPUDeviceInfo {
-    int deviceId;
+    int deviceId = 0;
     std::string name;
     std::string description;
-    size_t totalMemory;
-    size_t availableMemory;
-    GPUBackendType backendType;
-    bool isAvailable;
+    size_t totalMemory = 0;
+    size_t availableMemory = 0;
+    GPUBackendType backendType = GPUBackendType::CPU;
+    bool isAvailable = false;
 };
 
 /**
  * GPU acceleration configuration
  */
 struct GPUConfig {
-    GPUBackendType preferredBackend = GPUBackendType::CUDA;
+    GPUBackendType preferredBackend = GPUBackendType::CPU;
     std::vector<GPUBackendType> fallbackBackends = {
-        GPUBackendType::Vulkan,
-        GPUBackendType::OpenCL,
         GPUBackendType::CPU
     };
     int preferredDeviceId = 0;
@@ -68,6 +69,7 @@ struct GPUConfig {
     bool enableAsynchronousCompute = true;
 };
 
+#ifdef BOLT_HAVE_GGML
 /**
  * GPU memory manager for efficient allocation and deallocation
  */
@@ -238,6 +240,39 @@ private:
     std::string detokenize(const std::vector<int>& tokens);
 };
 
+#else // !BOLT_HAVE_GGML
+
+// Stub classes when GGML is not available
+class GPUAccelerationManager {
+public:
+    static GPUAccelerationManager& getInstance() {
+        static GPUAccelerationManager instance;
+        return instance;
+    }
+    bool initialize(const GPUConfig& /*config*/ = GPUConfig{}) { return false; }
+    void shutdown() {}
+    bool isInitialized() const { return false; }
+    std::vector<GPUDeviceInfo> detectAvailableDevices() { return {}; }
+    GPUBackendType getCurrentBackendType() const { return GPUBackendType::CPU; }
+    GPUDeviceInfo getCurrentDevice() const { return {}; }
+    
+    struct PerformanceStats {
+        size_t totalComputeOps = 0;
+        double totalComputeTime = 0.0;
+        size_t totalMemoryTransfers = 0;
+        double totalTransferTime = 0.0;
+        double averageOpsPerSecond = 0.0;
+        double peakMemoryUsage = 0.0;
+    };
+    PerformanceStats getPerformanceStats() const { return {}; }
+    void resetPerformanceStats() {}
+    GPUConfig getConfig() const { return {}; }
+private:
+    GPUAccelerationManager() = default;
+};
+
+#endif // BOLT_HAVE_GGML
+
 /**
  * Exception class for GPU acceleration errors
  */
@@ -257,22 +292,34 @@ namespace gpu_utils {
     /**
      * Check if GPU acceleration is available on this system
      */
-    bool isGPUAccelerationAvailable();
+    inline bool isGPUAccelerationAvailable() {
+#ifdef BOLT_HAVE_GGML
+        return true;
+#else
+        return false;
+#endif
+    }
     
     /**
      * Get recommended GPU configuration for this system
      */
-    GPUConfig getRecommendedGPUConfig();
+    inline GPUConfig getRecommendedGPUConfig() {
+        return GPUConfig{};
+    }
     
     /**
      * Benchmark different GPU backends and return the best performing one
      */
-    GPUBackendType benchmarkGPUBackends();
+    inline GPUBackendType benchmarkGPUBackends() {
+        return GPUBackendType::CPU;
+    }
     
     /**
      * Estimate memory requirements for a model
      */
-    size_t estimateModelMemoryRequirements(const std::string& modelPath);
+    inline size_t estimateModelMemoryRequirements(const std::string& /*modelPath*/) {
+        return 0;
+    }
 }
 
 } // namespace ai

@@ -226,6 +226,11 @@ target_sources(bolt_lib PRIVATE
     src/bolt/ai/ai_http_client.cpp
 )
 
+# DirectGGUFInference is always compiled (has internal LLAMA_AVAILABLE guards)
+target_sources(bolt_lib PRIVATE
+    src/bolt/ai/direct_gguf_inference.cpp
+)
+
 # Add GGML-dependent AI components only when llama.cpp is enabled
 if(ENABLE_LLAMA_CPP)
     target_sources(bolt_lib PRIVATE
@@ -235,7 +240,6 @@ if(ENABLE_LLAMA_CPP)
         src/bolt/ai/ggml_loader.cpp
         src/bolt/ai/model_loader.cpp
         src/bolt/ai/bpe_tokenizer.cpp
-        src/bolt/ai/direct_gguf_inference.cpp
         src/bolt/ai/gpu_acceleration.cpp
     )
     target_compile_definitions(bolt_lib PUBLIC BOLT_HAVE_GGML=1)
@@ -329,9 +333,11 @@ target_link_libraries(demo_drawkern_full bolt_lib)
 add_executable(demo_drawkern_complete demo_drawkern_complete.cpp)
 target_link_libraries(demo_drawkern_complete PRIVATE bolt_lib)
 
-# AI Infrastructure demo
-add_executable(demo_ai_infrastructure demo_ai_infrastructure.cpp)
-target_link_libraries(demo_ai_infrastructure PRIVATE bolt_lib)
+# AI Infrastructure demo (requires GGML)
+if(GGML_AVAILABLE)
+    add_executable(demo_ai_infrastructure demo_ai_infrastructure.cpp)
+    target_link_libraries(demo_ai_infrastructure PRIVATE bolt_lib)
+endif()
 
 # AI Completion demo
 add_executable(demo_ai_completion demo_ai_completion.cpp)
@@ -341,19 +347,23 @@ target_link_libraries(demo_ai_completion PRIVATE bolt_lib)
 add_executable(demo_advanced_ai_features demo_advanced_ai_features.cpp)
 target_link_libraries(demo_advanced_ai_features PRIVATE bolt_lib)
 
-# AI Configuration demo
-if(HAVE_CURL AND HAVE_JSONCPP)
+# AI Configuration demo (requires CURL, JSONCPP, and GGML for DirectGGUF)
+if(HAVE_CURL AND HAVE_JSONCPP AND GGML_AVAILABLE)
     add_executable(demo_ai_config demo_ai_config.cpp)
     target_link_libraries(demo_ai_config PRIVATE bolt_lib)
 endif()
 
-# Direct GGUF loading demo
-add_executable(demo_direct_gguf demo_direct_gguf.cpp)
-target_link_libraries(demo_direct_gguf PRIVATE bolt_lib)
+# Direct GGUF loading demo (requires GGML)
+if(GGML_AVAILABLE)
+    add_executable(demo_direct_gguf demo_direct_gguf.cpp)
+    target_link_libraries(demo_direct_gguf PRIVATE bolt_lib)
+endif()
 
-# GPU Acceleration demo
-add_executable(demo_gpu_acceleration demo_gpu_acceleration.cpp)
-target_link_libraries(demo_gpu_acceleration PRIVATE bolt_lib)
+# GPU Acceleration demo (requires GGML)
+if(GGML_AVAILABLE)
+    add_executable(demo_gpu_acceleration demo_gpu_acceleration.cpp)
+    target_link_libraries(demo_gpu_acceleration PRIVATE bolt_lib)
+endif()
 
 # Multi-cursor demo
 add_executable(demo_multi_cursor demo_multi_cursor.cpp)
@@ -481,7 +491,9 @@ enable_testing()
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/test")
     add_subdirectory(test)
 endif()
-# Model loading test
-add_executable(test_model_loading test/test_model_loading.cpp)
-target_link_libraries(test_model_loading bolt_lib)
+# Model loading test (requires GGML)
+if(GGML_AVAILABLE)
+    add_executable(test_model_loading test/test_model_loading.cpp)
+    target_link_libraries(test_model_loading bolt_lib)
+endif()
 

@@ -180,7 +180,7 @@ if(BOLT_ENABLE_UNIT_TESTS)
 
     target_link_libraries(bolt_comprehensive_e2e_tests PRIVATE bolt_lib)
     target_include_directories(bolt_comprehensive_e2e_tests PRIVATE ${PROJECT_SOURCE_DIR}/include)
-    target_compile_definitions(bolt_comprehensive_e2e_tests PRIVATE BOLT_INCLUDE_IN_TEST_RUNNER=1)
+    target_compile_definitions(bolt_comprehensive_e2e_tests PRIVATE BOLT_INCLUDE_IN_TEST_RUNNER=1 BOLT_TEST_REPO_PATH="${PROJECT_SOURCE_DIR}")
 
     # AI Features comprehensive tests - DISABLED: API mismatch with test expectations
     # add_executable(bolt_ai_features_tests

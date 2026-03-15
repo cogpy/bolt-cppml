@@ -1,13 +1,18 @@
 #ifndef BOLT_AI_GGML_HPP
 #define BOLT_AI_GGML_HPP
 
-// Include the real GGML library
-#include <ggml.h>
 #include <stdexcept>
+#include <string>
+
+#ifdef BOLT_HAVE_GGML
+// Include the real GGML library when available
+#include <ggml.h>
+#endif
 
 // Add any bolt-specific extensions or utilities here
 namespace bolt {
 
+#ifdef BOLT_HAVE_GGML
 // Utility functions for working with GGML
 class GGMLContext {
 public:
@@ -54,6 +59,19 @@ public:
 private:
     ggml_context* ctx_ = nullptr;
 };
+#else
+// Stub when GGML is not available
+class GGMLContext {
+public:
+    explicit GGMLContext(size_t /*mem_size*/) {
+        throw std::runtime_error("GGML not available - build with ENABLE_LLAMA_CPP=ON");
+    }
+    ~GGMLContext() = default;
+    void* get() { return nullptr; }
+    GGMLContext(const GGMLContext&) = delete;
+    GGMLContext& operator=(const GGMLContext&) = delete;
+};
+#endif
 
 } // namespace bolt
 

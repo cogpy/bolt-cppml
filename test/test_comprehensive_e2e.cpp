@@ -122,6 +122,13 @@
 
 using namespace bolt::test;
 
+// Helper: Get the repository path for Git tests
+// In CI, this is set via compile definition; locally defaults to current working directory
+#ifndef BOLT_TEST_REPO_PATH
+#define BOLT_TEST_REPO_PATH "."
+#endif
+static const std::string REPO_PATH = BOLT_TEST_REPO_PATH;
+
 // ============================================================================
 // E2E_StringUtils: Test all StringUtils functions
 // ============================================================================
@@ -2315,49 +2322,49 @@ BOLT_TEST(E2E_GitRepository, IsGitRepository_NonRepo) {
 
 BOLT_TEST(E2E_GitRepository, IsGitRepository_ActualRepo) {
     // Use the bolt-cppml repo itself
-    bolt::git::GitRepository repo("/home/ubuntu/bolt-cppml");
+    bolt::git::GitRepository repo(REPO_PATH);
     BOLT_ASSERT_TRUE(repo.isGitRepository());
 }
 
 BOLT_TEST(E2E_GitRepository, GetCurrentBranch) {
-    bolt::git::GitRepository repo("/home/ubuntu/bolt-cppml");
+    bolt::git::GitRepository repo(REPO_PATH);
     auto branch = repo.getCurrentBranch();
     BOLT_ASSERT(branch.has_value());
     BOLT_ASSERT(!branch->empty());
 }
 
 BOLT_TEST(E2E_GitRepository, GetBranches) {
-    bolt::git::GitRepository repo("/home/ubuntu/bolt-cppml");
+    bolt::git::GitRepository repo(REPO_PATH);
     auto branches = repo.getBranches();
     BOLT_ASSERT(branches.size() > 0);
 }
 
 BOLT_TEST(E2E_GitRepository, GetFileStatus) {
-    bolt::git::GitRepository repo("/home/ubuntu/bolt-cppml");
+    bolt::git::GitRepository repo(REPO_PATH);
     auto status = repo.getFileStatus();
     // May have modified/untracked files
 }
 
 BOLT_TEST(E2E_GitRepository, HasUncommittedChanges) {
-    bolt::git::GitRepository repo("/home/ubuntu/bolt-cppml");
+    bolt::git::GitRepository repo(REPO_PATH);
     // Just verify it doesn't crash
     repo.hasUncommittedChanges();
 }
 
 BOLT_TEST(E2E_GitRepository, GetCommitLog) {
-    bolt::git::GitRepository repo("/home/ubuntu/bolt-cppml");
+    bolt::git::GitRepository repo(REPO_PATH);
     auto log = repo.getCommitLog(5);
     BOLT_ASSERT(log.size() > 0);
 }
 
 BOLT_TEST(E2E_GitRepository, GetRepositoryRoot) {
-    bolt::git::GitRepository repo("/home/ubuntu/bolt-cppml");
+    bolt::git::GitRepository repo(REPO_PATH);
     auto root = repo.getRepositoryRoot();
     BOLT_ASSERT(!root.empty());
 }
 
 BOLT_TEST(E2E_GitRepository, SetStatusCallback) {
-    bolt::git::GitRepository repo("/home/ubuntu/bolt-cppml");
+    bolt::git::GitRepository repo(REPO_PATH);
     bool callbackSet = false;
     repo.setStatusCallback([&callbackSet](bool success, const std::string& msg) {
         callbackSet = true;
@@ -2694,7 +2701,7 @@ BOLT_TEST(E2E_CrossModule, DrawKernFullWorkflow) {
 
 BOLT_TEST(E2E_CrossModule, GitAndEditorIntegration) {
     // Test git status with editor file tracking
-    bolt::git::GitRepository repo("/home/ubuntu/bolt-cppml");
+    bolt::git::GitRepository repo(REPO_PATH);
     BOLT_ASSERT_TRUE(repo.isGitRepository());
     
     auto branch = repo.getCurrentBranch();

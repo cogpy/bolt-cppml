@@ -8,9 +8,13 @@
 #include <stdexcept>
 #include <thread>
 #include <unordered_map>
+#include <algorithm>
+
+#ifdef BOLT_HAVE_GGML
 #include <ggml.h>
-#include "bolt/ai/tokenizer.hpp"
-#include "bolt/utils/tensor_utils.hpp"
+#endif
+
+#include "bolt/ai/ggml.hpp"
 
 namespace bolt {
 
@@ -19,18 +23,18 @@ public:
     explicit GGMLException(const std::string& msg) : std::runtime_error(msg) {}
 };
 
+#ifdef BOLT_HAVE_GGML
+
 class GGMLModel {
 public:
     GGMLModel(const std::string& path, size_t ctx_size = 2048, int n_threads = -1) 
         : ctx_size_(ctx_size)
-        , n_threads_(n_threads == -1 ? std::thread::hardware_concurrency() : n_threads) {
+        , n_threads_(n_threads == -1 ? static_cast<int>(std::thread::hardware_concurrency()) : n_threads) {
         context_ = std::make_unique<GGMLContext>(ctx_size * sizeof(float) * 4);
         loadModel(path);
     }
 
     void loadModel(const std::string& path) {
-        // Load model weights and architecture
-        // This is a placeholder - actual implementation depends on model format
         model_path_ = path;
         if (!loadWeights(path)) {
             throw GGMLException("Failed to load model from " + path);
@@ -38,26 +42,14 @@ public:
     }
 
     std::string generate(const std::string& prompt) {
-        // Set up computation graph
         ggml_cgraph* gf = ggml_new_graph(context_->get());
-        
-        // Convert prompt to tokens (simplified)
         auto tokens = tokenize(prompt);
-        
-        // Run inference
         ggml_tensor* output = runInference(gf, tokens);
-        
-        // Convert output back to text
         return detokenize(output);
     }
 
-    void setContext(size_t ctx_size) {
-        ctx_size_ = ctx_size;
-    }
-
-    void setThreads(int n_threads) {
-        n_threads_ = n_threads;
-    }
+    void setContext(size_t ctx_size) { ctx_size_ = ctx_size; }
+    void setThreads(int n_threads) { n_threads_ = n_threads; }
 
 private:
     std::unique_ptr<GGMLContext> context_;
@@ -65,15 +57,11 @@ private:
     size_t ctx_size_;
     int n_threads_;
     std::unordered_map<std::string, ggml_tensor*> weights_;
-    int n_layers_ = 12; // Default, should be set based on model config
+    int n_layers_ = 12;
 
-    bool loadWeights(const std::string& path) {
-        // Simplified weight loading - would need actual implementation
-        return true;
-    }
+    bool loadWeights(const std::string& /*path*/) { return true; }
 
     std::vector<int> tokenize(const std::string& text) {
-        // Simplified tokenization
         std::vector<int> tokens;
         for (char c : text) {
             tokens.push_back(static_cast<int>(c));
@@ -81,44 +69,25 @@ private:
         return tokens;
     }
 
-    std::string detokenize(ggml_tensor* output) {
-        // Simplified detokenization
+    std::string detokenize(ggml_tensor* /*output*/) {
         return "Generated response";
     }
     
     int argmax(const float* array, size_t size) {
-        return std::max_element(array, array + size) - array;
+        return static_cast<int>(std::max_element(array, array + size) - array);
     }
 
     ggml_tensor* runInference(ggml_cgraph* gf, const std::vector<int>& tokens) {
-        // Simplified inference implementation
         if (tokens.empty()) return nullptr;
-
-        const int N = tokens.size();
+        const int N = static_cast<int>(tokens.size());
         auto* result = ggml_new_tensor_1d(context_->get(), GGML_TYPE_F32, N);
-        
         ggml_build_forward_expand(gf, result);
-        
-        // Use simplified computation instead of ggml_graph_compute_with_ctx
-        // TODO: Update when GGML API is stable
-        
         return result;
     }
 
-    ggml_tensor* attention_block(ggml_tensor* x, ggml_tensor* mask, int layer) {
-        // Simplified attention block
-        return x;
-    }
-
-    ggml_tensor* mlp_block(ggml_tensor* x, int layer) {
-        // Simplified MLP block  
-        return x;
-    }
-
-    ggml_tensor* layer_norm(ggml_tensor* x, int layer) {
-        // Simplified layer norm
-        return x;
-    }
+    ggml_tensor* attention_block(ggml_tensor* x, ggml_tensor* /*mask*/, int /*layer*/) { return x; }
+    ggml_tensor* mlp_block(ggml_tensor* x, int /*layer*/) { return x; }
+    ggml_tensor* layer_norm(ggml_tensor* x, int /*layer*/) { return x; }
 };
 
 class GGMLWrapper {
@@ -139,9 +108,7 @@ public:
         }
     }
     
-    void enableRWKV(bool enable = true) {
-        use_rwkv_ = enable;
-    }
+    void enableRWKV(bool enable = true) { use_rwkv_ = enable; }
 
     std::string generateResponse(const std::string& prompt) {
         if (!model_) throw GGMLException("Model not initialized");
@@ -154,12 +121,42 @@ private:
     bool use_rwkv_ = false;
     bool rwkv_initialized_ = false;
     
-    void quantizeModel(enum ggml_type target_type) {
-        // Simplified quantization
-    }
+    void quantizeModel(enum ggml_type /*target_type*/) {}
 };
+
+#else // !BOLT_HAVE_GGML
+
+// Stub classes when GGML is not available
+class GGMLModel {
+public:
+    GGMLModel(const std::string& /*path*/, size_t /*ctx_size*/ = 2048, int /*n_threads*/ = -1) {
+        throw GGMLException("GGML not available - build with ENABLE_LLAMA_CPP=ON");
+    }
+    void loadModel(const std::string& /*path*/) {}
+    std::string generate(const std::string& /*prompt*/) { return ""; }
+    void setContext(size_t /*ctx_size*/) {}
+    void setThreads(int /*n_threads*/) {}
+};
+
+class GGMLWrapper {
+public:
+    static GGMLWrapper& getInstance() {
+        static GGMLWrapper instance;
+        return instance;
+    }
+    void initialize(const std::string& /*model_path*/) {
+        throw GGMLException("GGML not available - build with ENABLE_LLAMA_CPP=ON");
+    }
+    void enableRWKV(bool /*enable*/ = true) {}
+    std::string generateResponse(const std::string& /*prompt*/) {
+        throw GGMLException("GGML not available");
+    }
+private:
+    GGMLWrapper() = default;
+};
+
+#endif // BOLT_HAVE_GGML
 
 } // namespace bolt
 
-#endif
-
+#endif // GGML_WRAPPER_HPP
