@@ -182,6 +182,15 @@ if(BOLT_ENABLE_UNIT_TESTS)
     target_include_directories(bolt_comprehensive_e2e_tests PRIVATE ${PROJECT_SOURCE_DIR}/include)
     target_compile_definitions(bolt_comprehensive_e2e_tests PRIVATE BOLT_INCLUDE_IN_TEST_RUNNER=1 BOLT_TEST_REPO_PATH="${PROJECT_SOURCE_DIR}")
 
+    # KoboldCpp Provider E2E tests
+    add_executable(bolt_koboldcpp_tests
+        test_runner.cpp
+        test_koboldcpp_provider.cpp
+    )
+    target_link_libraries(bolt_koboldcpp_tests PRIVATE bolt_lib)
+    target_include_directories(bolt_koboldcpp_tests PRIVATE ${PROJECT_SOURCE_DIR}/include)
+    target_compile_definitions(bolt_koboldcpp_tests PRIVATE BOLT_INCLUDE_IN_TEST_RUNNER=1)
+
     # AI Features comprehensive tests - DISABLED: API mismatch with test expectations
     # add_executable(bolt_ai_features_tests
     #     test_ai_features.cpp
@@ -384,6 +393,21 @@ if(BOLT_ENABLE_UNIT_TESTS)
     add_test(NAME e2e_code_analyzer COMMAND bolt_comprehensive_e2e_tests E2E_CodeAnalyzer)
     add_test(NAME e2e_cross_module COMMAND bolt_comprehensive_e2e_tests E2E_CrossModule)
 
+    # KoboldCpp Provider E2E tests
+    add_test(NAME koboldcpp_all COMMAND bolt_koboldcpp_tests)
+    add_test(NAME koboldcpp_config COMMAND bolt_koboldcpp_tests KoboldCppConfig)
+    add_test(NAME koboldcpp_response COMMAND bolt_koboldcpp_tests KoboldCppResponse)
+    add_test(NAME koboldcpp_serverinfo COMMAND bolt_koboldcpp_tests KoboldCppServerInfo)
+    add_test(NAME koboldcpp_construction COMMAND bolt_koboldcpp_tests KoboldCppConstruction)
+    add_test(NAME koboldcpp_configuration COMMAND bolt_koboldcpp_tests KoboldCppConfiguration)
+    add_test(NAME koboldcpp_offline COMMAND bolt_koboldcpp_tests KoboldCppOffline)
+    add_test(NAME koboldcpp_apimode COMMAND bolt_koboldcpp_tests KoboldCppAPIMode)
+    add_test(NAME koboldcpp_chat COMMAND bolt_koboldcpp_tests KoboldCppChat)
+    add_test(NAME koboldcpp_streaming COMMAND bolt_koboldcpp_tests KoboldCppStreaming)
+    add_test(NAME koboldcpp_interface COMMAND bolt_koboldcpp_tests KoboldCppInterface)
+    add_test(NAME koboldcpp_stopseq COMMAND bolt_koboldcpp_tests KoboldCppStopSeq)
+    add_test(NAME koboldcpp_reppen COMMAND bolt_koboldcpp_tests KoboldCppRepPen)
+
     # Set runtime library path for all tests (fixes shared library loading)
     set(BOLT_TEST_ENVIRONMENT "LD_LIBRARY_PATH=${CMAKE_BINARY_DIR}:${CMAKE_BINARY_DIR}/bin:$ENV{LD_LIBRARY_PATH}")
 
@@ -411,6 +435,10 @@ if(BOLT_ENABLE_UNIT_TESTS)
         e2e_lsp_json_rpc e2e_drawkern_vm e2e_yacc_grammar e2e_styx_protocol
         e2e_git_repository e2e_bolt_app e2e_benchmark_suite e2e_plugin_system
         e2e_code_analyzer e2e_cross_module
+        koboldcpp_all koboldcpp_config koboldcpp_response koboldcpp_serverinfo
+        koboldcpp_construction koboldcpp_configuration koboldcpp_offline
+        koboldcpp_apimode koboldcpp_chat koboldcpp_streaming
+        koboldcpp_interface koboldcpp_stopseq koboldcpp_reppen
         PROPERTIES ENVIRONMENT "${BOLT_TEST_ENVIRONMENT}"
     )
 
@@ -437,6 +465,14 @@ if(BOLT_ENABLE_UNIT_TESTS)
     set_tests_properties(
         unit_ggml_tests unit_ai_models_tests
         PROPERTIES LABELS "Unit;AI"
+    )
+
+    set_tests_properties(
+        koboldcpp_all koboldcpp_config koboldcpp_response koboldcpp_serverinfo
+        koboldcpp_construction koboldcpp_configuration koboldcpp_offline
+        koboldcpp_apimode koboldcpp_chat koboldcpp_streaming
+        koboldcpp_interface koboldcpp_stopseq koboldcpp_reppen
+        PROPERTIES LABELS "Unit;AI;KoboldCpp"
     )
 
     # LSP tests label - DISABLED: executable not built

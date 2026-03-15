@@ -13,6 +13,7 @@ enum class APIType {
     ANTHROPIC,   // Anthropic Claude API
     LLAMA_CPP,   // llama.cpp server
     LOCAL_GGML,  // Local GGML model
+    KOBOLDCPP,   // KoboldCpp server (OpenAI-compatible + KoboldAI native)
     CUSTOM       // Custom endpoint
 };
 
@@ -81,6 +82,7 @@ public:
     static std::unique_ptr<AIHttpClient> create_anthropic_client(const std::string& api_key, const std::string& model = "claude-3-sonnet-20240229");
     static std::unique_ptr<AIHttpClient> create_llama_cpp_client(const std::string& base_url = "http://localhost:8080");
     static std::unique_ptr<AIHttpClient> create_ollama_client(const std::string& base_url = "http://localhost:11434", const std::string& model = "llama2");
+    static std::unique_ptr<AIHttpClient> create_koboldcpp_client(const std::string& base_url = "http://localhost:5001");
     
     // Create client from configuration file
     static std::unique_ptr<AIHttpClient> create_from_config(const std::string& config_file_path);

@@ -224,6 +224,7 @@ target_sources(bolt_lib PRIVATE
     src/bolt/ai/ai_code_generator.cpp
     src/bolt/ai/ai_refactoring_engine.cpp
     src/bolt/ai/ai_http_client.cpp
+    src/bolt/ai/koboldcpp_provider.cpp
 )
 
 # DirectGGUFInference is always compiled (has internal LLAMA_AVAILABLE guards)
