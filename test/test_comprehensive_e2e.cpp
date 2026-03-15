@@ -1897,7 +1897,8 @@ BOLT_TEST(E2E_Logging, CategoryFilter) {
 
 BOLT_TEST(E2E_Logging, LogManagerSingleton) {
     auto& lm = bolt::LogManager::getInstance();
-    // Should be accessible
+    // Should be accessible — use the reference to suppress warning
+    (void)lm;
     BOLT_ASSERT_TRUE(true);
 }
 
@@ -2431,8 +2432,10 @@ BOLT_TEST(E2E_BenchmarkSuite, RegisterAndRunBenchmark) {
     config.iterations = 3;
     config.warmupRuns = 1;
     suite.registerBenchmark(config, [](const bolt::BenchmarkConfig& cfg) {
-        volatile int sum = 0;
+        int sum = 0;
         for (int i = 0; i < 1000; i++) sum += i;
+        // Prevent optimization without volatile compound assignment
+        if (sum == -1) throw std::runtime_error("unreachable");
     });
     auto result = suite.runBenchmark("e2e_bench");
     BOLT_ASSERT_EQ("e2e_bench", result.name);

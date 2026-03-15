@@ -74,7 +74,9 @@ void testOperationalTransform() {
     DocumentOperation insertOp(OperationType::INSERT, "userB", Position(0, 5), "XYZ");
     
     auto transformedInsert = OperationalTransform::transform(insertOp, deleteOp);
-    assert(transformedInsert->getPosition().character == 2); // Adjusted for deletion
+    // Delete at pos 3 of "abc" (len 3) covers chars 3-5, insert at 5 is inside deleted range
+    // Insert collapses to delete start position (3)
+    assert(transformedInsert->getPosition().character == 3); // Collapsed to delete start
     std::cout << "  Insert vs delete transformation ... PASS\n";
     
     // Test same user operations (no transformation)

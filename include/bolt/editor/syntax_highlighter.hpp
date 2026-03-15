@@ -65,7 +65,7 @@ public:
             for (const auto& rule : rules) {
                 std::smatch match;
                 if (std::regex_search(remaining, match, rule.first, std::regex_constants::match_continuous)) {
-                    if (match.position(0) < bestMatch) {
+                    if (static_cast<size_t>(match.position(0)) < bestMatch) {
                         bestMatch = match.position(0);
                         bestType = rule.second;
                         matchedText = match.str(0);

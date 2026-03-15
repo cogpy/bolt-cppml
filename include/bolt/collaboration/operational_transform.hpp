@@ -114,9 +114,16 @@ private:
             case OperationType::DELETE: {
                 // If delete is at same line and before current position
                 if (otherPos.line == insertPos.line && otherPos.character < insertPos.character) {
-                    size_t deleteLen = std::min(other.getContent().length(),
-                                              insertPos.character - otherPos.character);
-                    insertPos.character -= deleteLen;
+                    // The delete removes content starting at otherPos.character.
+                    // If the delete range extends to or past the insert position,
+                    // the insert collapses to the delete start position.
+                    // Otherwise, shift left by the full delete length.
+                    size_t deleteEnd = otherPos.character + other.getContent().length();
+                    if (deleteEnd >= insertPos.character) {
+                        insertPos.character = otherPos.character;
+                    } else {
+                        insertPos.character -= other.getContent().length();
+                    }
                     insert.setPosition(insertPos);
                 }
                 // If delete is on previous line

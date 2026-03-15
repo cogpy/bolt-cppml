@@ -64,7 +64,7 @@ cd build
 ctest --output-on-failure
 ```
 
-All 30 tests should pass with 0 warnings. The CTest configuration automatically sets `LD_LIBRARY_PATH` for shared library resolution.
+All 97 tests should pass with 0 warnings. The CTest configuration automatically sets `LD_LIBRARY_PATH` for shared library resolution.
 
 ## Neural Network Module Pattern
 
@@ -111,7 +111,9 @@ The project uses a custom lightweight test framework with CTest integration:
 | Core | 7 | Chat, Memory, Store, String, FileTree, Minimap |
 | Editor | 5 | SplitView, MultiCursor, KeyboardShortcuts, Theme, CodeFolding |
 | ErrorHandling | 7 | Error recovery, boundary conditions |
-| AI | 2 | GGML wrapper, AI model integration |
+| AI | 15 | GGML wrapper, AI models, KoboldCpp provider (13 suites) |
+| Comprehensive E2E | 27 | Cross-module, DrawKern VM, Styx, Git, Benchmark, Plugin |
+| Extended E2E | 11 | DataProcessor, MathUtils, FileSystem, LineNumbers, VectorDB, OT edge cases |
 | Integration | 2 | Full integration tests |
 | System | 4 | Debugger, Logging, MemoryLeak, Sanitizer |
 
@@ -150,6 +152,6 @@ class MyPlugin : public bolt::Plugin {
 
 - **Errors**: 0
 - **Warnings**: 0
-- **Tests**: 30/30 passing
-- **CTest**: Fully configured with LD_LIBRARY_PATH
-- **Merge conflicts**: Resolved
+- **Tests**: 97/97 passing (100%)
+- **CTest**: Fully configured with LD_LIBRARY_PATH and labels
+- **Labels**: Unit, Core, Editor, ErrorHandling, AI, KoboldCpp, Extended, Integration

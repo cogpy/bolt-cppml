@@ -19,8 +19,8 @@ struct EditorDocument {
     std::string value;
     std::string filePath;
     struct ScrollPosition {
-        int line;
-        int character;
+        int line = 0;
+        int character = 0;
         
         void validate() const {
             if (line < 0 || character < 0) {
@@ -31,7 +31,7 @@ struct EditorDocument {
         }
     } scroll;
     struct Cursor {
-        size_t position;
+        size_t position = 0;
         std::optional<BracketMatch> bracketMatch;
     } cursor;
     // Code folding state

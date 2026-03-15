@@ -191,6 +191,15 @@ if(BOLT_ENABLE_UNIT_TESTS)
     target_include_directories(bolt_koboldcpp_tests PRIVATE ${PROJECT_SOURCE_DIR}/include)
     target_compile_definitions(bolt_koboldcpp_tests PRIVATE BOLT_INCLUDE_IN_TEST_RUNNER=1)
 
+    # Extended E2E tests (covering previously untested components)
+    add_executable(bolt_extended_e2e_tests
+        test_runner.cpp
+        test_extended_e2e.cpp
+    )
+    target_link_libraries(bolt_extended_e2e_tests PRIVATE bolt_lib)
+    target_include_directories(bolt_extended_e2e_tests PRIVATE ${PROJECT_SOURCE_DIR}/include)
+    target_compile_definitions(bolt_extended_e2e_tests PRIVATE BOLT_INCLUDE_IN_TEST_RUNNER=1)
+
     # AI Features comprehensive tests - DISABLED: API mismatch with test expectations
     # add_executable(bolt_ai_features_tests
     #     test_ai_features.cpp
@@ -473,6 +482,29 @@ if(BOLT_ENABLE_UNIT_TESTS)
         koboldcpp_apimode koboldcpp_chat koboldcpp_streaming
         koboldcpp_interface koboldcpp_stopseq koboldcpp_reppen
         PROPERTIES LABELS "Unit;AI;KoboldCpp"
+    )
+
+    # Extended E2E test CTest registrations
+    add_test(NAME ext_e2e_all COMMAND bolt_extended_e2e_tests)
+    add_test(NAME ext_e2e_data_processor COMMAND bolt_extended_e2e_tests DataProcessor)
+    add_test(NAME ext_e2e_math_utils COMMAND bolt_extended_e2e_tests MathUtils)
+    add_test(NAME ext_e2e_filesystem_utils COMMAND bolt_extended_e2e_tests FileSystemUtils)
+    add_test(NAME ext_e2e_line_numbers COMMAND bolt_extended_e2e_tests LineNumberManager)
+    add_test(NAME ext_e2e_command_history COMMAND bolt_extended_e2e_tests CommandHistory)
+    add_test(NAME ext_e2e_vector_database COMMAND bolt_extended_e2e_tests VectorDatabase)
+    add_test(NAME ext_e2e_ai_http_config COMMAND bolt_extended_e2e_tests AIHttpConfig)
+    add_test(NAME ext_e2e_editor_doc_init COMMAND bolt_extended_e2e_tests EditorDocumentInit)
+    add_test(NAME ext_e2e_ot_edge_cases COMMAND bolt_extended_e2e_tests OTEdgeCases)
+    add_test(NAME ext_e2e_protocol_message COMMAND bolt_extended_e2e_tests ProtocolMessage)
+
+    set_tests_properties(
+        ext_e2e_all ext_e2e_data_processor ext_e2e_math_utils
+        ext_e2e_filesystem_utils ext_e2e_line_numbers ext_e2e_command_history
+        ext_e2e_vector_database ext_e2e_ai_http_config ext_e2e_editor_doc_init
+        ext_e2e_ot_edge_cases ext_e2e_protocol_message
+        PROPERTIES
+            LABELS "Unit;Extended"
+            ENVIRONMENT "${BOLT_TEST_ENVIRONMENT}"
     )
 
     # LSP tests label - DISABLED: executable not built

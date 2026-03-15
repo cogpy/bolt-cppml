@@ -31,14 +31,17 @@
 *.out
 *.app
 
-# Build directories  
+# Build directories
 build/
 .build/
+build-coverage/
+build-shared/
 
 # SSR dependencies (vcpkg cloned locally)
 ssr_deps/
 
 # Package manager directories
+vcpkg/
 vcpkg_installed/
 conan-data/
 .conan/
@@ -46,30 +49,49 @@ conan-data/
 # IDEs
 .vscode/
 .vs/
+.idea/
 
 # OS
 .DS_Store
+Thumbs.db
 
 # Replit
 .replit.pid
 
-# Keep small test models (but ignore large model downloads)
-!test/models/*.bin
+# ccls language server cache
+.ccls-cache/
+
+# Model files (too large for git)
 test/models/*
 !test/models/*.bin
 !test/models/README.md
-build-coverage/
-docs/api/
-
-# Model files (too large for git)
 test/data/models/*.gguf
 test/data/models/*.pth
 test/data/models/*.bin
 
+# Generated documentation
+docs/api/
 
-# Build directories
-build-shared/
+# Export archives (Replit artifacts)
+*_exports.tar.gz
+*_exports*.tar.gz
+tmp.zip
 
-# vcpkg (use vcpkg.json manifest instead)
-vcpkg/
-vcpkg_installed/
+# Compiled ELF binaries without extension (root-level)
+/main
+/simple_ai_demo
+/terminal_chat_kobold
+/test_ai_features
+/test_direct_gguf
+/test_keyboard_shortcuts
+/test_logging_standalone
+/test_performance_integration_standalone
+/test_performance_profiler_standalone
+/test_gpu_simple
+/tinyllama_chat
+
+# Generated assets
+/generated-icon.png
+
+# Attached assets from Replit
+/attached_assets/
