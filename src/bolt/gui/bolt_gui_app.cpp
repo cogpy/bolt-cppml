@@ -2,6 +2,7 @@
 
 #ifdef BOLT_HAVE_IMGUI
 
+#include "bolt/gui/dark_theme.hpp"
 #include "bolt/ai/enhanced_ai_manager.hpp"
 #include <iostream>
 #include <fstream>
