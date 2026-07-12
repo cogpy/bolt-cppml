@@ -103,7 +103,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-        with:
 
       - name: Cache vcpkg
         uses: actions/cache@v4
@@ -222,7 +221,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-        with:
 
       - name: Cache vcpkg
         uses: actions/cache@v4
@@ -334,7 +332,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-        with:
 
       - name: Cache vcpkg
         uses: actions/cache@v4
@@ -414,7 +411,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-        with:
 
       - name: Install dependencies
         run: |
@@ -464,7 +460,6 @@ jobs:
     needs: linux-build
     steps:
       - uses: actions/checkout@v4
-        with:
 
       - name: Download Linux build artifacts
         uses: actions/download-artifact@v4
@@ -515,7 +510,6 @@ jobs:
     needs: [linux-build, integration-tests]
     steps:
       - uses: actions/checkout@v4
-        with:
 
       - name: Install dependencies
         run: |
@@ -583,7 +577,6 @@ jobs:
     needs: linux-build
     steps:
       - uses: actions/checkout@v4
-        with:
 
       - name: Install dependencies
         run: |
