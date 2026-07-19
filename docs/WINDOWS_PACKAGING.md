@@ -1,9 +1,8 @@
 # Windows Packaging Guide
 
 This document describes how to build and package **Bolt C++ ML** as a Windows
-desktop application: a portable ZIP archive and an NSIS installer, built
-locally or by CI (see [CI automation](#ci-automation)). MSIX packaging is a
-planned follow-up (see the placeholder section at the end).
+desktop application: a portable ZIP archive, an NSIS installer, and an MSIX
+package — built locally or by CI (see [CI automation](#ci-automation)).
 
 ## Overview
 
@@ -15,6 +14,9 @@ The packaging foundation consists of:
 | Windows version/icon resources | `resources/windows/bolt.rc`, `resources/windows/bolt.ico` |
 | Icon generator script | `scripts/generate_icon.py` |
 | Windows CMake presets | `CMakePresets.json` (`windows-vcpkg`, `windows-vcpkg-release`, `windows-zip`, `windows-nsis`) |
+| MSIX manifest + visual assets | `packaging/msix/AppxManifest.xml`, `packaging/msix/Assets/` |
+| MSIX asset generator script | `scripts/generate_msix_assets.py` |
+| MSIX packaging script | `scripts/package-msix.ps1` |
 | Packaging CI | `.github/workflows/windows-package.yml`, `.github/workflows/chocolatey-package.yml` |
 
 Only the main application is packaged (the `app` install component):
@@ -122,12 +124,111 @@ shared-library DLLs (e.g. from vcpkg `x64-windows` dynamic triplet) into
 building with vcpkg's applocal deployment, DLLs are also copied next to the
 build outputs automatically.
 
-## MSIX packaging (planned)
+## MSIX packaging
 
-> **Placeholder** — an upcoming PR adds MSIX packaging on top of this
-> foundation: an `AppxManifest.xml`, asset generation from `bolt.ico`
-> imagery, `makeappx`/`signtool` invocation scripts, and (optionally) a
-> `CPACK` external step. Until then, use the ZIP or NSIS artifacts.
+MSIX is the modern Windows app package format: per-user, containerized
+installs with clean uninstall, and the submission format for the Microsoft
+Store. Bolt ships as a full-trust desktop package (`runFullTrust`).
+
+### Layout
+
+| Piece | Purpose |
+|---|---|
+| `packaging/msix/AppxManifest.xml` | Package manifest — identity `BoltCppML.IDE`, version `1.0.0.0`, x64, placeholder publisher `CN=BoltCppML Dev` |
+| `packaging/msix/Assets/*.png` | Visual assets (Square44x44, StoreLogo 50x50, Square150x150, Wide310x150), generated from the same bolt design as the icon — regenerate with `python scripts/generate_msix_assets.py` |
+| `scripts/package-msix.ps1` | Stages, patches, validates, packs and (optionally) signs the package |
+
+The committed manifest declares only `bin\bolt.exe`, which always builds. An
+MSIX manifest cannot contain conditional entries, so when the staged install
+tree contains the optional GUI (`bin\gui_main.exe`, built only when
+ImGui/GLFW/OpenGL are available), `package-msix.ps1` patches a second
+`<Application>` entry into the staged manifest and relabels the console entry
+*Bolt Console* — matching the NSIS shortcut names.
+
+### Prerequisites
+
+- Everything under [Prerequisites](#prerequisites) above (a built tree or a
+  CPack ZIP artifact)
+- Windows 10/11 SDK for `makeappx.exe` and `signtool.exe`
+  (`winget install Microsoft.WindowsSDK.10.0.22621`, or any SDK ≥ 10.0.17763).
+  Without the SDK the script still produces a **validated MSIX layout
+  directory** and prints the `makeappx pack` command to run elsewhere.
+
+### Producing the package
+
+```powershell
+# From a configured/built CMake build directory (default: build\):
+.\scripts\package-msix.ps1
+
+# From a CPack ZIP artifact instead:
+.\scripts\package-msix.ps1 -ZipPath build\bolt-cppml-1.0.0-win64.zip
+
+# Pack and sign with a self-signed development certificate:
+.\scripts\package-msix.ps1 -Sign
+
+# All options (staging dir, version override, existing cert, ...):
+.\scripts\package-msix.ps1 -Help
+```
+
+The script stages the `app` install component via
+`cmake --install <BuildDir> --prefix <layout> --component app` (or unpacks
+the ZIP), copies `AppxManifest.xml` + `Assets\`, patches the manifest,
+validates the layout (well-formed manifest, correct namespaces, every
+referenced executable and image present), then runs
+`makeappx pack /o /d <layout> /p bolt-cppml-<version>-x64.msix`.
+
+### Signing and trusting the development certificate
+
+MSIX packages **must be signed** before they can be installed normally, and
+the certificate subject must exactly match the manifest `Publisher`
+(`CN=BoltCppML Dev`). `-Sign` creates a matching self-signed certificate in
+`Cert:\CurrentUser\My` on demand (the private key stays in the store — never
+commit certificates or keys) and signs with
+`signtool sign /fd SHA256 /sha1 <thumbprint> <msix>`.
+
+To sideload on a test machine, export the **public** certificate and add it
+to the machine's *Trusted People* store (requires an elevated prompt):
+
+```powershell
+# On the build machine - export the public .cer (no private key)
+$cert = Get-ChildItem Cert:\CurrentUser\My |
+    Where-Object Subject -eq 'CN=BoltCppML Dev' | Select-Object -First 1
+Export-Certificate -Cert $cert -FilePath bolt-dev.cer
+
+# On the target machine (elevated)
+Import-Certificate -FilePath bolt-dev.cer `
+    -CertStoreLocation Cert:\LocalMachine\TrustedPeople
+```
+
+Remove the trust again with
+`Get-ChildItem Cert:\LocalMachine\TrustedPeople | Where-Object Subject -eq 'CN=BoltCppML Dev' | Remove-Item`.
+
+### Installing and uninstalling
+
+```powershell
+# Install (per-user; requires the signing cert to be trusted, see above)
+Add-AppxPackage .\build\msix\bolt-cppml-1.0.0.0-x64.msix
+
+# Alternative during development (Developer Mode, no signing needed):
+# registers the staged layout directly from the layout folder
+Add-AppxPackage -Register .\build\msix\layout\AppxManifest.xml
+
+# Uninstall
+Get-AppxPackage BoltCppML.IDE | Remove-AppxPackage
+```
+
+After install, *Bolt C++ ML* (and *Bolt Console*, when the GUI is packaged)
+appear in the Start menu.
+
+### Microsoft Store submission note
+
+The committed identity (`BoltCppML.IDE` / `CN=BoltCppML Dev`) is a
+**development placeholder**. For a Store submission, reserve the app name in
+[Partner Center](https://partner.microsoft.com/dashboard), then replace
+`Identity/@Name`, `Identity/@Publisher` and
+`Properties/PublisherDisplayName` in `packaging/msix/AppxManifest.xml` with
+the exact values shown under *Product identity*. Store packages are signed
+by Microsoft during ingestion, so no self-signed certificate is involved.
 
 ## CI automation
 
@@ -178,5 +279,5 @@ non-tag runs). It runs on `v*` tags and manual dispatch, uploads the
 to chocolatey.org when a `CHOCO_API_KEY` secret is configured.
 
 MSIX packaging is not wired into CI yet — the Windows Package workflow
-contains a commented TODO hook where `scripts/package-msix.ps1` will slot in
-once the MSIX packaging PR lands.
+contains a commented TODO hook where `scripts/package-msix.ps1` (see
+[MSIX packaging](#msix-packaging)) will slot in as a follow-up.

@@ -138,9 +138,9 @@ jobs:
           cpack --preset windows-nsis
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      # TODO(msix): a sibling PR adds MSIX packaging (packaging/msix/ +
-      # scripts/package-msix.ps1). Once it lands, slot the MSIX build in here
-      # and upload the .msix as an additional artifact, e.g.:
+      # TODO(msix): MSIX packaging exists (packaging/msix/ +
+      # scripts/package-msix.ps1) but is not wired into CI yet. Slot the MSIX
+      # build in here and upload the .msix as an additional artifact, e.g.:
       #   - name: Package (MSIX)
       #     shell: pwsh
       #     run: .\scripts\package-msix.ps1 -BuildDir build\windows-vcpkg
