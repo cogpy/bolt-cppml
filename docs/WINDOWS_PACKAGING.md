@@ -2,8 +2,7 @@
 
 This document describes how to build and package **Bolt C++ ML** as a Windows
 desktop application: a portable ZIP archive, an NSIS installer, and an MSIX
-package. CI automation is a planned follow-up (see the placeholder section at
-the end).
+package — built locally or by CI (see [CI automation](#ci-automation)).
 
 ## Overview
 
@@ -18,6 +17,7 @@ The packaging foundation consists of:
 | MSIX manifest + visual assets | `packaging/msix/AppxManifest.xml`, `packaging/msix/Assets/` |
 | MSIX asset generator script | `scripts/generate_msix_assets.py` |
 | MSIX packaging script | `scripts/package-msix.ps1` |
+| Packaging CI | `.github/workflows/windows-package.yml`, `.github/workflows/chocolatey-package.yml` |
 
 Only the main application is packaged (the `app` install component):
 
@@ -230,8 +230,54 @@ The committed identity (`BoltCppML.IDE` / `CN=BoltCppML Dev`) is a
 the exact values shown under *Product identity*. Store packages are signed
 by Microsoft during ingestion, so no self-signed certificate is involved.
 
-## CI automation (planned)
+## CI automation
 
-> **Placeholder** — an upcoming PR adds a GitHub Actions workflow that
-> configures with the `windows-vcpkg` preset, builds `bolt` + `gui_main`,
-> runs `cpack` for ZIP (and NSIS), and uploads the artifacts on tags.
+The **Windows Package** workflow (`.github/workflows/windows-package.yml`)
+builds the desktop packaging artifacts on `windows-latest`:
+
+1. Loads the MSVC developer environment (the presets use Ninja) and points
+   `VCPKG_ROOT` at the runner's preinstalled vcpkg (falling back to a clone
+   pinned at the `builtin-baseline` from `vcpkg.json`). vcpkg binary caching
+   is persisted through `actions/cache`, so the imgui/glfw/curl dependency
+   set only builds from source on a cold cache.
+2. Configures with the `windows-vcpkg` preset. `BUILD_SHARED_LIBS` is forced
+   `OFF` on the command line because the vendored llama.cpp CMake defaults it
+   to `ON` before the root project sets its own default — which would turn
+   `bolt_lib` into a DLL that exports no symbols and break all linking.
+3. Builds only the packaged targets: `bolt` + `gui_main` via the
+   `windows-vcpkg-release` preset when `gui_main` was generated, or `bolt`
+   alone when ImGui wasn't found (surfaced in the job summary, not a failure).
+4. Runs `cpack --preset windows-zip` and `cpack --preset windows-nsis`
+   (`makensis` is ensured first: preinstalled, or installed via Chocolatey).
+5. Sanity-checks that `bin/bolt.exe` exists inside the ZIP, then writes a job
+   summary (artifact names, sizes, whether `gui_main` was included).
+
+**Triggers** — the workflow runs on:
+
+- `workflow_dispatch` (manual): *Actions → Windows Package → Run workflow*,
+  or `gh workflow run windows-package.yml`
+- tag pushes matching `v*`
+- pull requests that touch packaging-relevant paths (`CMakeLists.txt`,
+  `CMakePresets.json`, `vcpkg.json`, `resources/**`, or the workflow itself)
+
+**Artifacts** — every run uploads two artifacts, downloadable from the run
+page or with `gh run download <run-id>`:
+
+- `bolt-cppml-windows-zip` — the portable ZIP (`bolt-cppml-<version>-win64.zip`)
+- `bolt-cppml-windows-nsis` — the NSIS installer (`bolt-cppml-<version>-win64.exe`)
+
+**Releases** — on a `v*` tag push, a follow-up job attaches both files to the
+GitHub release for that tag (creating the release if it doesn't exist yet).
+
+The **Chocolatey Package Build** workflow
+(`.github/workflows/chocolatey-package.yml`) reuses the same
+preset-plus-CPack pipeline, stages the Chocolatey payload from the CPack
+ZIP's `bin/` contents (executables + runtime DLLs), and packs a `.nupkg`
+versioned from the tag (leading `v` stripped; the CPack version is used for
+non-tag runs). It runs on `v*` tags and manual dispatch, uploads the
+`.nupkg` as an artifact, attaches it to the release, and optionally pushes
+to chocolatey.org when a `CHOCO_API_KEY` secret is configured.
+
+MSIX packaging is not wired into CI yet — the Windows Package workflow
+contains a commented TODO hook where `scripts/package-msix.ps1` (see
+[MSIX packaging](#msix-packaging)) will slot in as a follow-up.
