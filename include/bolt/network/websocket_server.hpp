@@ -1,6 +1,7 @@
 
 #ifndef WEBSOCKET_SERVER_HPP
 #define WEBSOCKET_SERVER_HPP
+#include <cstdint>
 
 #include <string>
 #include <functional>

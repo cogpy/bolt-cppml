@@ -1,5 +1,6 @@
 #ifndef NETWORK_BUFFER_HPP
 #define NETWORK_BUFFER_HPP
+#include <cstdint>
 
 #include <vector>
 #include <memory>

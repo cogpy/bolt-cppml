@@ -27,8 +27,24 @@ include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/Documentation.cmake")
 # Include sanitizer support for memory leak detection
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/Sanitizers.cmake")
 
+# Add the in-tree vcpkg_installed directory (platform-aware triplet) to the
+# prefix path, unless a vcpkg toolchain is already managing dependencies.
+if(NOT DEFINED CMAKE_TOOLCHAIN_FILE OR NOT CMAKE_TOOLCHAIN_FILE MATCHES "vcpkg")
+    if(DEFINED VCPKG_TARGET_TRIPLET)
+        set(BOLT_LOCAL_VCPKG_TRIPLET "${VCPKG_TARGET_TRIPLET}")
+    elseif(WIN32)
+        set(BOLT_LOCAL_VCPKG_TRIPLET "x64-windows")
+    elseif(APPLE)
+        set(BOLT_LOCAL_VCPKG_TRIPLET "x64-osx")
+    else()
+        set(BOLT_LOCAL_VCPKG_TRIPLET "x64-linux")
+    endif()
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/vcpkg_installed/${BOLT_LOCAL_VCPKG_TRIPLET}")
+        list(PREPEND CMAKE_PREFIX_PATH "${CMAKE_CURRENT_SOURCE_DIR}/vcpkg_installed/${BOLT_LOCAL_VCPKG_TRIPLET}")
+    endif()
+endif()
+
 # Try to find CURL via CONFIG first, then fallback to module
-set(CMAKE_PREFIX_PATH "${CMAKE_CURRENT_SOURCE_DIR}/vcpkg_installed/x64-linux;${CMAKE_PREFIX_PATH}")
 set(CURL_FOUND FALSE)
 find_package(CURL CONFIG QUIET)
 if(CURL_FOUND)
@@ -84,7 +100,6 @@ else()
 endif()
 
 # Try to find imgui
-set(CMAKE_PREFIX_PATH "${CMAKE_CURRENT_SOURCE_DIR}/vcpkg_installed/x64-linux;${CMAKE_PREFIX_PATH}")
 find_package(imgui CONFIG QUIET)
 set(IMGUI_FOUND ${imgui_FOUND})
 if(NOT IMGUI_FOUND)
@@ -262,13 +277,19 @@ target_include_directories(bolt_lib PUBLIC
     ${PROJECT_SOURCE_DIR}/include
 )
 
-# Link required libraries using modern vcpkg targets
-target_link_libraries(bolt_lib PUBLIC 
-    pthread
-    dl  # For dynamic plugin loading
-    ssl # For secure WebSocket connections
-    crypto # For WebSocket handshake
-)
+# Link required platform/system libraries
+if(WIN32)
+    # Winsock for WebSocket/network components; plugin loading uses
+    # LoadLibrary and threading uses the native runtime, so no extra libs.
+    target_link_libraries(bolt_lib PUBLIC ws2_32)
+else()
+    target_link_libraries(bolt_lib PUBLIC 
+        pthread
+        dl  # For dynamic plugin loading
+        ssl # For secure WebSocket connections
+        crypto # For WebSocket handshake
+    )
+endif()
 
 # Link zlib if available
 if(HAVE_ZLIB)
@@ -319,9 +340,18 @@ if(GGML_AVAILABLE AND LLAMA_AVAILABLE)
     message(STATUS "Linked GGML and llama from llama.cpp")
 endif()
 
+# Windows resources (icon + VERSIONINFO) for the shipped executables
+if(WIN32)
+    enable_language(RC)
+    set(BOLT_WIN32_RESOURCES "${CMAKE_CURRENT_SOURCE_DIR}/resources/windows/bolt.rc")
+endif()
+
 # Main executable
 add_executable(bolt src/bolt/main.cpp)
 target_link_libraries(bolt PRIVATE bolt_lib)
+if(WIN32)
+    target_sources(bolt PRIVATE ${BOLT_WIN32_RESOURCES})
+endif()
 
 # DrawKern demos (core functionality)
 # Demo executables
@@ -470,6 +500,16 @@ target_link_libraries(demo_network_optimizations PRIVATE bolt_lib)
 if(IMGUI_FOUND)
     add_executable(gui_main src/bolt/gui_main.cpp)
     target_link_libraries(gui_main PRIVATE bolt_lib)
+    if(WIN32)
+        target_sources(gui_main PRIVATE ${BOLT_WIN32_RESOURCES})
+        # Desktop application: use the WINDOWS subsystem so no console window
+        # opens. gui_main.cpp uses a standard main(), so MSVC needs the C
+        # runtime entry point kept explicitly; MinGW handles this natively.
+        set_target_properties(gui_main PROPERTIES WIN32_EXECUTABLE TRUE)
+        if(MSVC)
+            target_link_options(gui_main PRIVATE "/ENTRY:mainCRTStartup")
+        endif()
+    endif()
 endif()
 
 # Widget Framework Demo (only if ImGui is available)
@@ -497,4 +537,104 @@ if(GGML_AVAILABLE)
     add_executable(test_model_loading test/test_model_loading.cpp)
     target_link_libraries(test_model_loading bolt_lib)
 endif()
+
+# ---------------------------------------------------------------------------
+# Installation rules
+# Only the main application ships; demo/test executables are NOT installed.
+# Everything goes into the "app" component so packaging stays clutter-free.
+# ---------------------------------------------------------------------------
+install(TARGETS bolt
+    RUNTIME DESTINATION bin
+    COMPONENT app
+)
+
+if(TARGET gui_main)
+    install(TARGETS gui_main
+        RUNTIME DESTINATION bin
+        COMPONENT app
+    )
+endif()
+
+# When bolt_lib is built shared, the executables need it at runtime
+if(BUILD_SHARED_LIBS)
+    install(TARGETS bolt_lib
+        RUNTIME DESTINATION bin
+        LIBRARY DESTINATION lib
+        ARCHIVE DESTINATION lib
+        COMPONENT app
+    )
+endif()
+
+# Install dependent runtime DLLs next to the executables on Windows so the
+# installed tree runs standalone (covers vcpkg shared libraries and any
+# other imported shared targets). Requires CMake >= 3.21.
+if(WIN32 AND CMAKE_VERSION VERSION_GREATER_EQUAL "3.21")
+    install(FILES $<TARGET_RUNTIME_DLLS:bolt>
+        DESTINATION bin
+        COMPONENT app
+    )
+    if(TARGET gui_main)
+        install(FILES $<TARGET_RUNTIME_DLLS:gui_main>
+            DESTINATION bin
+            COMPONENT app
+        )
+    endif()
+endif()
+
+install(FILES
+    "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE"
+    "${CMAKE_CURRENT_SOURCE_DIR}/README.md"
+    DESTINATION share/bolt
+    COMPONENT app
+)
+
+# ---------------------------------------------------------------------------
+# CPack packaging
+# ZIP is the default generator everywhere; on Windows an NSIS installer can
+# be produced with `cpack -G NSIS` (requires NSIS/makensis to be installed).
+# ---------------------------------------------------------------------------
+set(CPACK_PACKAGE_NAME "bolt-cppml")
+set(CPACK_PACKAGE_VENDOR "Bolt C++ ML Project")
+set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
+set(CPACK_PACKAGE_VERSION_MAJOR "${PROJECT_VERSION_MAJOR}")
+set(CPACK_PACKAGE_VERSION_MINOR "${PROJECT_VERSION_MINOR}")
+set(CPACK_PACKAGE_VERSION_PATCH "${PROJECT_VERSION_PATCH}")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Bolt C++ ML - AI-powered IDE with machine learning integration")
+set(CPACK_PACKAGE_HOMEPAGE_URL "https://github.com/cogpy/bolt-cppml")
+set(CPACK_PACKAGE_INSTALL_DIRECTORY "Bolt C++ ML")
+set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")
+set(CPACK_RESOURCE_FILE_README "${CMAKE_CURRENT_SOURCE_DIR}/README.md")
+
+# Package only the application component by default. This keeps demo/test
+# executables and any install rules from vendored subprojects (llama.cpp)
+# out of the artifacts.
+set(CPACK_COMPONENTS_ALL app)
+set(CPACK_COMPONENT_APP_DISPLAY_NAME "Bolt C++ ML Application")
+set(CPACK_COMPONENT_APP_REQUIRED TRUE)
+set(CPACK_MONOLITHIC_INSTALL FALSE)
+
+set(CPACK_GENERATOR "ZIP")
+
+if(WIN32)
+    # NSIS installer settings (used when packaging with `cpack -G NSIS`)
+    set(CPACK_NSIS_DISPLAY_NAME "Bolt C++ ML")
+    set(CPACK_NSIS_PACKAGE_NAME "Bolt C++ ML")
+    set(CPACK_NSIS_INSTALL_ROOT "$PROGRAMFILES64")
+    set(CPACK_NSIS_URL_INFO_ABOUT "https://github.com/cogpy/bolt-cppml")
+    set(CPACK_NSIS_HELP_LINK "https://github.com/cogpy/bolt-cppml")
+    set(CPACK_NSIS_CONTACT "Bolt C++ ML Project")
+    set(CPACK_NSIS_MUI_ICON "${CMAKE_CURRENT_SOURCE_DIR}/resources/windows/bolt.ico")
+    set(CPACK_NSIS_MUI_UNIICON "${CMAKE_CURRENT_SOURCE_DIR}/resources/windows/bolt.ico")
+    set(CPACK_NSIS_INSTALLED_ICON_NAME "bin\\\\bolt.exe")
+    set(CPACK_NSIS_ENABLE_UNINSTALL_BEFORE_INSTALL ON)
+    set(CPACK_NSIS_MODIFY_PATH OFF)
+
+    # Start Menu shortcuts (pairs of <executable> <shortcut label>)
+    set(CPACK_PACKAGE_EXECUTABLES "bolt" "Bolt Console")
+    if(TARGET gui_main)
+        list(APPEND CPACK_PACKAGE_EXECUTABLES "gui_main" "Bolt C++ ML")
+    endif()
+endif()
+
+include(CPack)
 

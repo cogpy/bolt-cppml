@@ -1,5 +1,6 @@
 #ifndef GGML_LOADER_HPP
 #define GGML_LOADER_HPP
+#include <cstdint>
 
 #include <string>
 #include <vector>

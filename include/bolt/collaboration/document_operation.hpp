@@ -1,5 +1,6 @@
 #ifndef DOCUMENT_OPERATION_HPP
 #define DOCUMENT_OPERATION_HPP
+#include <cstdint>
 
 #include <string>
 #include <vector>

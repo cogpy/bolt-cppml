@@ -1,6 +1,7 @@
 
 #ifndef TENSOR_UTILS_HPP
 #define TENSOR_UTILS_HPP
+#include <cstdint>
 
 #include <string>
 #include <vector>

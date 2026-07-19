@@ -1,5 +1,6 @@
 #ifndef OPTIMIZED_WEBSOCKET_SERVER_HPP
 #define OPTIMIZED_WEBSOCKET_SERVER_HPP
+#include <cstdint>
 
 #include "bolt/network/websocket_server.hpp"
 #include "bolt/network/connection_pool.hpp"

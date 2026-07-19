@@ -1,5 +1,6 @@
 #ifndef NETWORK_METRICS_HPP
 #define NETWORK_METRICS_HPP
+#include <cstdint>
 
 #include <atomic>
 #include <chrono>

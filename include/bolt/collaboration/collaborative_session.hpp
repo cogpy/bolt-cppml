@@ -1,5 +1,6 @@
 #ifndef COLLABORATIVE_SESSION_HPP
 #define COLLABORATIVE_SESSION_HPP
+#include <cstdint>
 
 #include "document_operation.hpp"
 #include "operational_transform.hpp"
