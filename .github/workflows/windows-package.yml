@@ -1,0 +1,229 @@
+# Windows desktop packaging.
+#
+# Configures with the `windows-vcpkg` CMake preset, builds the packaged
+# application targets (bolt, plus gui_main when ImGui/GLFW resolve through
+# vcpkg), then produces both CPack artifacts:
+#   - portable ZIP        (package preset `windows-zip`)
+#   - NSIS installer .exe (package preset `windows-nsis`)
+# Artifacts are uploaded for every run; on `v*` tag pushes they are also
+# attached to the GitHub release.
+name: Windows Package
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+  pull_request:
+    paths:
+      - 'CMakeLists.txt'
+      - 'CMakePresets.json'
+      - 'vcpkg.json'
+      - 'resources/**'
+      - '.github/workflows/windows-package.yml'
+
+concurrency:
+  group: windows-package-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    name: Build ZIP + NSIS installer
+    runs-on: windows-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # The windows-vcpkg preset uses the Ninja generator, which picks up
+      # whatever compiler is on PATH - so MSVC's environment must be loaded.
+      - name: Set up MSVC developer environment
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Set up vcpkg
+        shell: pwsh
+        run: |
+          # Prefer the vcpkg preinstalled on the runner; fall back to a clone
+          # checked out at the builtin-baseline pinned in vcpkg.json.
+          $root = $env:VCPKG_INSTALLATION_ROOT
+          if (-not $root -or -not (Test-Path (Join-Path $root 'scripts\buildsystems\vcpkg.cmake'))) {
+            $baseline = (Get-Content vcpkg.json -Raw | ConvertFrom-Json).'builtin-baseline'
+            Write-Host "Runner vcpkg not found; cloning microsoft/vcpkg @ $baseline"
+            git clone https://github.com/microsoft/vcpkg.git "$env:RUNNER_TEMP\vcpkg"
+            git -C "$env:RUNNER_TEMP\vcpkg" checkout $baseline
+            & "$env:RUNNER_TEMP\vcpkg\bootstrap-vcpkg.bat" -disableMetrics
+            $root = "$env:RUNNER_TEMP\vcpkg"
+          }
+          Write-Host "Using VCPKG_ROOT=$root"
+          "VCPKG_ROOT=$root" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          # File-based binary cache (persisted via actions/cache below) keeps
+          # the imgui/glfw/curl dependency set warm between runs.
+          $cache = Join-Path $env:RUNNER_TEMP 'vcpkg-bincache'
+          New-Item -ItemType Directory -Force -Path $cache | Out-Null
+          "VCPKG_DEFAULT_BINARY_CACHE=$cache" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Restore vcpkg binary cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}\vcpkg-bincache
+          key: vcpkg-bincache-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}
+          restore-keys: |
+            vcpkg-bincache-${{ runner.os }}-
+
+      - name: Configure (windows-vcpkg preset)
+        shell: pwsh
+        run: |
+          # BUILD_SHARED_LIBS is forced OFF: the vendored llama.cpp CMake turns
+          # it ON (cache default) before the root project declares its own OFF
+          # default, which would make bolt_lib a DLL with no exported symbols -
+          # MSVC then emits no import library and every executable fails to
+          # link with LNK1181 (this is what breaks the legacy Windows CI).
+          cmake --preset windows-vcpkg -DBUILD_SHARED_LIBS=OFF
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Build packaged targets
+        id: build
+        shell: pwsh
+        run: |
+          $buildDir = 'build\windows-vcpkg'
+          # gui_main only exists when ImGui was found at configure time. The
+          # windows-vcpkg-release build preset hard-codes both targets, so fall
+          # back to building bolt alone if gui_main was not generated.
+          $hasGui = Select-String -Path (Join-Path $buildDir 'build.ninja') -Pattern 'gui_main' -Quiet
+          if ($hasGui) {
+            Write-Host 'gui_main target detected - building with the windows-vcpkg-release preset (bolt + gui_main).'
+            cmake --build --preset windows-vcpkg-release
+          } else {
+            Write-Warning 'gui_main target not generated (ImGui not found) - building bolt only.'
+            cmake --build $buildDir --target bolt
+          }
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $guiValue = if ($hasGui) { 'true' } else { 'false' }
+          "gui_main=$guiValue" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Ensure NSIS (makensis) is available
+        shell: pwsh
+        run: |
+          $makensis = Get-Command makensis -ErrorAction SilentlyContinue
+          if ($makensis) {
+            Write-Host "makensis already on PATH: $($makensis.Source)"
+          } else {
+            $known = Join-Path ${env:ProgramFiles(x86)} 'NSIS\makensis.exe'
+            if (Test-Path $known) {
+              Write-Host "makensis found at $known - adding its directory to PATH."
+              Split-Path $known | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+            } else {
+              Write-Host 'makensis not found - installing NSIS via Chocolatey.'
+              choco install nsis -y --no-progress
+              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+              Join-Path ${env:ProgramFiles(x86)} 'NSIS' | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+            }
+          }
+
+      - name: Package (ZIP)
+        shell: pwsh
+        run: |
+          cpack --preset windows-zip
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Package (NSIS installer)
+        shell: pwsh
+        run: |
+          cpack --preset windows-nsis
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      # TODO(msix): a sibling PR adds MSIX packaging (packaging/msix/ +
+      # scripts/package-msix.ps1). Once it lands, slot the MSIX build in here
+      # and upload the .msix as an additional artifact, e.g.:
+      #   - name: Package (MSIX)
+      #     shell: pwsh
+      #     run: .\scripts\package-msix.ps1 -BuildDir build\windows-vcpkg
+
+      - name: Verify packages and write summary
+        id: verify
+        shell: pwsh
+        run: |
+          $buildDir = 'build\windows-vcpkg'
+          # Non-recursive on purpose: _CPack_Packages contains staging copies.
+          $zip = Get-ChildItem $buildDir -Filter 'bolt-cppml-*.zip' -File | Select-Object -First 1
+          $installer = Get-ChildItem $buildDir -Filter 'bolt-cppml-*.exe' -File | Select-Object -First 1
+          if (-not $zip) { Write-Error "CPack ZIP not found in $buildDir"; exit 1 }
+          if (-not $installer) { Write-Error "NSIS installer not found in $buildDir"; exit 1 }
+
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $archive = [System.IO.Compression.ZipFile]::OpenRead($zip.FullName)
+          try {
+            $entries = @($archive.Entries | ForEach-Object { $_.FullName })
+          } finally {
+            $archive.Dispose()
+          }
+          Write-Host "ZIP contents ($($zip.Name)):"
+          $entries | ForEach-Object { Write-Host "  $_" }
+
+          if (-not ($entries | Where-Object { $_ -match '(^|/)bin/bolt\.exe$' })) {
+            Write-Error 'Sanity check failed: bin/bolt.exe is missing from the CPack ZIP.'
+            exit 1
+          }
+          $guiInZip = [bool]($entries | Where-Object { $_ -match '(^|/)bin/gui_main\.exe$' })
+
+          $guiBuilt = '${{ steps.build.outputs.gui_main }}' -eq 'true'
+          $zipMB = [math]::Round($zip.Length / 1MB, 1)
+          $exeMB = [math]::Round($installer.Length / 1MB, 1)
+          $summary = @(
+            '## Windows packaging summary'
+            ''
+            '| Artifact | File | Size |'
+            '|---|---|---|'
+            "| Portable ZIP | ``$($zip.Name)`` | $zipMB MB |"
+            "| NSIS installer | ``$($installer.Name)`` | $exeMB MB |"
+            ''
+            "- ``bin/bolt.exe`` present in ZIP: yes"
+            "- ``gui_main`` built: $(if ($guiBuilt) { 'yes' } else { 'no (ImGui not found - console app only)' })"
+            "- ``bin/gui_main.exe`` present in ZIP: $(if ($guiInZip) { 'yes' } else { 'no' })"
+          )
+          $summary -join "`n" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+
+      - name: Upload ZIP artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bolt-cppml-windows-zip
+          path: build/windows-vcpkg/bolt-cppml-*.zip
+          if-no-files-found: error
+
+      - name: Upload NSIS installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bolt-cppml-windows-nsis
+          path: build/windows-vcpkg/bolt-cppml-*.exe
+          if-no-files-found: error
+
+  release:
+    name: Attach artifacts to GitHub release
+    needs: package
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download packaging artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: bolt-cppml-windows-*
+          merge-multiple: true
+          path: dist
+
+      - name: Create or update release with artifacts
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/bolt-cppml-*.zip
+            dist/bolt-cppml-*.exe
+          fail_on_unmatched_files: true
