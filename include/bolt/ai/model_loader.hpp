@@ -1,5 +1,6 @@
 #ifndef MODEL_LOADER_HPP
 #define MODEL_LOADER_HPP
+#include <cstdint>
 
 #include "bolt/ai/gguf_loader.hpp"
 #include "bolt/ai/ggml_loader.hpp"

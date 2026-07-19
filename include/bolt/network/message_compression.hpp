@@ -1,5 +1,6 @@
 #ifndef MESSAGE_COMPRESSION_HPP
 #define MESSAGE_COMPRESSION_HPP
+#include <cstdint>
 
 #include <string>
 #include <vector>

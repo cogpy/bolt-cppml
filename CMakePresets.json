@@ -1,5 +1,5 @@
 {
-  "version": 3,
+  "version": 6,
   "configurePresets": [
     {
       "name": "default",
@@ -127,6 +127,24 @@
       }
     },
     {
+      "name": "windows-vcpkg",
+      "inherits": "default",
+      "displayName": "Windows (vcpkg)",
+      "description": "Windows Release build using the VCPKG_ROOT vcpkg installation",
+      "binaryDir": "${sourceDir}/build/windows-vcpkg",
+      "toolchainFile": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      },
+      "cacheVariables": {
+        "VCPKG_TARGET_TRIPLET": "x64-windows",
+        "VCPKG_MANIFEST_INSTALL": "ON",
+        "VCPKG_MANIFEST_MODE": "ON"
+      }
+    },
+    {
       "name": "linux-x64",
       "inherits": "vcpkg-ssr",
       "displayName": "Linux x64 (SSR)",
@@ -186,6 +204,13 @@
     }
   ],
   "buildPresets": [
+    {
+      "name": "windows-vcpkg-release",
+      "configurePreset": "windows-vcpkg",
+      "displayName": "Build Windows Release (vcpkg)",
+      "description": "Release build of the main application targets on Windows",
+      "targets": ["bolt", "gui_main"]
+    },
     {
       "name": "vcpkg-release",
       "configurePreset": "vcpkg",
@@ -301,6 +326,22 @@
       "configurePreset": "linux-x64",
       "displayName": "Default SSR Tests",
       "description": "Default test configuration for SSR pipeline"
+    }
+  ],
+  "packagePresets": [
+    {
+      "name": "windows-zip",
+      "configurePreset": "windows-vcpkg",
+      "displayName": "Windows ZIP package",
+      "description": "Portable ZIP archive with bolt and gui_main",
+      "generators": ["ZIP"]
+    },
+    {
+      "name": "windows-nsis",
+      "configurePreset": "windows-vcpkg",
+      "displayName": "Windows NSIS installer",
+      "description": "NSIS installer (requires NSIS/makensis on PATH)",
+      "generators": ["NSIS"]
     }
   ]
 }

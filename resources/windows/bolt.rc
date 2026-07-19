@@ -1,0 +1,35 @@
+// Windows resources for Bolt C++ ML (bolt and gui_main executables).
+// Deliberately avoids header includes so it compiles with both MSVC rc.exe
+// and MinGW windres.
+
+// Application icon (first icon resource is used by Explorer / taskbar)
+1 ICON "bolt.ico"
+
+1 VERSIONINFO
+FILEVERSION     1,0,0,0
+PRODUCTVERSION  1,0,0,0
+FILEFLAGSMASK   0x3FL
+FILEFLAGS       0x0L
+FILEOS          0x40004L    // VOS_NT_WINDOWS32
+FILETYPE        0x1L        // VFT_APP
+FILESUBTYPE     0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904B0"    // U.S. English, Unicode
+        BEGIN
+            VALUE "CompanyName",      "Bolt C++ ML Project"
+            VALUE "FileDescription",  "Bolt C++ ML - AI-powered IDE"
+            VALUE "FileVersion",      "1.0.0.0"
+            VALUE "InternalName",     "bolt-cppml"
+            VALUE "LegalCopyright",   "Copyright (c) Bolt C++ ML contributors. MIT License."
+            VALUE "OriginalFilename", "bolt.exe"
+            VALUE "ProductName",      "Bolt C++ ML"
+            VALUE "ProductVersion",   "1.0.0.0"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1200
+    END
+END
