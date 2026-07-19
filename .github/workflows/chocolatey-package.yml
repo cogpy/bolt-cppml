@@ -1,3 +1,8 @@
+# Chocolatey packaging.
+#
+# Builds through the same pipeline as windows-package.yml (windows-vcpkg
+# preset + CPack ZIP) and stages the Chocolatey package from the ZIP's
+# bin/ contents instead of guessing executable locations in the build tree.
 name: Chocolatey Package Build
 
 on:
@@ -5,76 +10,127 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/chocolatey-package.yml'
+
+concurrency:
+  group: chocolatey-package-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
   build-chocolatey:
     runs-on: windows-latest
+    timeout-minutes: 90
+    permissions:
+      contents: write # attach the .nupkg to the release on tag pushes
+    env:
+      CHOCO_API_KEY: ${{ secrets.CHOCO_API_KEY }}
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
 
+    # The windows-vcpkg preset uses the Ninja generator, which picks up
+    # whatever compiler is on PATH - so MSVC's environment must be loaded.
+    - name: Set up MSVC developer environment
+      uses: ilammy/msvc-dev-cmd@v1
+      with:
+        arch: x64
+
     - name: Set up vcpkg
+      shell: pwsh
       run: |
-        git clone https://github.com/microsoft/vcpkg.git vcpkg_tool
-        .\vcpkg_tool\bootstrap-vcpkg.bat
+        # Prefer the vcpkg preinstalled on the runner; fall back to a clone
+        # checked out at the builtin-baseline pinned in vcpkg.json.
+        $root = $env:VCPKG_INSTALLATION_ROOT
+        if (-not $root -or -not (Test-Path (Join-Path $root 'scripts\buildsystems\vcpkg.cmake'))) {
+          $baseline = (Get-Content vcpkg.json -Raw | ConvertFrom-Json).'builtin-baseline'
+          Write-Host "Runner vcpkg not found; cloning microsoft/vcpkg @ $baseline"
+          git clone https://github.com/microsoft/vcpkg.git "$env:RUNNER_TEMP\vcpkg"
+          git -C "$env:RUNNER_TEMP\vcpkg" checkout $baseline
+          & "$env:RUNNER_TEMP\vcpkg\bootstrap-vcpkg.bat" -disableMetrics
+          $root = "$env:RUNNER_TEMP\vcpkg"
+        }
+        Write-Host "Using VCPKG_ROOT=$root"
+        "VCPKG_ROOT=$root" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+        $cache = Join-Path $env:RUNNER_TEMP 'vcpkg-bincache'
+        New-Item -ItemType Directory -Force -Path $cache | Out-Null
+        "VCPKG_DEFAULT_BINARY_CACHE=$cache" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
-    - name: Install dependencies via vcpkg (manifest mode)
-      run: |
-        .\vcpkg_tool\vcpkg install --triplet=x64-windows
+    - name: Restore vcpkg binary cache
+      uses: actions/cache@v4
+      with:
+        path: ${{ runner.temp }}\vcpkg-bincache
+        key: vcpkg-bincache-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}
+        restore-keys: |
+          vcpkg-bincache-${{ runner.os }}-
 
-    - name: Build project
+    - name: Configure (windows-vcpkg preset)
+      shell: pwsh
       run: |
-        mkdir build
-        cd build
-        cmake -DCMAKE_TOOLCHAIN_FILE=..\vcpkg_tool\scripts\buildsystems\vcpkg.cmake `
-              -DCMAKE_BUILD_TYPE=Release `
-              -DBUILD_SHARED_LIBS=ON ..
-        cmake --build . --config Release
+        # BUILD_SHARED_LIBS is forced OFF: the vendored llama.cpp CMake turns
+        # it ON before the root project declares its own OFF default, which
+        # would make bolt_lib a symbol-less DLL that nothing can link against.
+        cmake --preset windows-vcpkg -DBUILD_SHARED_LIBS=OFF
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+    - name: Build packaged targets
+      shell: pwsh
+      run: |
+        $buildDir = 'build\windows-vcpkg'
+        # gui_main only exists when ImGui was found at configure time; the
+        # windows-vcpkg-release preset hard-codes both targets.
+        $hasGui = Select-String -Path (Join-Path $buildDir 'build.ninja') -Pattern 'gui_main' -Quiet
+        if ($hasGui) {
+          cmake --build --preset windows-vcpkg-release
+        } else {
+          Write-Warning 'gui_main target not generated (ImGui not found) - building bolt only.'
+          cmake --build $buildDir --target bolt
+        }
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+    - name: Package (CPack ZIP)
+      shell: pwsh
+      run: |
+        cpack --preset windows-zip
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
     - name: Create Chocolatey package
       shell: pwsh
       run: |
-        $VERSION = git describe --tags --always 2>$null
-        if (-not $VERSION) { $VERSION = "0.1.0" }
-        $VERSION = $VERSION -replace '^v',''
         $PACKAGE_NAME = "bolt-cppml"
 
+        # Stage from the CPack ZIP so the Chocolatey payload is identical to
+        # the portable ZIP artifact (bin/bolt.exe, gui_main.exe, runtime DLLs).
+        # Non-recursive on purpose: _CPack_Packages contains staging copies.
+        $zip = Get-ChildItem 'build\windows-vcpkg' -Filter 'bolt-cppml-*.zip' -File | Select-Object -First 1
+        if (-not $zip) { Write-Error 'CPack ZIP not found in build\windows-vcpkg'; exit 1 }
+        Expand-Archive -Path $zip.FullName -DestinationPath 'cpack-staging' -Force
+        $boltExe = Get-ChildItem 'cpack-staging' -Recurse -Filter 'bolt.exe' -File | Select-Object -First 1
+        if (-not $boltExe) { Write-Error 'bin/bolt.exe not found inside the CPack ZIP'; exit 1 }
+        $zipBinDir = $boltExe.Directory.FullName
+
+        # Version: tag (with the leading 'v' stripped) when building a tag,
+        # otherwise the CPack package version from the ZIP file name.
+        $VERSION = ''
+        if ($env:GITHUB_REF -like 'refs/tags/*') {
+          $VERSION = ($env:GITHUB_REF -replace '^refs/tags/', '') -replace '^v', ''
+        }
+        if (-not $VERSION -or $VERSION -notmatch '^\d+(\.\d+)+') {
+          if ($zip.Name -match 'bolt-cppml-(\d+(\.\d+)+)') { $VERSION = $Matches[1] } else { $VERSION = '0.1.0' }
+        }
+        Write-Host "Packaging $PACKAGE_NAME version $VERSION from $($zip.Name)"
+
         # Create package directory structure
-        New-Item -ItemType Directory -Force -Path "choco-package\tools"
-        New-Item -ItemType Directory -Force -Path "choco-package\bin"
+        New-Item -ItemType Directory -Force -Path "choco-package\tools" | Out-Null
+        New-Item -ItemType Directory -Force -Path "choco-package\bin" | Out-Null
 
-        # Copy binaries - check multiple possible locations
-        $exeFound = $false
-        $possiblePaths = @(
-            "build\Release\bolt.exe",
-            "build\bolt.exe",
-            "build\bin\Release\bolt.exe",
-            "build\bin\bolt.exe"
-        )
-
-        foreach ($path in $possiblePaths) {
-            if (Test-Path $path) {
-                Copy-Item $path "choco-package\bin\"
-                $exeFound = $true
-                Write-Host "Found bolt.exe at: $path"
-                break
-            }
-        }
-
-        if (-not $exeFound) {
-            Write-Host "Warning: bolt.exe not found, creating placeholder"
-            Get-ChildItem -Path "build" -Recurse -Name "*.exe" | ForEach-Object { Write-Host $_ }
-            Set-Content -Path "choco-package\bin\bolt.bat" -Value "@echo off`r`necho Bolt C++ IDE" -Encoding ASCII
-        }
-
-        # Copy DLLs
-        $dllPaths = @("build\Release\*.dll", "build\bin\Release\*.dll", "build\bin\*.dll")
-        foreach ($path in $dllPaths) {
-            if (Test-Path $path) {
-                Copy-Item $path "choco-package\bin\" -ErrorAction SilentlyContinue
-            }
-        }
+        # Copy the packaged binaries (executables + runtime DLLs)
+        Copy-Item "$zipBinDir\*" "choco-package\bin\" -Recurse
 
         # Create nuspec file
         $nuspecContent = @"
@@ -133,6 +189,7 @@ jobs:
         # Build package
         cd choco-package
         choco pack
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
         # Move package to root
         Move-Item "$PACKAGE_NAME.$VERSION.nupkg" ..
@@ -142,21 +199,18 @@ jobs:
       with:
         name: chocolatey-package
         path: '*.nupkg'
+        if-no-files-found: error
 
     - name: Create Release
       if: startsWith(github.ref, 'refs/tags/')
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v2
       with:
         files: '*.nupkg'
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Publish to Chocolatey (optional)
       if: startsWith(github.ref, 'refs/tags/') && env.CHOCO_API_KEY != ''
-      env:
-        CHOCO_API_KEY: ${{ secrets.CHOCO_API_KEY }}
+      shell: pwsh
       run: |
-        $VERSION = git describe --tags --always 2>$null
-        if (-not $VERSION) { $VERSION = "0.1.0" }
-        $VERSION = $VERSION -replace '^v',''
+        $VERSION = ($env:GITHUB_REF -replace '^refs/tags/', '') -replace '^v', ''
         choco push "bolt-cppml.$VERSION.nupkg" --source https://push.chocolatey.org/ --api-key $env:CHOCO_API_KEY
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
