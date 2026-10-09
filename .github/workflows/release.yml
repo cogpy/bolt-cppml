@@ -273,7 +273,12 @@ jobs:
         compiler: [msvc]
         include:
           - compiler: msvc
-            generator: "Visual Studio 17 2022"
+            # windows-latest has Visual Studio 2026 (product line 18) and
+            # CMake 3.31, which has no "Visual Studio 18 2026" generator.
+            # "Visual Studio 17 2022" fails with "could not find any instance
+            # of Visual Studio". Ninja uses cl.exe from the MSVC developer
+            # environment and matches the Linux/macOS release jobs.
+            generator: Ninja
 
     steps:
       - uses: actions/checkout@v4
@@ -290,8 +295,10 @@ jobs:
 
       - name: Configure CMake
         run: |
-          cmake -B build -G "${{ matrix.generator }}" -A x64 `
+          cmake -B build -G "${{ matrix.generator }}" `
             -DCMAKE_BUILD_TYPE=Release `
+            -DCMAKE_C_COMPILER=cl `
+            -DCMAKE_CXX_COMPILER=cl `
             -DCMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake `
             -DVCPKG_TARGET_TRIPLET=x64-windows `
             -DBUILD_SHARED_LIBS=OFF
@@ -301,7 +308,7 @@ jobs:
 
       - name: Run tests
         working-directory: build
-        run: ctest --build-config Release --output-on-failure --timeout 120
+        run: ctest --output-on-failure --timeout 120
         continue-on-error: true
 
       - name: Create release package
@@ -312,10 +319,15 @@ jobs:
 
           New-Item -ItemType Directory -Force -Path $PKGDIR
 
-          # Copy binaries
-          Copy-Item -Path "build\Release\bolt.exe" -Destination $PKGDIR -ErrorAction SilentlyContinue
-          Copy-Item -Path "build\Release\bolt*.dll" -Destination $PKGDIR -ErrorAction SilentlyContinue
-          Copy-Item -Path "build\Release\demo_*.exe" -Destination $PKGDIR -ErrorAction SilentlyContinue
+          # Ninja writes binaries to build\; multi-config generators use build\Release\.
+          $binDir = @("build", "build\Release") | Where-Object { Test-Path (Join-Path $_ "bolt.exe") } | Select-Object -First 1
+          if (-not $binDir) {
+            throw "bolt.exe was not produced (looked in build\ and build\Release\)"
+          }
+
+          Copy-Item -Path (Join-Path $binDir "bolt.exe") -Destination $PKGDIR
+          Copy-Item -Path (Join-Path $binDir "bolt*.dll") -Destination $PKGDIR -ErrorAction SilentlyContinue
+          Copy-Item -Path (Join-Path $binDir "demo_*.exe") -Destination $PKGDIR -ErrorAction SilentlyContinue
 
           # Copy dependencies from vcpkg
           Get-ChildItem -Path "C:\vcpkg\installed\x64-windows\bin\*.dll" | Copy-Item -Destination $PKGDIR -ErrorAction SilentlyContinue
