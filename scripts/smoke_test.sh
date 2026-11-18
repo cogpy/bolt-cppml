@@ -72,7 +72,9 @@ echo "== demo programs =="
 needs_display="demo_widget_framework gui_main"
 
 for prog in "$BUILD_DIR"/demo_* "$BUILD_DIR"/bolt_terminal_ai "$BUILD_DIR"/benchmark_tool; do
-    [ -f "$prog" ] && [ -x "$prog" ] || continue
+    if [ ! -f "$prog" ] || [ ! -x "$prog" ]; then
+        continue
+    fi
     name="$(basename "$prog")"
 
     case " $needs_display " in
