@@ -118,6 +118,16 @@ endif()
 
 option(ENABLE_LLAMA_CPP "Enable llama.cpp integration (provides GGML)" ON)
 
+# The vendored llama.cpp declares BUILD_SHARED_LIBS with a default of ON for
+# non-MinGW toolchains. That would also turn bolt_lib into a DLL, but bolt_lib
+# has no __declspec(dllexport) annotations, so MSVC emits no import library
+# and every dependent target fails with LNK1181 (cannot open bolt_lib.lib).
+# Declare the option first so the default is static on MSVC; an explicit
+# -DBUILD_SHARED_LIBS=... on the command line still wins.
+if(MSVC)
+    option(BUILD_SHARED_LIBS "Build shared libraries" OFF)
+endif()
+
 if(ENABLE_LLAMA_CPP AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/ggml/llama.cpp/CMakeLists.txt")
     message(STATUS "Configuring llama.cpp integration (unified GGML source)...")
     
@@ -545,12 +555,14 @@ endif()
 # ---------------------------------------------------------------------------
 install(TARGETS bolt
     RUNTIME DESTINATION bin
+    BUNDLE DESTINATION .
     COMPONENT app
 )
 
 if(TARGET gui_main)
     install(TARGETS gui_main
         RUNTIME DESTINATION bin
+        BUNDLE DESTINATION .
         COMPONENT app
     )
 endif()

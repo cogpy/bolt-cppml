@@ -212,8 +212,10 @@ jobs:
         compiler: [msvc, mingw]
         build_type: [Release, Debug]
         include:
+          # No explicit generator for MSVC: windows-latest ships a newer
+          # Visual Studio than "Visual Studio 17 2022", so CMake picks the
+          # installed one by default.
           - compiler: msvc
-            generator: "Visual Studio 17 2022"
             arch: "-A x64"
           - compiler: mingw
             generator: "MinGW Makefiles"
@@ -257,7 +259,7 @@ jobs:
       - name: Configure CMake (MSVC)
         if: matrix.compiler == 'msvc'
         run: |
-          cmake -B build -G "${{ matrix.generator }}" ${{ matrix.arch }} `
+          cmake -B build ${{ matrix.arch }} `
             -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} `
             -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake `
             -DVCPKG_MANIFEST_MODE=ON `
@@ -317,7 +319,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - runner: macos-13
+          - runner: macos-15-intel
             arch: x64
             triplet: x64-osx
             build_type: Release

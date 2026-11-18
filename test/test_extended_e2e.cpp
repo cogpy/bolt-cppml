@@ -33,6 +33,12 @@
 #include <fstream>
 #include <filesystem>
 
+// <winnt.h> (pulled in by some of the headers above on Windows) defines
+// DELETE as a macro, which breaks OperationType::DELETE.
+#ifdef DELETE
+#undef DELETE
+#endif
+
 using namespace bolt::collaboration;
 
 // ═══════════════════════════════════════════════════════════════════════
