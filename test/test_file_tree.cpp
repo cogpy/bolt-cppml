@@ -123,7 +123,9 @@ BOLT_TEST(FileTree, FileSelection) {
     
     auto selectedNode = manager.getSelectedNode();
     BOLT_ASSERT(selectedNode != nullptr);
-    BOLT_ASSERT_EQ(selectedPath, selectedNode->fullPath);
+    // Compare as paths: on Windows the tree joins components with '\\'.
+    BOLT_ASSERT(std::filesystem::path(selectedPath) ==
+                std::filesystem::path(selectedNode->fullPath));
     BOLT_ASSERT(selectedNode->isSelected);
     
     manager.clearSelection();

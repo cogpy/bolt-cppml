@@ -6,6 +6,16 @@
 #include <sstream>
 #include <thread>
 #include <chrono>
+#include <system_error>
+
+namespace {
+// Best-effort cleanup of a test log file. Windows refuses to delete a file
+// that a sink or stream still has open, and that must not fail the test.
+void removeTestFile(const std::filesystem::path& file) {
+    std::error_code ec;
+    std::filesystem::remove(file, ec);
+}
+} // namespace
 
 // ===== Basic Logging Tests =====
 
@@ -93,7 +103,7 @@ BOLT_TEST(Logging, FileSink) {
     
     // Clean up any existing file
     if (std::filesystem::exists(testFile)) {
-        std::filesystem::remove(testFile);
+        removeTestFile(testFile);
     }
     
     {
@@ -116,7 +126,7 @@ BOLT_TEST(Logging, FileSink) {
     BOLT_ASSERT_TRUE(content == "Test message for file");
     
     // Clean up
-    std::filesystem::remove(testFile);
+    removeTestFile(testFile);
 }
 
 BOLT_TEST(Logging, RotatingFileSink) {
@@ -126,7 +136,7 @@ BOLT_TEST(Logging, RotatingFileSink) {
     for (int i = 0; i <= 5; ++i) {
         std::string file = baseFile + (i > 0 ? "." + std::to_string(i) : "");
         if (std::filesystem::exists(file)) {
-            std::filesystem::remove(file);
+            removeTestFile(file);
         }
     }
     
@@ -155,7 +165,7 @@ BOLT_TEST(Logging, RotatingFileSink) {
     for (int i = 0; i <= 5; ++i) {
         std::string file = baseFile + (i > 0 ? "." + std::to_string(i) : "");
         if (std::filesystem::exists(file)) {
-            std::filesystem::remove(file);
+            removeTestFile(file);
         }
     }
 }
@@ -221,7 +231,7 @@ BOLT_TEST(Logging, LoggerWithSinks) {
     // Add test file sink
     std::string testFile = "/tmp/bolt_logger_test.log";
     if (std::filesystem::exists(testFile)) {
-        std::filesystem::remove(testFile);
+        removeTestFile(testFile);
     }
     
     logger.addSink(std::make_unique<bolt::FileSink>(testFile));
@@ -247,7 +257,7 @@ BOLT_TEST(Logging, LoggerWithSinks) {
     BOLT_ASSERT_TRUE(lineCount == 3);
     
     // Clean up
-    std::filesystem::remove(testFile);
+    removeTestFile(testFile);
 }
 
 BOLT_TEST(Logging, LoggerLevelFiltering) {
@@ -255,7 +265,7 @@ BOLT_TEST(Logging, LoggerLevelFiltering) {
     
     std::string testFile = "/tmp/bolt_level_test.log";
     if (std::filesystem::exists(testFile)) {
-        std::filesystem::remove(testFile);
+        removeTestFile(testFile);
     }
     
     logger.addSink(std::make_unique<bolt::FileSink>(testFile));
@@ -282,7 +292,7 @@ BOLT_TEST(Logging, LoggerLevelFiltering) {
     BOLT_ASSERT_TRUE(lineCount == 3); // Only WARN, ERROR, FATAL
     
     // Clean up
-    std::filesystem::remove(testFile);
+    removeTestFile(testFile);
 }
 
 BOLT_TEST(Logging, LoggerWithFilters) {
@@ -290,7 +300,7 @@ BOLT_TEST(Logging, LoggerWithFilters) {
     
     std::string testFile = "/tmp/bolt_filter_test.log";
     if (std::filesystem::exists(testFile)) {
-        std::filesystem::remove(testFile);
+        removeTestFile(testFile);
     }
     
     logger.addSink(std::make_unique<bolt::FileSink>(testFile));
@@ -317,7 +327,7 @@ BOLT_TEST(Logging, LoggerWithFilters) {
     BOLT_ASSERT_TRUE(lineCount == 2); // Only ERROR, FATAL
     
     // Clean up
-    std::filesystem::remove(testFile);
+    removeTestFile(testFile);
 }
 
 BOLT_TEST(Logging, LoggerCategoryLogging) {
@@ -325,7 +335,7 @@ BOLT_TEST(Logging, LoggerCategoryLogging) {
     
     std::string testFile = "/tmp/bolt_category_test.log";
     if (std::filesystem::exists(testFile)) {
-        std::filesystem::remove(testFile);
+        removeTestFile(testFile);
     }
     
     logger.addSink(std::make_unique<bolt::FileSink>(testFile));
@@ -349,7 +359,7 @@ BOLT_TEST(Logging, LoggerCategoryLogging) {
     // AI message might be filtered out due to DEBUG level
     
     // Clean up
-    std::filesystem::remove(testFile);
+    removeTestFile(testFile);
 }
 
 BOLT_TEST(Logging, LoggerMetrics) {
@@ -375,7 +385,7 @@ BOLT_TEST(Logging, LoggerEnableDisable) {
     
     std::string testFile = "/tmp/bolt_enable_test.log";
     if (std::filesystem::exists(testFile)) {
-        std::filesystem::remove(testFile);
+        removeTestFile(testFile);
     }
     
     logger.addSink(std::make_unique<bolt::FileSink>(testFile));
@@ -405,7 +415,7 @@ BOLT_TEST(Logging, LoggerEnableDisable) {
     BOLT_ASSERT_TRUE(lineCount == 2);
     
     // Clean up
-    std::filesystem::remove(testFile);
+    removeTestFile(testFile);
 }
 
 // ===== Utility Function Tests =====
@@ -468,7 +478,7 @@ BOLT_TEST(Logging, LogManagerSingleton) {
 BOLT_TEST(Logging, LogManagerConfiguration) {
     std::string testFile = "/tmp/bolt_manager_test.log";
     if (std::filesystem::exists(testFile)) {
-        std::filesystem::remove(testFile);
+        removeTestFile(testFile);
     }
     
     // Configure file logging
@@ -483,7 +493,7 @@ BOLT_TEST(Logging, LogManagerConfiguration) {
     BOLT_ASSERT_TRUE(std::filesystem::exists(testFile));
     
     // Clean up
-    std::filesystem::remove(testFile);
+    removeTestFile(testFile);
     bolt::LogManager::reset();
 }
 
@@ -492,7 +502,7 @@ BOLT_TEST(Logging, LogManagerConfiguration) {
 BOLT_TEST(Logging, LoggingMacros) {
     std::string testFile = "/tmp/bolt_macro_test.log";
     if (std::filesystem::exists(testFile)) {
-        std::filesystem::remove(testFile);
+        removeTestFile(testFile);
     }
     
     bolt::LogManager::configureFileLogging(testFile, bolt::LogLevel::TRACE, true);
@@ -519,14 +529,14 @@ BOLT_TEST(Logging, LoggingMacros) {
     BOLT_ASSERT_TRUE(lineCount == 6);
     
     // Clean up
-    std::filesystem::remove(testFile);
+    removeTestFile(testFile);
     bolt::LogManager::reset();
 }
 
 BOLT_TEST(Logging, CategoryMacros) {
     std::string testFile = "/tmp/bolt_category_macro_test.log";
     if (std::filesystem::exists(testFile)) {
-        std::filesystem::remove(testFile);
+        removeTestFile(testFile);
     }
     
     bolt::LogManager::configureFileLogging(testFile, bolt::LogLevel::DEBUG, true);
@@ -550,7 +560,7 @@ BOLT_TEST(Logging, CategoryMacros) {
     BOLT_ASSERT_TRUE(content.find("AI") != std::string::npos);
     
     // Clean up
-    std::filesystem::remove(testFile);
+    removeTestFile(testFile);
     bolt::LogManager::reset();
 }
 
@@ -559,7 +569,7 @@ BOLT_TEST(Logging, CategoryMacros) {
 BOLT_TEST(Logging, ThreadSafety) {
     std::string testFile = "/tmp/bolt_thread_test.log";
     if (std::filesystem::exists(testFile)) {
-        std::filesystem::remove(testFile);
+        removeTestFile(testFile);
     }
     
     bolt::LogManager::configureFileLogging(testFile, bolt::LogLevel::INFO, true);
@@ -596,7 +606,7 @@ BOLT_TEST(Logging, ThreadSafety) {
     BOLT_ASSERT_TRUE(lineCount == numThreads * messagesPerThread);
     
     // Clean up
-    std::filesystem::remove(testFile);
+    removeTestFile(testFile);
     bolt::LogManager::reset();
 }
 
@@ -605,7 +615,7 @@ BOLT_TEST(Logging, ThreadSafety) {
 BOLT_TEST(Logging, ScopedLogger) {
     std::string testFile = "/tmp/bolt_scoped_test.log";
     if (std::filesystem::exists(testFile)) {
-        std::filesystem::remove(testFile);
+        removeTestFile(testFile);
     }
     
     bolt::LogManager::configureFileLogging(testFile, bolt::LogLevel::TRACE, true);
@@ -630,7 +640,7 @@ BOLT_TEST(Logging, ScopedLogger) {
     BOLT_ASSERT_TRUE(content.find("Inside scoped function") != std::string::npos);
     
     // Clean up
-    std::filesystem::remove(testFile);
+    removeTestFile(testFile);
     bolt::LogManager::reset();
 }
 
@@ -661,7 +671,7 @@ BOLT_TEST(Logging, PerformanceMetrics) {
 BOLT_TEST(Logging, ErrorHandlingIntegration) {
     std::string testFile = "/tmp/bolt_error_integration_test.log";
     if (std::filesystem::exists(testFile)) {
-        std::filesystem::remove(testFile);
+        removeTestFile(testFile);
     }
     
     bolt::LogManager::configureFileLogging(testFile, bolt::LogLevel::DEBUG, true);
@@ -687,6 +697,6 @@ BOLT_TEST(Logging, ErrorHandlingIntegration) {
     BOLT_ASSERT_TRUE(content.find("Test exception") != std::string::npos);
     
     // Clean up
-    std::filesystem::remove(testFile);
+    removeTestFile(testFile);
     bolt::LogManager::reset();
 }

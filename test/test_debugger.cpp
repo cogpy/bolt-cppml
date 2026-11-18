@@ -215,11 +215,13 @@ BOLT_TEST(Debugger, VM_CallStackInspection) {
 }
 
 BOLT_TEST(Debugger, DebuggerInterface_EventCallback) {
-    auto debugger = std::make_unique<DebuggerInterface>();
-    
+    // Declared before the debugger so they outlive it: the debugger's
+    // destructor stops the session and invokes the callback once more.
     bool callbackCalled = false;
-    DebugEvent lastEvent;
+    DebugEvent lastEvent{};
     std::string lastMessage;
+
+    auto debugger = std::make_unique<DebuggerInterface>();
     
     // Set up event callback
     debugger->set_event_callback([&](DebugEvent event, const std::string& message) {

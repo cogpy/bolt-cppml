@@ -215,7 +215,13 @@ std::pair<bool, std::string> GitRepository::executeGitCommand(const std::vector<
     for (const auto& arg : args) {
         command += " " + arg;
     }
+#ifdef _WIN32
+    // cmd.exe has no /dev/null; redirecting there makes every command fail
+    // with "The system cannot find the path specified."
+    command += " 2>NUL";
+#else
     command += " 2>/dev/null";
+#endif
     
     FILE* rawPipe = popen(command.c_str(), "r");
     if (!rawPipe) {
