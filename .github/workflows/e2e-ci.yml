@@ -475,9 +475,13 @@ jobs:
       - name: Install runtime dependencies
         run: |
           sudo apt-get update
+          # Install the -dev packages rather than soname-versioned runtime
+          # packages (libjsoncpp25, libssl3, ...): those names change with
+          # each Ubuntu release, and the -dev packages pull in whichever
+          # runtime the current runner ships.
           sudo apt-get install -y \
-            libcurl4 libjsoncpp25 libglfw3 \
-            libgl1 libssl3 zlib1g
+            libcurl4-openssl-dev libjsoncpp-dev libglfw3-dev \
+            libgl1-mesa-dev libssl-dev zlib1g-dev
 
       - name: Run integration tests
         run: |
