@@ -15,6 +15,14 @@ set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 set(CMAKE_BUILD_RPATH "${CMAKE_BINARY_DIR}/bin;${CMAKE_BINARY_DIR}")
 set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
 
+# Portable builds by default. Tuning for the build machine's CPU
+# (-march=native, and llama.cpp's GGML_NATIVE) produces binaries that die with
+# "Illegal instruction" on any machine whose CPU lacks an instruction the
+# build machine had, which is exactly what happened to CI artifacts and would
+# happen to release packages. Turn this ON only for a build you will run on
+# the machine that built it.
+option(BOLT_NATIVE_OPTIMIZATIONS "Optimise for the build machine's CPU (not portable)" OFF)
+
 # Include cross-platform configuration
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/CrossPlatform.cmake")
 
@@ -132,6 +140,10 @@ if(ENABLE_LLAMA_CPP AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/ggml/llama.cpp/CMake
     message(STATUS "Configuring llama.cpp integration (unified GGML source)...")
     
     # Configure llama.cpp build options
+    # GGML_NATIVE defaults to ON upstream; tie it to our own option so the
+    # default build is portable. With it OFF, ggml targets a fixed x86-64
+    # baseline (AVX2, FMA, F16C, BMI2) instead of the build machine's CPU.
+    set(GGML_NATIVE ${BOLT_NATIVE_OPTIMIZATIONS} CACHE BOOL "ggml: optimize the build for the current system" FORCE)
     set(LLAMA_CURL OFF CACHE BOOL "" FORCE)
     set(LLAMA_BUILD_TESTS OFF CACHE BOOL "" FORCE)
     set(LLAMA_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)

@@ -91,6 +91,14 @@ make -j$(nproc)
 ./test/bolt_unit_tests
 ```
 
+Builds are portable by default: they target a fixed x86-64 baseline (AVX2)
+rather than the CPU of the machine doing the build, so the binaries can be
+copied to other machines. For a build you will only run locally, add
+`-DBOLT_NATIVE_OPTIMIZATIONS=ON` to tune it for your own CPU.
+
+After building, `scripts/smoke_test.sh <build-dir>` starts `bolt` and every
+demo program and reports any that hang or crash.
+
 ### Package Manager Integration Features
 
 - **🔧 Multi-Manager Support**: vcpkg (primary), Conan (alternative), system packages (fallback)

@@ -26,7 +26,12 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
     
     # Optimization settings
     if(CMAKE_BUILD_TYPE MATCHES Release)
-        add_compile_options(-O3 -DNDEBUG -march=native)
+        add_compile_options(-O3 -DNDEBUG)
+        # -march=native ties the binary to the build machine's CPU; only use
+        # it when explicitly requested (see BOLT_NATIVE_OPTIMIZATIONS).
+        if(BOLT_NATIVE_OPTIMIZATIONS)
+            add_compile_options(-march=native)
+        endif()
     elseif(CMAKE_BUILD_TYPE MATCHES Debug)
         add_compile_options(-g -O0 -fno-omit-frame-pointer)
     endif()
