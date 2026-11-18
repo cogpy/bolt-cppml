@@ -109,7 +109,11 @@ if(BOLT_BUILD_UNIVERSAL)
 endif()
 
 # macOS-specific runtime settings
-set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
+# Keep build-tree rpaths while building. With the install rpath
+# (@executable_path/../lib) baked in at build time, executables in the build
+# tree cannot find libbolt_lib/libllama/libggml and every test aborts in
+# dyld. CMake rewrites the rpath to CMAKE_INSTALL_RPATH on install.
+set(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE)
 set(CMAKE_INSTALL_RPATH "@executable_path/../lib;@loader_path/../lib")
 set(CMAKE_MACOSX_RPATH TRUE)
 
