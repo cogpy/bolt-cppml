@@ -350,9 +350,11 @@ if(BOLT_ENABLE_UNIT_TESTS)
     add_test(NAME unit_memory_leak_detector_tests COMMAND bolt_unit_tests MemoryLeakDetector)
     add_test(NAME unit_sanitizer_integration_tests COMMAND bolt_sanitizer_tests SanitizerIntegration)
     add_test(NAME unit_collaboration_tests COMMAND bolt_collaboration_tests)
-    # Network tests - DISABLED: Requires network server, times out in CI
-    # The executable is still built and can be run manually for local testing
-    # add_test(NAME unit_network_tests COMMAND bolt_network_tests)
+    # Network tests. These were disabled as "requires network server, times
+    # out in CI". The timeout was a self-deadlock in BandwidthTracker and
+    # NetworkMetrics, not a missing server: the tests that need a listener
+    # skip themselves when the connection fails.
+    add_test(NAME unit_network_tests COMMAND bolt_network_tests)
 
     # LSP tests - DISABLED: executable not built
     # add_test(NAME unit_lsp_tests COMMAND bolt_lsp_tests)
@@ -431,6 +433,7 @@ if(BOLT_ENABLE_UNIT_TESTS)
         unit_ggml_tests unit_ai_models_tests
         unit_debugger_tests unit_logging_tests unit_memory_leak_detector_tests
         unit_sanitizer_integration_tests unit_collaboration_tests
+        unit_network_tests
         e2e_comprehensive_all
         e2e_string_utils e2e_math_utils e2e_data_processor e2e_filesystem_utils
         e2e_memory_manager e2e_message_handler e2e_chat_store e2e_workbench_store

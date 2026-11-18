@@ -2,6 +2,7 @@
 #include <string>
 #include <vector>
 #include <map>
+#include <limits>
 #include <memory>
 #include <fstream>
 #include <sstream>
@@ -137,8 +138,20 @@ public:
             displayMenu();
             
             int choice;
-            std::cin >> choice;
-            std::cin.ignore(); // Clear the newline
+            if (!(std::cin >> choice)) {
+                if (std::cin.eof()) {
+                    // Input closed: exit instead of redrawing the menu forever.
+                    std::cout << "\n";
+                    return;
+                }
+                // Not a number: clear the error and drop the rest of the
+                // line, otherwise every later read fails immediately.
+                std::cin.clear();
+                std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+                std::cout << "❌ Invalid choice. Please try again.\n";
+                continue;
+            }
+            std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
             
             switch (choice) {
                 case 1:

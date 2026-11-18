@@ -70,6 +70,13 @@ private:
 };
 
 void BoltApp::initialize() {
+    // main() calls initialize() and run() calls it again; set up only once so
+    // the banner is not printed twice and shortcuts are not registered twice.
+    if (initialized_) {
+        return;
+    }
+    initialized_ = true;
+
     std::cout << "Bolt C++ - AI-Powered Development Environment\n";
     std::cout << "Initializing keyboard shortcuts system...\n";
     
@@ -129,8 +136,15 @@ void BoltApp::run() {
     
     std::string input;
     while (running_) {
-        std::cout << "\nUser > ";
-        std::getline(std::cin, input);
+        std::cout << "\nUser > " << std::flush;
+        if (!std::getline(std::cin, input)) {
+            // End of input (Ctrl+D, closed pipe or redirected file): leave
+            // the loop instead of spinning on a stream that can never
+            // produce another line.
+            std::cout << "\n";
+            running_ = false;
+            break;
+        }
         
         if (!input.empty()) {
             processUserInput(input);

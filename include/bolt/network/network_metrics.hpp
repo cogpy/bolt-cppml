@@ -224,6 +224,8 @@ private:
     double peakBandwidth_;
     
     void cleanup();
+    // Requires mutex_ to be held by the caller.
+    double currentBandwidthLocked() const;
 };
 
 /**
@@ -290,6 +292,12 @@ private:
     bool detailedMetrics_;
     
     NetworkStats& getOrCreateEndpointStats(const std::string& endpoint);
+
+    // Unlocked variants of the bandwidth getters; metricsMutex_ must be held.
+    double globalBandwidthInLocked() const;
+    double globalBandwidthOutLocked() const;
+    double endpointBandwidthInLocked(const std::string& endpoint) const;
+    double endpointBandwidthOutLocked(const std::string& endpoint) const;
     BandwidthTracker& getOrCreateBandwidthTracker(
         std::unordered_map<std::string, std::unique_ptr<BandwidthTracker>>& trackers,
         const std::string& endpoint

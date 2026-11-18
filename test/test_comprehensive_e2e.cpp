@@ -2421,6 +2421,26 @@ BOLT_TEST(E2E_BoltApp, ChatEmptyMessage) {
     BOLT_ASSERT_EQ("", msg.getContent());
 }
 
+// Regression test: run() used to loop forever once standard input reached
+// end of file. Feed it scripted input followed by EOF and require it to
+// return. If the bug comes back this test hangs and CTest times it out.
+BOLT_TEST(E2E_BoltApp, RunReturnsAtEndOfInput) {
+    std::istringstream scripted("hello\n/help\n");
+    std::ostringstream captured;
+    std::streambuf* oldIn = std::cin.rdbuf(scripted.rdbuf());
+    std::streambuf* oldOut = std::cout.rdbuf(captured.rdbuf());
+
+    bolt::BoltApp::getInstance().run();
+
+    std::cin.rdbuf(oldIn);
+    std::cin.clear();
+    std::cout.rdbuf(oldOut);
+
+    const std::string output = captured.str();
+    BOLT_ASSERT_TRUE(output.find("Echo: hello") != std::string::npos);
+    BOLT_ASSERT_TRUE(output.find("Available commands") != std::string::npos);
+}
+
 // ============================================================================
 // E2E_BenchmarkSuite: Test BenchmarkSuite functions
 // ============================================================================

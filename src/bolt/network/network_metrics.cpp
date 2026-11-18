@@ -19,8 +19,10 @@ void BandwidthTracker::recordBytes(uint64_t bytes) {
     
     cleanup();
     
-    // Update peak bandwidth
-    double currentBandwidth = getCurrentBandwidth();
+    // Update peak bandwidth. mutex_ is already held here, so use the
+    // unlocked helper: calling getCurrentBandwidth() would lock the same
+    // non-recursive mutex again and deadlock.
+    double currentBandwidth = currentBandwidthLocked();
     if (currentBandwidth > peakBandwidth_) {
         peakBandwidth_ = currentBandwidth;
     }
@@ -28,7 +30,10 @@ void BandwidthTracker::recordBytes(uint64_t bytes) {
 
 double BandwidthTracker::getCurrentBandwidth() const {
     std::lock_guard<std::mutex> lock(mutex_);
-    
+    return currentBandwidthLocked();
+}
+
+double BandwidthTracker::currentBandwidthLocked() const {
     if (dataPoints_.size() < 2) {
         return 0.0;
     }
@@ -287,24 +292,43 @@ std::vector<std::string> NetworkMetrics::getEndpoints() const {
 
 double NetworkMetrics::getGlobalBandwidthIn() const {
     std::lock_guard<std::mutex> lock(metricsMutex_);
-    return globalBandwidthIn_ ? globalBandwidthIn_->getCurrentBandwidth() : 0.0;
+    return globalBandwidthInLocked();
 }
 
 double NetworkMetrics::getGlobalBandwidthOut() const {
     std::lock_guard<std::mutex> lock(metricsMutex_);
-    return globalBandwidthOut_ ? globalBandwidthOut_->getCurrentBandwidth() : 0.0;
+    return globalBandwidthOutLocked();
 }
 
 double NetworkMetrics::getEndpointBandwidthIn(const std::string& endpoint) const {
     std::lock_guard<std::mutex> lock(metricsMutex_);
-    
-    auto it = endpointBandwidthIn_.find(endpoint);
-    return it != endpointBandwidthIn_.end() ? it->second->getCurrentBandwidth() : 0.0;
+    return endpointBandwidthInLocked(endpoint);
 }
 
 double NetworkMetrics::getEndpointBandwidthOut(const std::string& endpoint) const {
     std::lock_guard<std::mutex> lock(metricsMutex_);
-    
+    return endpointBandwidthOutLocked(endpoint);
+}
+
+// The *Locked helpers below require metricsMutex_ to be held by the caller.
+// The report generators hold the mutex for their whole body, so they must use
+// these instead of the public getters: metricsMutex_ is not recursive and
+// locking it twice on one thread deadlocks.
+
+double NetworkMetrics::globalBandwidthInLocked() const {
+    return globalBandwidthIn_ ? globalBandwidthIn_->getCurrentBandwidth() : 0.0;
+}
+
+double NetworkMetrics::globalBandwidthOutLocked() const {
+    return globalBandwidthOut_ ? globalBandwidthOut_->getCurrentBandwidth() : 0.0;
+}
+
+double NetworkMetrics::endpointBandwidthInLocked(const std::string& endpoint) const {
+    auto it = endpointBandwidthIn_.find(endpoint);
+    return it != endpointBandwidthIn_.end() ? it->second->getCurrentBandwidth() : 0.0;
+}
+
+double NetworkMetrics::endpointBandwidthOutLocked(const std::string& endpoint) const {
     auto it = endpointBandwidthOut_.find(endpoint);
     return it != endpointBandwidthOut_.end() ? it->second->getCurrentBandwidth() : 0.0;
 }
@@ -409,8 +433,8 @@ std::string NetworkMetrics::generateReport() const {
     }
     
     report << "  Bandwidth: in=" << std::fixed << std::setprecision(2) 
-           << getGlobalBandwidthIn() / 1024.0 << " KB/s, "
-           << "out=" << getGlobalBandwidthOut() / 1024.0 << " KB/s\n";
+           << globalBandwidthInLocked() / 1024.0 << " KB/s, "
+           << "out=" << globalBandwidthOutLocked() / 1024.0 << " KB/s\n";
     
     report << "  Errors: send=" << globalStats_.sendErrors.load()
            << ", receive=" << globalStats_.receiveErrors.load()
@@ -432,8 +456,8 @@ std::string NetworkMetrics::generateReport() const {
             }
             
             report << "    Bandwidth: in=" << std::fixed << std::setprecision(2) 
-                   << getEndpointBandwidthIn(name) / 1024.0 << " KB/s, "
-                   << "out=" << getEndpointBandwidthOut(name) / 1024.0 << " KB/s\n";
+                   << endpointBandwidthInLocked(name) / 1024.0 << " KB/s, "
+                   << "out=" << endpointBandwidthOutLocked(name) / 1024.0 << " KB/s\n";
         }
     }
     
@@ -477,8 +501,8 @@ std::string NetworkMetrics::generateEndpointReport(const std::string& endpoint) 
     
     report << "Bandwidth:\n";
     report << "  Inbound: " << std::fixed << std::setprecision(2) 
-           << getEndpointBandwidthIn(endpoint) / 1024.0 << " KB/s\n";
-    report << "  Outbound: " << getEndpointBandwidthOut(endpoint) / 1024.0 << " KB/s\n\n";
+           << endpointBandwidthInLocked(endpoint) / 1024.0 << " KB/s\n";
+    report << "  Outbound: " << endpointBandwidthOutLocked(endpoint) / 1024.0 << " KB/s\n\n";
     
     report << "Errors:\n";
     report << "  Send Errors: " << stats.sendErrors.load() << "\n";

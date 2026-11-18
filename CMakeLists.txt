@@ -359,6 +359,7 @@ endif()
 # Main executable
 add_executable(bolt src/bolt/main.cpp)
 target_link_libraries(bolt PRIVATE bolt_lib)
+target_compile_definitions(bolt PRIVATE BOLT_VERSION="${PROJECT_VERSION}")
 if(WIN32)
     target_sources(bolt PRIVATE ${BOLT_WIN32_RESOURCES})
 endif()
