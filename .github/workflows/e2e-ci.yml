@@ -191,10 +191,16 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: bolt-linux-${{ matrix.compiler }}-${{ matrix.build_type }}
+          # Include the shared libraries the executables load at run time
+          # (libbolt_lib, libllama, libggml); without them nothing in this
+          # artifact can start.
           path: |
             build/bolt
-            build/bolt_lib*
+            build/bolt_terminal_ai
+            build/benchmark_tool
             build/demo_*
+            build/libbolt_lib.so*
+            build/bin/*.so*
           retention-days: 7
 
   # ============================================
@@ -476,7 +482,7 @@ jobs:
           path: build/
 
       - name: Make binaries executable
-        run: chmod +x build/bolt build/demo_* || true
+        run: chmod +x build/bolt build/bolt_terminal_ai build/benchmark_tool build/demo_*
 
       - name: Install runtime dependencies
         run: |
@@ -490,20 +496,11 @@ jobs:
             libgl1-mesa-dev libssl-dev zlib1g-dev
 
       - name: Run integration tests
+        # Starts bolt and every demo program and fails if any of them hangs
+        # or crashes. See scripts/smoke_test.sh.
         run: |
-          export LD_LIBRARY_PATH="build:$LD_LIBRARY_PATH"
-
-          echo "=== Testing main executable ==="
-          ./build/bolt --version || ./build/bolt --help || echo "Main executable test skipped"
-
-          echo "=== Testing demo executables ==="
-          for demo in build/demo_*; do
-            if [ -x "$demo" ]; then
-              echo "Testing: $demo"
-              timeout 10 "$demo" --help 2>/dev/null || timeout 5 "$demo" 2>/dev/null || echo "  (no --help flag)"
-            fi
-          done
-        continue-on-error: true
+          set -o pipefail
+          bash scripts/smoke_test.sh build 2>&1 | tee integration-test-smoke.log
 
       - name: Upload integration test results
         uses: actions/upload-artifact@v4
