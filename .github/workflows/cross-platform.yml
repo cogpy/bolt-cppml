@@ -32,7 +32,7 @@ jobs:
             cmake_extra: ""
             
           - name: "macOS Apple Silicon ARM64"
-            os: macos-14
+            os: macos-15
             triplet: arm64-osx
             cmake_extra: ""
             

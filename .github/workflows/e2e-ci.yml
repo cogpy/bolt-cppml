@@ -326,11 +326,11 @@ jobs:
             arch: x64
             triplet: x64-osx
             build_type: Release
-          - runner: macos-14
+          - runner: macos-15
             arch: arm64
             triplet: arm64-osx
             build_type: Release
-          - runner: macos-14
+          - runner: macos-15
             arch: arm64
             triplet: arm64-osx
             build_type: Debug

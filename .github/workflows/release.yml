@@ -440,7 +440,7 @@ jobs:
           - runner: macos-15-intel
             arch: x64
             triplet: x64-osx
-          - runner: macos-14
+          - runner: macos-15
             arch: arm64
             triplet: arm64-osx
 
@@ -504,7 +504,7 @@ jobs:
   # ============================================
   macos-universal:
     name: macOS Universal Binary
-    runs-on: macos-14
+    runs-on: macos-15
     needs: [prepare, macos-release]
 
     steps:
@@ -557,7 +557,7 @@ jobs:
   # ============================================
   macos-dmg:
     name: macOS DMG Installer
-    runs-on: macos-14
+    runs-on: macos-15
     needs: [prepare, macos-universal]
 
     steps:
