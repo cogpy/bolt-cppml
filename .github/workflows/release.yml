@@ -183,6 +183,17 @@ jobs:
           cp build/bolt "$PKGDIR/usr/bin/"
           cp build/bolt_lib* "$PKGDIR/usr/lib/" 2>/dev/null || true
 
+          # Work out the runtime dependencies from the libraries the binary
+          # actually links, so the package installs what bolt needs on a
+          # clean machine. Fall back to a fixed list if that is not possible.
+          mkdir -p debian && touch debian/control
+          DEPENDS="$(dpkg-shlibdeps -O build/bolt 2>/dev/null | sed -n 's/^shlibs:Depends=//p')"
+          rm -rf debian
+          if [ -z "$DEPENDS" ]; then
+            DEPENDS="libc6 (>= 2.31), libstdc++6 (>= 10), libcurl4, libssl3, zlib1g"
+          fi
+          echo "Package dependencies: $DEPENDS"
+
           # Create control file
           cat > "$PKGDIR/DEBIAN/control" << EOF
           Package: bolt
@@ -190,19 +201,27 @@ jobs:
           Section: devel
           Priority: optional
           Architecture: amd64
-          Depends: libc6 (>= 2.31), libstdc++6 (>= 10), libcurl4, libssl3, zlib1g
+          Depends: ${DEPENDS}
           Maintainer: Bolt Development Team <bolt@example.com>
           Description: Bolt C++ ML IDE
            A modern C++ implementation of the Bolt IDE core components
            with AI integration, LSP support, and real-time collaborative features.
           EOF
 
-          # Build package
-          dpkg-deb --build "$PKGDIR"
-          mv "${PKGDIR}.deb" "bolt_${VERSION}_amd64.deb"
+          # Build package. dpkg-deb names the output after the directory,
+          # which is already bolt_<version>_amd64.deb.
+          dpkg-deb --root-owner-group --build "$PKGDIR"
 
-          # Verify package
+          # Verify package metadata
           dpkg -I "bolt_${VERSION}_amd64.deb"
+
+      - name: Install and run the DEB package
+        run: |
+          VERSION="${{ needs.prepare.outputs.version }}"
+          sudo dpkg -i "bolt_${VERSION}_amd64.deb"
+          /usr/bin/bolt --version
+          printf 'hello\n/exit\n' | /usr/bin/bolt | grep -q 'Echo: hello'
+          sudo dpkg -r bolt
 
       - name: Create RPM package
         run: |
@@ -244,12 +263,19 @@ jobs:
           /usr/bin/bolt
 
           %changelog
-          * $(date +"%a %b %d %Y") Bolt Team <bolt@example.com> - ${{ needs.prepare.outputs.version }}-1
+          * CHANGELOG_DATE Bolt Team <bolt@example.com> - ${{ needs.prepare.outputs.version }}-1
           - Initial release
           EOF
 
-          # Build RPM
-          rpmbuild --define "_topdir $(pwd)/rpmbuild" -bb rpmbuild/SPECS/bolt.spec || true
+          # The heredoc above is quoted so that rpm macros stay literal,
+          # which also means $(date) would not expand; fill the date in here.
+          sed -i "s/CHANGELOG_DATE/$(LC_ALL=C date +'%a %b %d %Y')/" rpmbuild/SPECS/bolt.spec
+
+          # Build RPM. --nodeps: the BuildRequires are RPM package names and
+          # cannot be checked against the rpm database on an Ubuntu runner;
+          # the binary was already built above.
+          rpmbuild --nodeps --define "_topdir $(pwd)/rpmbuild" -bb rpmbuild/SPECS/bolt.spec
+          ls -l rpmbuild/RPMS/*/*.rpm
 
       - name: Upload packages
         uses: actions/upload-artifact@v4
