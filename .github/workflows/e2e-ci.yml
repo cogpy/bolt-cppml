@@ -615,8 +615,11 @@ jobs:
 
       - name: Generate coverage report
         run: |
+          # negative/inconsistent: gcov from current GCC reports bogus hit
+          # counts for some libstdc++ header lines, which lcov treats as a
+          # fatal error. Those headers are filtered out below anyway.
           lcov --capture --directory build --output-file coverage.info \
-            --ignore-errors mismatch,empty,unused
+            --ignore-errors mismatch,empty,unused,negative,inconsistent
           lcov --remove coverage.info '/usr/*' '*/test/*' '*/ggml/*' \
             --output-file coverage.info --ignore-errors unused
           lcov --list coverage.info
