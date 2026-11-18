@@ -63,7 +63,9 @@ std::optional<BracketMatch> BracketMatcher::findOpeningBracket(const std::string
     char openBracket = getMatchingBracket(closeBracket);
     std::stack<char> brackets;
     
-    for (size_t i = closePos; i-- > 0;) {
+    // Start at closePos itself so the closing bracket is counted;
+    // otherwise the first opening bracket pops an empty stack.
+    for (size_t i = closePos + 1; i-- > 0;) {
         if (text[i] == closeBracket) {
             brackets.push(closeBracket);
         } else if (text[i] == openBracket) {
