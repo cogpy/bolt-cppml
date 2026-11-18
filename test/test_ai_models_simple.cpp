@@ -84,10 +84,11 @@ BOLT_TEST(AIModels, GGMLTensorTypes) {
     const size_t mem_size = 5 * 1024 * 1024; // 5MB
     bolt::GGMLContext context(mem_size);
     
-    // Test different tensor types
-    auto* fp32_tensor = ggml_new_tensor_1d(context.get(), GGML_TYPE_F32, 100);
-    auto* fp16_tensor = ggml_new_tensor_1d(context.get(), GGML_TYPE_F16, 100);
-    auto* q8_tensor = ggml_new_tensor_1d(context.get(), GGML_TYPE_Q8_0, 100);
+    // Test different tensor types. The element count must be a multiple of
+    // the Q8_0 block size (32): ggml asserts on that in debug builds.
+    auto* fp32_tensor = ggml_new_tensor_1d(context.get(), GGML_TYPE_F32, 128);
+    auto* fp16_tensor = ggml_new_tensor_1d(context.get(), GGML_TYPE_F16, 128);
+    auto* q8_tensor = ggml_new_tensor_1d(context.get(), GGML_TYPE_Q8_0, 128);
     
     BOLT_ASSERT_NOT_NULL(fp32_tensor);
     BOLT_ASSERT_NOT_NULL(fp16_tensor);
