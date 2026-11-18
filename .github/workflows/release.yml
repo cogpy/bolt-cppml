@@ -80,6 +80,7 @@ jobs:
             build-essential ninja-build pkg-config \
             libcurl4-openssl-dev libjsoncpp-dev libglfw3-dev \
             libgl1-mesa-dev libglu1-mesa-dev libssl-dev zlib1g-dev \
+            libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev \
             gcc-13 g++-13 \
             patchelf chrpath
 
