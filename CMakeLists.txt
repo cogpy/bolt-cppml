@@ -553,17 +553,17 @@ endif()
 # Only the main application ships; demo/test executables are NOT installed.
 # Everything goes into the "app" component so packaging stays clutter-free.
 # ---------------------------------------------------------------------------
+# COMPONENT applies only to the artifact kind it follows, so it is repeated
+# for RUNTIME and BUNDLE (macOS app bundles).
 install(TARGETS bolt
-    RUNTIME DESTINATION bin
-    BUNDLE DESTINATION .
-    COMPONENT app
+    RUNTIME DESTINATION bin COMPONENT app
+    BUNDLE DESTINATION . COMPONENT app
 )
 
 if(TARGET gui_main)
     install(TARGETS gui_main
-        RUNTIME DESTINATION bin
-        BUNDLE DESTINATION .
-        COMPONENT app
+        RUNTIME DESTINATION bin COMPONENT app
+        BUNDLE DESTINATION . COMPONENT app
     )
 endif()
 
