@@ -330,8 +330,15 @@ jobs:
           Copy-Item -Path (Join-Path $binDir "bolt*.dll") -Destination $PKGDIR -ErrorAction SilentlyContinue
           Copy-Item -Path (Join-Path $binDir "demo_*.exe") -Destination $PKGDIR -ErrorAction SilentlyContinue
 
-          # Copy dependencies from vcpkg
-          Get-ChildItem -Path "C:\vcpkg\installed\x64-windows\bin\*.dll" | Copy-Item -Destination $PKGDIR -ErrorAction SilentlyContinue
+          # Copy the dependency DLLs from vcpkg. The project uses a vcpkg
+          # manifest, so they are installed under the build tree; classic
+          # mode would put them under C:\vcpkg\installed.
+          $vcpkgBin = @("build\vcpkg_installed\x64-windows\bin", "C:\vcpkg\installed\x64-windows\bin") |
+            Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $vcpkgBin) {
+            throw "vcpkg runtime DLL directory not found; the package would not run without its DLLs"
+          }
+          Get-ChildItem -Path (Join-Path $vcpkgBin "*.dll") | Copy-Item -Destination $PKGDIR
 
           # Copy documentation
           Copy-Item -Path "README.md" -Destination $PKGDIR -ErrorAction SilentlyContinue
@@ -403,20 +410,31 @@ jobs:
                 </Directory>
               </Directory>
 
-              <ComponentGroup Id="ProductComponents" Directory="INSTALLFOLDER">
-                <Component Id="MainExecutable" Guid="*">
-                  <File Id="BoltExe" Source="extracted\bolt-$VERSION-windows-x64\bolt.exe" KeyPath="yes"/>
-                </Component>
-              </ComponentGroup>
             </Product>
           </Wix>
           "@ | Out-File -FilePath "bolt.wxs" -Encoding UTF8
 
       - name: Build MSI
+        shell: powershell
         run: |
-          & "C:\Program Files (x86)\WiX Toolset v3.11\bin\candle.exe" bolt.wxs
-          & "C:\Program Files (x86)\WiX Toolset v3.11\bin\light.exe" -out bolt-${{ needs.prepare.outputs.version }}-windows-x64.msi bolt.wixobj
-        continue-on-error: true
+          $VERSION = "${{ needs.prepare.outputs.version }}"
+          $SRC = "extracted\bolt-$VERSION-windows-x64"
+
+          # Locate WiX through the WIX variable its installer sets rather
+          # than a hard-coded version directory (the runner image moves on).
+          $wixBin = if ($env:WIX) { Join-Path $env:WIX "bin" } else { Split-Path (Get-Command candle.exe).Source }
+
+          # Harvest every file of the release (bolt.exe and the DLLs it
+          # needs) into the ProductComponents group referenced by bolt.wxs.
+          & (Join-Path $wixBin "heat.exe") dir $SRC -cg ProductComponents -dr INSTALLFOLDER `
+            -gg -sfrag -srd -sreg -var var.SourceDir -out files.wxs
+          if ($LASTEXITCODE -ne 0) { throw "heat.exe failed" }
+
+          & (Join-Path $wixBin "candle.exe") -arch x64 "-dSourceDir=$SRC" bolt.wxs files.wxs
+          if ($LASTEXITCODE -ne 0) { throw "candle.exe failed" }
+
+          & (Join-Path $wixBin "light.exe") -out "bolt-$VERSION-windows-x64.msi" bolt.wixobj files.wixobj
+          if ($LASTEXITCODE -ne 0) { throw "light.exe failed" }
 
       - name: Upload MSI
         uses: actions/upload-artifact@v4
