@@ -107,8 +107,13 @@ jobs:
     - name: Install system dependencies (macOS)
       if: runner.os == 'macOS'
       run: |
-        brew update
-        brew install cmake ninja pkg-config curl jsoncpp glfw
+        # No "brew update" and no cmake here. CMake is preinstalled on the
+        # runner, and updating Homebrew first makes it upgrade cmake, curl
+        # and their dependencies. Homebrew no longer ships prebuilt packages
+        # for Intel macOS, so that rebuilt everything from source (over 30
+        # minutes) and then exited non-zero. The E2E workflow installs the
+        # same packages this way without problems.
+        brew install ninja pkg-config curl jsoncpp glfw
         
     - name: Cache vcpkg packages
       uses: actions/cache@v4
