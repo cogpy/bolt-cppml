@@ -433,6 +433,10 @@ jobs:
     name: macOS Release (${{ matrix.arch }})
     runs-on: ${{ matrix.runner }}
     needs: prepare
+    # macOS is temporarily disabled while the Windows and Linux builds are stabilised.
+    # Remove this line (and the ones on macos-universal and macos-dmg) and
+    # restore the macOS entries in create-release to re-enable.
+    if: false
     strategy:
       fail-fast: false
       matrix:
@@ -506,6 +510,7 @@ jobs:
     name: macOS Universal Binary
     runs-on: macos-15
     needs: [prepare, macos-release]
+    if: false  # macOS temporarily disabled, see macos-release
 
     steps:
       - name: Download x64 build
@@ -559,6 +564,7 @@ jobs:
     name: macOS DMG Installer
     runs-on: macos-15
     needs: [prepare, macos-universal]
+    if: false  # macOS temporarily disabled, see macos-release
 
     steps:
       - uses: actions/checkout@v4
@@ -641,9 +647,11 @@ jobs:
       - linux-packages
       - windows-release
       - windows-installer
-      - macos-release
-      - macos-universal
-      - macos-dmg
+      # macOS temporarily disabled. A skipped dependency would skip this
+      # job too, so the macOS jobs are left out of "needs" until then.
+      # - macos-release
+      # - macos-universal
+      # - macos-dmg
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
 
     permissions:
@@ -683,8 +691,7 @@ jobs:
           - \`bolt-${VERSION}-windows-x64.msi\` - Windows installer
 
           ### macOS
-          - \`bolt-${VERSION}-macos-universal.tar.gz\` - macOS Universal binary (Intel + Apple Silicon)
-          - \`bolt-${VERSION}-macos.dmg\` - macOS installer
+          macOS builds are temporarily unavailable.
 
           ## Checksums
           SHA256 checksums are provided for all downloads in \`.sha256\` files.

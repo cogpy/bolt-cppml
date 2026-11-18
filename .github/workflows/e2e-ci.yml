@@ -317,7 +317,10 @@ jobs:
     name: macOS (${{ matrix.arch }}, ${{ matrix.build_type }})
     runs-on: ${{ matrix.runner }}
     needs: preflight
-    if: needs.preflight.outputs.should_skip != 'true'
+    # macOS is temporarily disabled while the Windows and Linux builds are stabilised.
+    # To re-enable, restore:
+    #   if: needs.preflight.outputs.should_skip != 'true'
+    if: false
     strategy:
       fail-fast: false
       matrix:

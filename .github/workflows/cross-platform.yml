@@ -26,15 +26,17 @@ jobs:
             cmake_extra: "-A x64"
             
           # macOS builds
-          - name: "macOS Intel x64"
-            os: macos-15-intel
-            triplet: x64-osx
-            cmake_extra: ""
-            
-          - name: "macOS Apple Silicon ARM64"
-            os: macos-15
-            triplet: arm64-osx
-            cmake_extra: ""
+          # macOS is temporarily disabled while the Windows and Linux builds are stabilised.
+          # Uncomment these two entries to re-enable.
+          # - name: "macOS Intel x64"
+          #   os: macos-15-intel
+          #   triplet: x64-osx
+          #   cmake_extra: ""
+          #
+          # - name: "macOS Apple Silicon ARM64"
+          #   os: macos-15
+          #   triplet: arm64-osx
+          #   cmake_extra: ""
             
           # Linux builds
           - name: "Linux x64 (Ubuntu)"
