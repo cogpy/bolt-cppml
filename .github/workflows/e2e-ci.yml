@@ -621,12 +621,13 @@ jobs:
           lcov --capture --directory build --output-file coverage.info \
             --ignore-errors mismatch,empty,unused,negative,inconsistent
           lcov --remove coverage.info '/usr/*' '*/test/*' '*/ggml/*' \
-            --output-file coverage.info --ignore-errors unused
-          lcov --list coverage.info
+            --output-file coverage.info \
+            --ignore-errors unused,negative,inconsistent
+          lcov --list coverage.info --ignore-errors negative,inconsistent
 
           # Generate HTML report
           genhtml coverage.info --output-directory coverage-html \
-            --ignore-errors source
+            --ignore-errors source,negative,inconsistent
 
       - name: Upload coverage report
         uses: actions/upload-artifact@v4
