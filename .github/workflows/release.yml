@@ -237,6 +237,10 @@ jobs:
 
           # Create spec file
           cat > rpmbuild/SPECS/bolt.spec << 'EOF'
+          # The binary is prebuilt; skip the debuginfo subpackage, which needs
+          # elfutils (eu-strip) and is not installed on the runner.
+          %global debug_package %{nil}
+
           Name:           bolt
           Version:        ${{ needs.prepare.outputs.version }}
           Release:        1%{?dist}
