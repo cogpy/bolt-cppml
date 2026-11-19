@@ -42,11 +42,11 @@ BoltGuiApp::BoltGuiApp() : window_(nullptr) {
 
     // Add welcome message based on AI availability
     if (ai_ready_) {
-        AddChatMessage("Assistant",
-                       "🤖 Welcome to Bolt AI IDE! I'm ready to help you code. Try asking me about C++, algorithms, or "
-                       "request code completion! Current AI provider: " +
-                           (ai_manager_ ? ai_manager_->get_current_provider() : "unknown"),
-                       false);
+        const std::string provider = ai_manager_ ? ai_manager_->get_current_provider() : "unknown";
+        std::string welcome = "🤖 Welcome to Bolt AI IDE! I'm ready to help you code. ";
+        welcome += "Try asking me about C++, algorithms, or request code completion! ";
+        welcome += "Current AI provider: " + provider;
+        AddChatMessage("Assistant", welcome, false);
     } else {
         AddChatMessage("System",
                        "⚠️ Welcome to Bolt AI IDE! AI features are not currently available. Please configure an AI "

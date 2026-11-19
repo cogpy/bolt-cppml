@@ -346,7 +346,8 @@ BOLT_TEST(AIModels, ModelTestingInfrastructure) {
 
     // Skip test if no model files are found (expected in dev environment)
     if (!has_tiny_model && !has_vocab_files) {
-        std::cout << "⚠️  No AI model files found - infrastructure test skipped (see AI_MODELS_README.md)" << std::endl;
+        const char* outcome = "infrastructure test skipped (see AI_MODELS_README.md)";
+        std::cout << "⚠️  No AI model files found - " << outcome << std::endl;
         return;  // Pass the test
     }
 
