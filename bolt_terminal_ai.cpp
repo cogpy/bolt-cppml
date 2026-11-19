@@ -2,7 +2,15 @@
 #include <iostream>
 #include <string>
 #include <sstream>
+#include <cstdio>
+#include <memory>
+#ifdef _WIN32
+#include <io.h>      // For _isatty / _fileno
+#define isatty _isatty
+#define fileno _fileno
+#else
 #include <unistd.h>  // For isatty
+#endif
 
 class BoltTerminalAI {
 private:

@@ -52,6 +52,7 @@ private:
     BoltApp() = default;
     std::unique_ptr<Workbench> workbench_;
     bool running_ = false;
+    bool initialized_ = false;
 };
 
 } // namespace bolt

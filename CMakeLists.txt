@@ -15,6 +15,14 @@ set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 set(CMAKE_BUILD_RPATH "${CMAKE_BINARY_DIR}/bin;${CMAKE_BINARY_DIR}")
 set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
 
+# Portable builds by default. Tuning for the build machine's CPU
+# (-march=native, and llama.cpp's GGML_NATIVE) produces binaries that die with
+# "Illegal instruction" on any machine whose CPU lacks an instruction the
+# build machine had, which is exactly what happened to CI artifacts and would
+# happen to release packages. Turn this ON only for a build you will run on
+# the machine that built it.
+option(BOLT_NATIVE_OPTIMIZATIONS "Optimise for the build machine's CPU (not portable)" OFF)
+
 # Include cross-platform configuration
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/CrossPlatform.cmake")
 
@@ -107,6 +115,32 @@ if(NOT IMGUI_FOUND)
     find_package(ImGui QUIET)
     set(IMGUI_FOUND ${ImGui_FOUND})
     if(NOT IMGUI_FOUND)
+        # Distribution packages (Debian/Ubuntu libimgui-dev) ship the headers,
+        # the backends and a library, but no CMake package config. Without
+        # this fallback the GUI is silently left out of every build that
+        # uses system packages instead of vcpkg.
+        find_path(BOLT_IMGUI_INCLUDE_DIR imgui.h PATH_SUFFIXES imgui)
+        find_path(BOLT_IMGUI_BACKENDS_DIR imgui_impl_glfw.h
+            PATH_SUFFIXES imgui/backends imgui)
+        find_library(BOLT_IMGUI_LIBRARY NAMES imgui)
+        if(BOLT_IMGUI_INCLUDE_DIR AND BOLT_IMGUI_BACKENDS_DIR AND BOLT_IMGUI_LIBRARY)
+            add_library(imgui::imgui UNKNOWN IMPORTED)
+            set_target_properties(imgui::imgui PROPERTIES
+                IMPORTED_LOCATION "${BOLT_IMGUI_LIBRARY}"
+                INTERFACE_INCLUDE_DIRECTORIES "${BOLT_IMGUI_INCLUDE_DIR};${BOLT_IMGUI_BACKENDS_DIR}"
+            )
+            # The Debian build of ImGui uses the system stb library for its
+            # font and rectangle packing code instead of bundling it.
+            find_library(BOLT_STB_LIBRARY NAMES stb)
+            if(BOLT_STB_LIBRARY)
+                set_property(TARGET imgui::imgui APPEND PROPERTY
+                    INTERFACE_LINK_LIBRARIES "${BOLT_STB_LIBRARY}")
+            endif()
+            set(IMGUI_FOUND TRUE)
+            message(STATUS "Found ImGui (system package): ${BOLT_IMGUI_LIBRARY}")
+        endif()
+    endif()
+    if(NOT IMGUI_FOUND)
         message(WARNING "ImGui not found - GUI components will be disabled")
         set(IMGUI_FOUND FALSE)
     endif()
@@ -118,10 +152,24 @@ endif()
 
 option(ENABLE_LLAMA_CPP "Enable llama.cpp integration (provides GGML)" ON)
 
+# The vendored llama.cpp declares BUILD_SHARED_LIBS with a default of ON for
+# non-MinGW toolchains. That would also turn bolt_lib into a DLL, but bolt_lib
+# has no __declspec(dllexport) annotations, so MSVC emits no import library
+# and every dependent target fails with LNK1181 (cannot open bolt_lib.lib).
+# Declare the option first so the default is static on MSVC; an explicit
+# -DBUILD_SHARED_LIBS=... on the command line still wins.
+if(MSVC)
+    option(BUILD_SHARED_LIBS "Build shared libraries" OFF)
+endif()
+
 if(ENABLE_LLAMA_CPP AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/ggml/llama.cpp/CMakeLists.txt")
     message(STATUS "Configuring llama.cpp integration (unified GGML source)...")
     
     # Configure llama.cpp build options
+    # GGML_NATIVE defaults to ON upstream; tie it to our own option so the
+    # default build is portable. With it OFF, ggml targets a fixed x86-64
+    # baseline (AVX2, FMA, F16C, BMI2) instead of the build machine's CPU.
+    set(GGML_NATIVE ${BOLT_NATIVE_OPTIMIZATIONS} CACHE BOOL "ggml: optimize the build for the current system" FORCE)
     set(LLAMA_CURL OFF CACHE BOOL "" FORCE)
     set(LLAMA_BUILD_TESTS OFF CACHE BOOL "" FORCE)
     set(LLAMA_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
@@ -349,6 +397,7 @@ endif()
 # Main executable
 add_executable(bolt src/bolt/main.cpp)
 target_link_libraries(bolt PRIVATE bolt_lib)
+target_compile_definitions(bolt PRIVATE BOLT_VERSION="${PROJECT_VERSION}")
 if(WIN32)
     target_sources(bolt PRIVATE ${BOLT_WIN32_RESOURCES})
 endif()
@@ -543,15 +592,17 @@ endif()
 # Only the main application ships; demo/test executables are NOT installed.
 # Everything goes into the "app" component so packaging stays clutter-free.
 # ---------------------------------------------------------------------------
+# COMPONENT applies only to the artifact kind it follows, so it is repeated
+# for RUNTIME and BUNDLE (macOS app bundles).
 install(TARGETS bolt
-    RUNTIME DESTINATION bin
-    COMPONENT app
+    RUNTIME DESTINATION bin COMPONENT app
+    BUNDLE DESTINATION . COMPONENT app
 )
 
 if(TARGET gui_main)
     install(TARGETS gui_main
-        RUNTIME DESTINATION bin
-        COMPONENT app
+        RUNTIME DESTINATION bin COMPONENT app
+        BUNDLE DESTINATION . COMPONENT app
     )
 endif()
 

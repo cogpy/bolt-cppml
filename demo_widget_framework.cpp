@@ -7,7 +7,11 @@
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl3.h>
 #include <GLFW/glfw3.h>
+#ifdef __APPLE__
+#include <OpenGL/gl.h>  // macOS ships OpenGL headers as a framework
+#else
 #include <GL/gl.h>
+#endif
 #endif
 
 #include <iostream>

@@ -26,7 +26,12 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
     
     # Optimization settings
     if(CMAKE_BUILD_TYPE MATCHES Release)
-        add_compile_options(-O3 -DNDEBUG -march=native)
+        add_compile_options(-O3 -DNDEBUG)
+        # -march=native ties the binary to the build machine's CPU; only use
+        # it when explicitly requested (see BOLT_NATIVE_OPTIMIZATIONS).
+        if(BOLT_NATIVE_OPTIMIZATIONS)
+            add_compile_options(-march=native)
+        endif()
     elseif(CMAKE_BUILD_TYPE MATCHES Debug)
         add_compile_options(-g -O0 -fno-omit-frame-pointer)
     endif()
@@ -123,9 +128,13 @@ set(CPACK_RPM_PACKAGE_REQUIRES "libcurl >= 7.0, jsoncpp >= 1.9, glfw >= 3.3, mes
 set(CPACK_RPM_PACKAGE_GROUP "Development/Tools")
 set(CPACK_RPM_PACKAGE_LICENSE "MIT")
 
-# Runtime library paths
+# Runtime library paths. The same relocatable rpath is used in the build tree
+# and after install: $ORIGIN and $ORIGIN/bin let programs run straight from the
+# build directory (libbolt_lib.so sits next to them, llama.cpp's libraries in
+# bin/) and from an unpacked tarball; $ORIGIN/../lib covers an installed
+# bin/ + lib/ layout.
 set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
-set(CMAKE_INSTALL_RPATH "\$ORIGIN/../lib:\$ORIGIN/lib:/usr/local/lib")
+set(CMAKE_INSTALL_RPATH "\$ORIGIN:\$ORIGIN/bin:\$ORIGIN/../lib:\$ORIGIN/lib:/usr/local/lib")
 
 # Distribution-specific optimizations
 if(LINUX_DISTRO MATCHES "ubuntu|debian")

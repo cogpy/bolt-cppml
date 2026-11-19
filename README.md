@@ -16,7 +16,7 @@ A modern C++ implementation of the Bolt IDE core components with AI integration 
 ### Editor Features
 - Multi-cursor support
 - Line numbering system
-- Find/Replace functionality 
+- Find/Replace functionality
 - Bracket matching
 - Syntax highlighting
 - File tree navigation
@@ -39,7 +39,7 @@ A modern C++ implementation of the Bolt IDE core components with AI integration 
 
 ## Project Structure
 
-```
+```text
 bolt/
 ├── include/          # Header files
 │   └── bolt/
@@ -90,6 +90,20 @@ make -j$(nproc)
 # Run tests
 ./test/bolt_unit_tests
 ```
+
+Builds are portable by default: they target a fixed x86-64 baseline (AVX2)
+rather than the CPU of the machine doing the build, so the binaries can be
+copied to other machines. For a build you will only run locally, add
+`-DBOLT_NATIVE_OPTIMIZATIONS=ON` to tune it for your own CPU.
+
+After building, `scripts/smoke_test.sh <build-dir>` starts `bolt` and every
+demo program and reports any that hang or crash.
+
+To use a local model, put a GGUF file in `./models` (or
+`~/.local/share/bolt/models`) and start `bolt_terminal_ai` or
+`demo_direct_gguf` from that directory; the first model found is loaded.
+`BOLT_SMOKE_MODEL=/path/to/model.gguf scripts/smoke_test.sh <build-dir>`
+adds a check that the model loads and generates text.
 
 ### Package Manager Integration Features
 

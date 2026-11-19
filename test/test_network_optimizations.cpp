@@ -112,12 +112,20 @@ BOLT_TEST(NetworkOptimizations, MessageCompressionBasic) {
 
     MessageCompressor compressor(CompressionType::GZIP, 6);
 
-    std::string originalMessage = "This is a test message that should compress well when repeated. "
-                                 "This is a test message that should compress well when repeated. "
-                                 "This is a test message that should compress well when repeated.";
+    // Messages under the compressor's 256-byte minimum are passed through
+    // uncompressed, so build one comfortably above that threshold.
+    std::string originalMessage;
+    for (int i = 0; i < 8; ++i) {
+        originalMessage += "This is a test message that should compress well when repeated. ";
+    }
 
     auto compressed = compressor.compress(originalMessage);
+#ifdef BOLT_HAVE_ZLIB
     BOLT_ASSERT_LT(compressed.size(), originalMessage.size()); // Should be smaller
+#else
+    // Without zlib the compressor passes data through unchanged, so only the
+    // round trip below can be checked.
+#endif
 
     auto decompressed = compressor.decompress(compressed);
     BOLT_ASSERT_EQ(decompressed, originalMessage);

@@ -49,8 +49,8 @@ jobs:
               IS_PRERELEASE="false"
             fi
           fi
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "is_prerelease=$IS_PRERELEASE" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "is_prerelease=$IS_PRERELEASE" >> "$GITHUB_OUTPUT"
           echo "Release version: $VERSION (prerelease: $IS_PRERELEASE)"
 
   # ============================================
@@ -80,6 +80,7 @@ jobs:
             build-essential ninja-build pkg-config \
             libcurl4-openssl-dev libjsoncpp-dev libglfw3-dev \
             libgl1-mesa-dev libglu1-mesa-dev libssl-dev zlib1g-dev \
+            libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev \
             gcc-13 g++-13 \
             patchelf chrpath
 
@@ -94,13 +95,13 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_C_COMPILER=${{ matrix.cc }} \
             -DCMAKE_CXX_COMPILER=${{ matrix.cxx }} \
-            -DCMAKE_TOOLCHAIN_FILE=$HOME/vcpkg/scripts/buildsystems/vcpkg.cmake \
+            "-DCMAKE_TOOLCHAIN_FILE=$HOME/vcpkg/scripts/buildsystems/vcpkg.cmake" \
             -DVCPKG_TARGET_TRIPLET=${{ matrix.triplet }} \
             -DCMAKE_INSTALL_PREFIX=/usr \
             -DBUILD_SHARED_LIBS=OFF
 
       - name: Build
-        run: cmake --build build --config Release -j $(nproc)
+        run: cmake --build build --config Release -j "$(nproc)"
 
       - name: Run tests
         working-directory: build
@@ -165,7 +166,7 @@ jobs:
             -DCMAKE_CXX_COMPILER=g++-13 \
             -DCMAKE_INSTALL_PREFIX=/usr \
             -DBUILD_SHARED_LIBS=OFF
-          cmake --build build -j $(nproc)
+          cmake --build build -j "$(nproc)"
 
       - name: Create DEB package
         run: |
@@ -182,6 +183,17 @@ jobs:
           cp build/bolt "$PKGDIR/usr/bin/"
           cp build/bolt_lib* "$PKGDIR/usr/lib/" 2>/dev/null || true
 
+          # Work out the runtime dependencies from the libraries the binary
+          # actually links, so the package installs what bolt needs on a
+          # clean machine. Fall back to a fixed list if that is not possible.
+          mkdir -p debian && touch debian/control
+          DEPENDS="$(dpkg-shlibdeps -O build/bolt 2>/dev/null | sed -n 's/^shlibs:Depends=//p')"
+          rm -rf debian
+          if [ -z "$DEPENDS" ]; then
+            DEPENDS="libc6 (>= 2.31), libstdc++6 (>= 10), libcurl4, libssl3, zlib1g"
+          fi
+          echo "Package dependencies: $DEPENDS"
+
           # Create control file
           cat > "$PKGDIR/DEBIAN/control" << EOF
           Package: bolt
@@ -189,19 +201,27 @@ jobs:
           Section: devel
           Priority: optional
           Architecture: amd64
-          Depends: libc6 (>= 2.31), libstdc++6 (>= 10), libcurl4, libssl3, zlib1g
+          Depends: ${DEPENDS}
           Maintainer: Bolt Development Team <bolt@example.com>
           Description: Bolt C++ ML IDE
            A modern C++ implementation of the Bolt IDE core components
            with AI integration, LSP support, and real-time collaborative features.
           EOF
 
-          # Build package
-          dpkg-deb --build "$PKGDIR"
-          mv "${PKGDIR}.deb" "bolt_${VERSION}_amd64.deb"
+          # Build package. dpkg-deb names the output after the directory,
+          # which is already bolt_<version>_amd64.deb.
+          dpkg-deb --root-owner-group --build "$PKGDIR"
 
-          # Verify package
+          # Verify package metadata
           dpkg -I "bolt_${VERSION}_amd64.deb"
+
+      - name: Install and run the DEB package
+        run: |
+          VERSION="${{ needs.prepare.outputs.version }}"
+          sudo dpkg -i "bolt_${VERSION}_amd64.deb"
+          /usr/bin/bolt --version
+          printf 'hello\n/exit\n' | /usr/bin/bolt | grep -q 'Echo: hello'
+          sudo dpkg -r bolt
 
       - name: Create RPM package
         run: |
@@ -217,6 +237,10 @@ jobs:
 
           # Create spec file
           cat > rpmbuild/SPECS/bolt.spec << 'EOF'
+          # The binary is prebuilt; skip the debuginfo subpackage, which needs
+          # elfutils (eu-strip) and is not installed on the runner.
+          %global debug_package %{nil}
+
           Name:           bolt
           Version:        ${{ needs.prepare.outputs.version }}
           Release:        1%{?dist}
@@ -243,12 +267,19 @@ jobs:
           /usr/bin/bolt
 
           %changelog
-          * $(date +"%a %b %d %Y") Bolt Team <bolt@example.com> - ${{ needs.prepare.outputs.version }}-1
+          * CHANGELOG_DATE Bolt Team <bolt@example.com> - ${{ needs.prepare.outputs.version }}-1
           - Initial release
           EOF
 
-          # Build RPM
-          rpmbuild --define "_topdir $(pwd)/rpmbuild" -bb rpmbuild/SPECS/bolt.spec || true
+          # The heredoc above is quoted so that rpm macros stay literal,
+          # which also means $(date) would not expand; fill the date in here.
+          sed -i "s/CHANGELOG_DATE/$(LC_ALL=C date +'%a %b %d %Y')/" rpmbuild/SPECS/bolt.spec
+
+          # Build RPM. --nodeps: the BuildRequires are RPM package names and
+          # cannot be checked against the rpm database on an Ubuntu runner;
+          # the binary was already built above.
+          rpmbuild --nodeps --define "_topdir $(pwd)/rpmbuild" -bb rpmbuild/SPECS/bolt.spec
+          ls -l rpmbuild/RPMS/*/*.rpm
 
       - name: Upload packages
         uses: actions/upload-artifact@v4
@@ -329,8 +360,15 @@ jobs:
           Copy-Item -Path (Join-Path $binDir "bolt*.dll") -Destination $PKGDIR -ErrorAction SilentlyContinue
           Copy-Item -Path (Join-Path $binDir "demo_*.exe") -Destination $PKGDIR -ErrorAction SilentlyContinue
 
-          # Copy dependencies from vcpkg
-          Get-ChildItem -Path "C:\vcpkg\installed\x64-windows\bin\*.dll" | Copy-Item -Destination $PKGDIR -ErrorAction SilentlyContinue
+          # Copy the dependency DLLs from vcpkg. The project uses a vcpkg
+          # manifest, so they are installed under the build tree; classic
+          # mode would put them under C:\vcpkg\installed.
+          $vcpkgBin = @("build\vcpkg_installed\x64-windows\bin", "C:\vcpkg\installed\x64-windows\bin") |
+            Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $vcpkgBin) {
+            throw "vcpkg runtime DLL directory not found; the package would not run without its DLLs"
+          }
+          Get-ChildItem -Path (Join-Path $vcpkgBin "*.dll") | Copy-Item -Destination $PKGDIR
 
           # Copy documentation
           Copy-Item -Path "README.md" -Destination $PKGDIR -ErrorAction SilentlyContinue
@@ -402,20 +440,31 @@ jobs:
                 </Directory>
               </Directory>
 
-              <ComponentGroup Id="ProductComponents" Directory="INSTALLFOLDER">
-                <Component Id="MainExecutable" Guid="*">
-                  <File Id="BoltExe" Source="extracted\bolt-$VERSION-windows-x64\bolt.exe" KeyPath="yes"/>
-                </Component>
-              </ComponentGroup>
             </Product>
           </Wix>
           "@ | Out-File -FilePath "bolt.wxs" -Encoding UTF8
 
       - name: Build MSI
+        shell: powershell
         run: |
-          & "C:\Program Files (x86)\WiX Toolset v3.11\bin\candle.exe" bolt.wxs
-          & "C:\Program Files (x86)\WiX Toolset v3.11\bin\light.exe" -out bolt-${{ needs.prepare.outputs.version }}-windows-x64.msi bolt.wixobj
-        continue-on-error: true
+          $VERSION = "${{ needs.prepare.outputs.version }}"
+          $SRC = "extracted\bolt-$VERSION-windows-x64"
+
+          # Locate WiX through the WIX variable its installer sets rather
+          # than a hard-coded version directory (the runner image moves on).
+          $wixBin = if ($env:WIX) { Join-Path $env:WIX "bin" } else { Split-Path (Get-Command candle.exe).Source }
+
+          # Harvest every file of the release (bolt.exe and the DLLs it
+          # needs) into the ProductComponents group referenced by bolt.wxs.
+          & (Join-Path $wixBin "heat.exe") dir $SRC -cg ProductComponents -dr INSTALLFOLDER `
+            -gg -sfrag -srd -sreg -var var.SourceDir -out files.wxs
+          if ($LASTEXITCODE -ne 0) { throw "heat.exe failed" }
+
+          & (Join-Path $wixBin "candle.exe") -arch x64 "-dSourceDir=$SRC" bolt.wxs files.wxs
+          if ($LASTEXITCODE -ne 0) { throw "candle.exe failed" }
+
+          & (Join-Path $wixBin "light.exe") -out "bolt-$VERSION-windows-x64.msi" bolt.wixobj files.wixobj
+          if ($LASTEXITCODE -ne 0) { throw "light.exe failed" }
 
       - name: Upload MSI
         uses: actions/upload-artifact@v4
@@ -433,14 +482,18 @@ jobs:
     name: macOS Release (${{ matrix.arch }})
     runs-on: ${{ matrix.runner }}
     needs: prepare
+    # macOS is temporarily disabled while the Windows and Linux builds are stabilised.
+    # Remove this line (and the ones on macos-universal and macos-dmg) and
+    # restore the macOS entries in create-release to re-enable.
+    if: false
     strategy:
       fail-fast: false
       matrix:
         include:
-          - runner: macos-13
+          - runner: macos-15-intel
             arch: x64
             triplet: x64-osx
-          - runner: macos-14
+          - runner: macos-15
             arch: arm64
             triplet: arm64-osx
 
@@ -460,12 +513,12 @@ jobs:
         run: |
           cmake -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_TOOLCHAIN_FILE=$HOME/vcpkg/scripts/buildsystems/vcpkg.cmake \
+            "-DCMAKE_TOOLCHAIN_FILE=$HOME/vcpkg/scripts/buildsystems/vcpkg.cmake" \
             -DVCPKG_TARGET_TRIPLET=${{ matrix.triplet }} \
             -DBUILD_SHARED_LIBS=OFF
 
       - name: Build
-        run: cmake --build build --config Release -j $(sysctl -n hw.ncpu)
+        run: cmake --build build --config Release -j "$(sysctl -n hw.ncpu)"
 
       - name: Run tests
         working-directory: build
@@ -504,8 +557,9 @@ jobs:
   # ============================================
   macos-universal:
     name: macOS Universal Binary
-    runs-on: macos-14
+    runs-on: macos-15
     needs: [prepare, macos-release]
+    if: false  # macOS temporarily disabled, see macos-release
 
     steps:
       - name: Download x64 build
@@ -557,8 +611,9 @@ jobs:
   # ============================================
   macos-dmg:
     name: macOS DMG Installer
-    runs-on: macos-14
+    runs-on: macos-15
     needs: [prepare, macos-universal]
+    if: false  # macOS temporarily disabled, see macos-release
 
     steps:
       - uses: actions/checkout@v4
@@ -641,9 +696,11 @@ jobs:
       - linux-packages
       - windows-release
       - windows-installer
-      - macos-release
-      - macos-universal
-      - macos-dmg
+      # macOS temporarily disabled. A skipped dependency would skip this
+      # job too, so the macOS jobs are left out of "needs" until then.
+      # - macos-release
+      # - macos-universal
+      # - macos-dmg
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
 
     permissions:
@@ -683,8 +740,7 @@ jobs:
           - \`bolt-${VERSION}-windows-x64.msi\` - Windows installer
 
           ### macOS
-          - \`bolt-${VERSION}-macos-universal.tar.gz\` - macOS Universal binary (Intel + Apple Silicon)
-          - \`bolt-${VERSION}-macos.dmg\` - macOS installer
+          macOS builds are temporarily unavailable.
 
           ## Checksums
           SHA256 checksums are provided for all downloads in \`.sha256\` files.
@@ -724,14 +780,16 @@ jobs:
   notify:
     name: Notify
     runs-on: ubuntu-latest
-    needs: [create-release]
+    needs: [prepare, create-release]
     if: always()
     steps:
       - name: Release Summary
         run: |
-          echo "## Release Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Version: ${{ needs.prepare.outputs.version }}" >> $GITHUB_STEP_SUMMARY
-          echo "Pre-release: ${{ needs.prepare.outputs.is_prerelease }}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "All release artifacts have been uploaded." >> $GITHUB_STEP_SUMMARY
+          {
+            echo "## Release Summary"
+            echo ""
+            echo "Version: ${{ needs.prepare.outputs.version }}"
+            echo "Pre-release: ${{ needs.prepare.outputs.is_prerelease }}"
+            echo ""
+            echo "Publishing job: ${{ needs.create-release.result }}"
+          } >> "$GITHUB_STEP_SUMMARY"

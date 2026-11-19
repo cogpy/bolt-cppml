@@ -216,6 +216,9 @@ BOLT_TEST(ChatStoreErrors, MessageValidation) {
     // Valid message should work
     bolt::SimpleChatMessage validMsg("user", "Hello");
     store.addMessage(validMsg); // Should not throw
+    // The store is a process-wide singleton: leave it as we found it so
+    // tests that run afterwards (order varies by toolchain) see defaults.
+    store.clearMessages();
     
     // Invalid messages should throw
     BOLT_ASSERT_THROWS(bolt::StoreException,
@@ -253,6 +256,10 @@ BOLT_TEST(ChatStoreErrors, ThreadSafety) {
     store.setShowChat(false);
     bool showChat = store.getShowChat();
     BOLT_ASSERT_FALSE(showChat);
+
+    // Restore the singleton's defaults for tests that run afterwards.
+    store.setChatStarted(false);
+    store.setShowChat(true);
 }
 
 // ===== Editor Store Error Handling Tests =====
@@ -354,6 +361,9 @@ BOLT_TEST(WorkbenchStoreErrors, ViewValidation) {
     std::string oversizedView(1000, 'x');
     BOLT_ASSERT_THROWS(bolt::StoreException,
         store.setCurrentView(oversizedView));
+
+    // Restore the singleton's default for tests that run afterwards.
+    store.setCurrentView("code");
 }
 
 BOLT_TEST(WorkbenchStoreErrors, FilePathValidation) {
@@ -393,6 +403,10 @@ BOLT_TEST(WorkbenchStoreErrors, ThreadSafety) {
     store.toggleTerminal(true);
     bool terminal = store.getShowTerminal();
     BOLT_ASSERT_TRUE(terminal);
+
+    // Restore the singleton's defaults for tests that run afterwards.
+    store.setShowWorkbench(false);
+    store.toggleTerminal(false);
 }
 
 // ===== Error Recovery Tests =====

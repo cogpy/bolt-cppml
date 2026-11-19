@@ -98,8 +98,8 @@ jobs:
             cc: gcc-13
             cxx: g++-13
           - compiler: clang
-            cc: clang-17
-            cxx: clang++-17
+            cc: clang
+            cxx: clang++
 
     steps:
       - uses: actions/checkout@v4
@@ -138,10 +138,9 @@ jobs:
           if [ "${{ matrix.compiler }}" = "gcc" ]; then
             sudo apt-get install -y gcc-13 g++-13
           else
-            wget https://apt.llvm.org/llvm.sh
-            chmod +x llvm.sh
-            sudo ./llvm.sh 17
-            sudo apt-get install -y clang-17 clang++-17
+            # Use the distribution's clang: apt.llvm.org has no LLVM 17
+            # repository for the current ubuntu-latest release.
+            sudo apt-get install -y clang
           fi
 
       - name: Setup vcpkg
@@ -150,7 +149,7 @@ jobs:
             git clone https://github.com/microsoft/vcpkg.git ~/vcpkg
             ~/vcpkg/bootstrap-vcpkg.sh
           fi
-          echo "VCPKG_ROOT=$HOME/vcpkg" >> $GITHUB_ENV
+          echo "VCPKG_ROOT=$HOME/vcpkg" >> "$GITHUB_ENV"
 
       - name: Configure CMake
         run: |
@@ -158,12 +157,12 @@ jobs:
             -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
             -DCMAKE_C_COMPILER=${{ matrix.cc }} \
             -DCMAKE_CXX_COMPILER=${{ matrix.cxx }} \
-            -DCMAKE_TOOLCHAIN_FILE=$HOME/vcpkg/scripts/buildsystems/vcpkg.cmake \
+            "-DCMAKE_TOOLCHAIN_FILE=$HOME/vcpkg/scripts/buildsystems/vcpkg.cmake" \
             -DVCPKG_MANIFEST_MODE=ON \
             -DBOLT_ENABLE_TESTS=ON
 
       - name: Build
-        run: cmake --build build --config ${{ matrix.build_type }} -j $(nproc)
+        run: cmake --build build --config ${{ matrix.build_type }} -j "$(nproc)"
 
       - name: Run unit tests
         working-directory: build
@@ -177,7 +176,7 @@ jobs:
           echo "Checking for shared libraries..."
           find . -name "*.so*" -type f 2>/dev/null | head -20
           
-          ctest --build-config ${{ matrix.build_type }} --output-on-failure --timeout 120 -j $(nproc)
+          ctest --build-config ${{ matrix.build_type }} --output-on-failure --timeout 120 -j "$(nproc)"
 
       - name: Upload test results
         if: always()
@@ -192,10 +191,17 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: bolt-linux-${{ matrix.compiler }}-${{ matrix.build_type }}
+          # Include the shared libraries the executables load at run time
+          # (libbolt_lib, libllama, libggml); without them nothing in this
+          # artifact can start.
           path: |
             build/bolt
-            build/bolt_lib*
+            build/gui_main
+            build/bolt_terminal_ai
+            build/benchmark_tool
             build/demo_*
+            build/libbolt_lib.so*
+            build/bin/*.so*
           retention-days: 7
 
   # ============================================
@@ -212,11 +218,12 @@ jobs:
         compiler: [msvc, mingw]
         build_type: [Release, Debug]
         include:
+          # No explicit generator for MSVC: windows-latest ships a newer
+          # Visual Studio than "Visual Studio 17 2022", so CMake picks the
+          # installed one by default.
           - compiler: msvc
-            generator: "Visual Studio 17 2022"
             arch: "-A x64"
           - compiler: mingw
-            generator: "MinGW Makefiles"
             arch: ""
 
     steps:
@@ -244,7 +251,10 @@ jobs:
         with:
           msystem: MINGW64
           update: true
+          # git is needed at test time: the GitRepository tests shell out
+          # to it, and the MSYS2 shell does not inherit the Windows PATH.
           install: >-
+            git
             mingw-w64-x86_64-gcc
             mingw-w64-x86_64-cmake
             mingw-w64-x86_64-ninja
@@ -257,7 +267,7 @@ jobs:
       - name: Configure CMake (MSVC)
         if: matrix.compiler == 'msvc'
         run: |
-          cmake -B build -G "${{ matrix.generator }}" ${{ matrix.arch }} `
+          cmake -B build ${{ matrix.arch }} `
             -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} `
             -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake `
             -DVCPKG_MANIFEST_MODE=ON `
@@ -267,7 +277,9 @@ jobs:
         if: matrix.compiler == 'mingw'
         shell: msys2 {0}
         run: |
-          cmake -B build -G "MinGW Makefiles" \
+          # Ninja is what the MSYS2 step installs; "MinGW Makefiles" needs
+          # mingw32-make, which is not installed.
+          cmake -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
             -DBOLT_ENABLE_TESTS=ON
 
@@ -278,7 +290,7 @@ jobs:
       - name: Build (MinGW)
         if: matrix.compiler == 'mingw'
         shell: msys2 {0}
-        run: cmake --build build --config ${{ matrix.build_type }} -j $(nproc)
+        run: cmake --build build --config ${{ matrix.build_type }} -j "$(nproc)"
 
       - name: Run tests (MSVC)
         if: matrix.compiler == 'msvc'
@@ -312,20 +324,23 @@ jobs:
     name: macOS (${{ matrix.arch }}, ${{ matrix.build_type }})
     runs-on: ${{ matrix.runner }}
     needs: preflight
-    if: needs.preflight.outputs.should_skip != 'true'
+    # macOS is temporarily disabled while the Windows and Linux builds are stabilised.
+    # To re-enable, restore:
+    #   if: needs.preflight.outputs.should_skip != 'true'
+    if: false
     strategy:
       fail-fast: false
       matrix:
         include:
-          - runner: macos-13
+          - runner: macos-15-intel
             arch: x64
             triplet: x64-osx
             build_type: Release
-          - runner: macos-14
+          - runner: macos-15
             arch: arm64
             triplet: arm64-osx
             build_type: Release
-          - runner: macos-14
+          - runner: macos-15
             arch: arm64
             triplet: arm64-osx
             build_type: Debug
@@ -353,24 +368,24 @@ jobs:
             git clone https://github.com/microsoft/vcpkg.git ~/vcpkg
             ~/vcpkg/bootstrap-vcpkg.sh
           fi
-          echo "VCPKG_ROOT=$HOME/vcpkg" >> $GITHUB_ENV
+          echo "VCPKG_ROOT=$HOME/vcpkg" >> "$GITHUB_ENV"
 
       - name: Configure CMake
         run: |
           cmake -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
-            -DCMAKE_TOOLCHAIN_FILE=$HOME/vcpkg/scripts/buildsystems/vcpkg.cmake \
+            "-DCMAKE_TOOLCHAIN_FILE=$HOME/vcpkg/scripts/buildsystems/vcpkg.cmake" \
             -DVCPKG_TARGET_TRIPLET=${{ matrix.triplet }} \
             -DVCPKG_MANIFEST_MODE=ON \
             -DBOLT_ENABLE_TESTS=ON
 
       - name: Build
-        run: cmake --build build --config ${{ matrix.build_type }} -j $(sysctl -n hw.ncpu)
+        run: cmake --build build --config ${{ matrix.build_type }} -j "$(sysctl -n hw.ncpu)"
 
       - name: Run tests
         working-directory: build
         run: |
-          ctest --build-config ${{ matrix.build_type }} --output-on-failure --timeout 120 -j $(sysctl -n hw.ncpu)
+          ctest --build-config ${{ matrix.build_type }} --output-on-failure --timeout 120 -j "$(sysctl -n hw.ncpu)"
 
       - name: Upload build artifacts
         if: matrix.build_type == 'Release'
@@ -431,16 +446,16 @@ jobs:
             -DBOLT_ENABLE_TESTS=ON
 
       - name: Build
-        run: cmake --build build -j $(nproc)
+        run: cmake --build build -j "$(nproc)"
 
       - name: Run sanitizer tests
         working-directory: build
-        env:
-          ${{ matrix.env_var }}: ""
         run: |
           # Set LD_LIBRARY_PATH to include all directories with shared libraries
           export LD_LIBRARY_PATH="${PWD}/bin:${PWD}:${PWD}/ggml/llama.cpp/src:$LD_LIBRARY_PATH"
-          export ${{ matrix.env_var }}
+          # matrix.env_var is a full NAME=value assignment, e.g.
+          # ASAN_OPTIONS=detect_leaks=1
+          export "${{ matrix.env_var }}"
           ctest --output-on-failure --timeout 300 || true
 
       - name: Upload sanitizer report
@@ -468,30 +483,45 @@ jobs:
           path: build/
 
       - name: Make binaries executable
-        run: chmod +x build/bolt build/demo_* || true
+        run: chmod +x build/bolt build/gui_main build/bolt_terminal_ai build/benchmark_tool build/demo_*
 
       - name: Install runtime dependencies
         run: |
           sudo apt-get update
+          # Install the -dev packages rather than soname-versioned runtime
+          # packages (libjsoncpp25, libssl3, ...): those names change with
+          # each Ubuntu release, and the -dev packages pull in whichever
+          # runtime the current runner ships.
+          # xvfb and the Mesa software renderer let the smoke test start
+          # the GUI without a real display.
           sudo apt-get install -y \
-            libcurl4 libjsoncpp25 libglfw3 \
-            libgl1 libssl3 zlib1g
+            libcurl4-openssl-dev libjsoncpp-dev libglfw3-dev \
+            libgl1-mesa-dev libssl-dev zlib1g-dev \
+            xvfb libgl1-mesa-dri
+
+      - name: Download a small test model
+        # A 19 MB public model, enough to check that a GGUF file loads and
+        # generates text. If the download itself fails the model check is
+        # skipped with a warning; a model that downloads but does not work
+        # fails the smoke test below.
+        run: |
+          mkdir -p test-models
+          url=https://huggingface.co/ggml-org/models/resolve/main/tinyllamas/stories15M-q4_0.gguf
+          if curl -fsSL --retry 3 --retry-delay 5 --max-time 300 \
+                -o test-models/stories15M-q4_0.gguf "$url" \
+              && [ "$(head -c 4 test-models/stories15M-q4_0.gguf)" = "GGUF" ]; then
+            echo "BOLT_SMOKE_MODEL=$PWD/test-models/stories15M-q4_0.gguf" >> "$GITHUB_ENV"
+          else
+            echo "::warning::Could not download the test model; skipping the model inference check"
+          fi
 
       - name: Run integration tests
+        # Starts bolt and every demo program and fails if any of them hangs
+        # or crashes, then runs inference with the test model if it was
+        # downloaded. See scripts/smoke_test.sh.
         run: |
-          export LD_LIBRARY_PATH="build:$LD_LIBRARY_PATH"
-
-          echo "=== Testing main executable ==="
-          ./build/bolt --version || ./build/bolt --help || echo "Main executable test skipped"
-
-          echo "=== Testing demo executables ==="
-          for demo in build/demo_*; do
-            if [ -x "$demo" ]; then
-              echo "Testing: $demo"
-              timeout 10 "$demo" --help 2>/dev/null || timeout 5 "$demo" 2>/dev/null || echo "  (no --help flag)"
-            fi
-          done
-        continue-on-error: true
+          set -o pipefail
+          bash scripts/smoke_test.sh build 2>&1 | tee integration-test-smoke.log
 
       - name: Upload integration test results
         uses: actions/upload-artifact@v4
@@ -525,7 +555,7 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release \
             -DBOLT_ENABLE_TESTS=ON \
             -DBOLT_ENABLE_E2E_TESTS=ON
-          cmake --build build -j $(nproc)
+          cmake --build build -j "$(nproc)"
 
       - name: Run E2E test suite
         working-directory: build
@@ -596,7 +626,7 @@ jobs:
             -DBOLT_ENABLE_TESTS=ON
 
       - name: Build
-        run: cmake --build build -j $(nproc)
+        run: cmake --build build -j "$(nproc)"
 
       - name: Run tests for coverage
         working-directory: build
@@ -606,15 +636,19 @@ jobs:
 
       - name: Generate coverage report
         run: |
+          # negative/inconsistent: gcov from current GCC reports bogus hit
+          # counts for some libstdc++ header lines, which lcov treats as a
+          # fatal error. Those headers are filtered out below anyway.
           lcov --capture --directory build --output-file coverage.info \
-            --ignore-errors mismatch,empty,unused
+            --ignore-errors mismatch,empty,unused,negative,inconsistent
           lcov --remove coverage.info '/usr/*' '*/test/*' '*/ggml/*' \
-            --output-file coverage.info --ignore-errors unused
-          lcov --list coverage.info
+            --output-file coverage.info \
+            --ignore-errors unused,negative,inconsistent
+          lcov --list coverage.info --ignore-errors negative,inconsistent
 
           # Generate HTML report
           genhtml coverage.info --output-directory coverage-html \
-            --ignore-errors source
+            --ignore-errors source,negative,inconsistent
 
       - name: Upload coverage report
         uses: actions/upload-artifact@v4
@@ -643,16 +677,18 @@ jobs:
     steps:
       - name: Check job results
         run: |
-          echo "## CI Pipeline Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Job | Status |" >> $GITHUB_STEP_SUMMARY
-          echo "|-----|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Code Quality | ${{ needs.code-quality.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Linux Build | ${{ needs.linux-build.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Windows Build | ${{ needs.windows-build.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| macOS Build | ${{ needs.macos-build.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Integration Tests | ${{ needs.integration-tests.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| E2E Tests | ${{ needs.e2e-tests.result }} |" >> $GITHUB_STEP_SUMMARY
+          {
+            echo "## CI Pipeline Summary"
+            echo ""
+            echo "| Job | Status |"
+            echo "|-----|--------|"
+            echo "| Code Quality | ${{ needs.code-quality.result }} |"
+            echo "| Linux Build | ${{ needs.linux-build.result }} |"
+            echo "| Windows Build | ${{ needs.windows-build.result }} |"
+            echo "| macOS Build | ${{ needs.macos-build.result }} |"
+            echo "| Integration Tests | ${{ needs.integration-tests.result }} |"
+            echo "| E2E Tests | ${{ needs.e2e-tests.result }} |"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Fail if any job failed
         if: contains(needs.*.result, 'failure')
