@@ -115,6 +115,32 @@ if(NOT IMGUI_FOUND)
     find_package(ImGui QUIET)
     set(IMGUI_FOUND ${ImGui_FOUND})
     if(NOT IMGUI_FOUND)
+        # Distribution packages (Debian/Ubuntu libimgui-dev) ship the headers,
+        # the backends and a library, but no CMake package config. Without
+        # this fallback the GUI is silently left out of every build that
+        # uses system packages instead of vcpkg.
+        find_path(BOLT_IMGUI_INCLUDE_DIR imgui.h PATH_SUFFIXES imgui)
+        find_path(BOLT_IMGUI_BACKENDS_DIR imgui_impl_glfw.h
+            PATH_SUFFIXES imgui/backends imgui)
+        find_library(BOLT_IMGUI_LIBRARY NAMES imgui)
+        if(BOLT_IMGUI_INCLUDE_DIR AND BOLT_IMGUI_BACKENDS_DIR AND BOLT_IMGUI_LIBRARY)
+            add_library(imgui::imgui UNKNOWN IMPORTED)
+            set_target_properties(imgui::imgui PROPERTIES
+                IMPORTED_LOCATION "${BOLT_IMGUI_LIBRARY}"
+                INTERFACE_INCLUDE_DIRECTORIES "${BOLT_IMGUI_INCLUDE_DIR};${BOLT_IMGUI_BACKENDS_DIR}"
+            )
+            # The Debian build of ImGui uses the system stb library for its
+            # font and rectangle packing code instead of bundling it.
+            find_library(BOLT_STB_LIBRARY NAMES stb)
+            if(BOLT_STB_LIBRARY)
+                set_property(TARGET imgui::imgui APPEND PROPERTY
+                    INTERFACE_LINK_LIBRARIES "${BOLT_STB_LIBRARY}")
+            endif()
+            set(IMGUI_FOUND TRUE)
+            message(STATUS "Found ImGui (system package): ${BOLT_IMGUI_LIBRARY}")
+        endif()
+    endif()
+    if(NOT IMGUI_FOUND)
         message(WARNING "ImGui not found - GUI components will be disabled")
         set(IMGUI_FOUND FALSE)
     endif()

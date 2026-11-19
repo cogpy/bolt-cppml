@@ -7,7 +7,8 @@
 # A program fails the smoke test if it hangs (timeout) or dies from a signal.
 # A demo that exits with an ordinary non-zero status is reported but not
 # treated as a failure, because several demos need tools that may not be
-# installed (clangd, a model file, a display).
+# installed (clangd, a model file). GUI programs are started under xvfb when
+# there is no display and must stay up for a few seconds.
 
 set -u
 
@@ -68,21 +69,35 @@ fi
 
 echo "== demo programs =="
 
-# Programs that open a window and cannot run on a machine without a display.
-needs_display="demo_widget_framework gui_main"
+# Programs that open a window. They are run under a virtual display when no
+# real one is available, and are expected to keep running until stopped.
+gui_programs="demo_lsp_ui_integration demo_widget_framework gui_main"
+GUI_SECS="${SMOKE_GUI_SECS:-10}"
 
-for prog in "$BUILD_DIR"/demo_* "$BUILD_DIR"/bolt_terminal_ai "$BUILD_DIR"/benchmark_tool; do
+for prog in "$BUILD_DIR"/demo_* "$BUILD_DIR"/bolt_terminal_ai "$BUILD_DIR"/benchmark_tool "$BUILD_DIR"/gui_main; do
     if [ ! -f "$prog" ] || [ ! -x "$prog" ]; then
         continue
     fi
     name="$(basename "$prog")"
 
-    case " $needs_display " in
+    case " $gui_programs " in
         *" $name "*)
-            if [ -z "${DISPLAY:-}" ] && [ -z "${WAYLAND_DISPLAY:-}" ]; then
-                echo "  skip  $name (needs a display)"
+            if [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ]; then
+                timeout "$GUI_SECS" "$prog" </dev/null >/dev/null 2>&1; rc=$?
+            elif command -v xvfb-run >/dev/null 2>&1; then
+                LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a timeout "$GUI_SECS" "$prog" </dev/null >/dev/null 2>&1; rc=$?
+            else
+                echo "  skip  $name (needs a display; install xvfb to test it headlessly)"
                 continue
             fi
+            # 124 means it was still running when the time was up, which is
+            # what a healthy GUI does; 0 means it closed by itself.
+            if [ "$rc" -eq 124 ] || [ "$rc" -eq 0 ]; then
+                pass "$name (GUI started and stayed up for ${GUI_SECS}s)"
+            else
+                fail "$name GUI exited with status $rc"
+            fi
+            continue
             ;;
     esac
 

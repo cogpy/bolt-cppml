@@ -196,6 +196,7 @@ jobs:
           # artifact can start.
           path: |
             build/bolt
+            build/gui_main
             build/bolt_terminal_ai
             build/benchmark_tool
             build/demo_*
@@ -482,7 +483,7 @@ jobs:
           path: build/
 
       - name: Make binaries executable
-        run: chmod +x build/bolt build/bolt_terminal_ai build/benchmark_tool build/demo_*
+        run: chmod +x build/bolt build/gui_main build/bolt_terminal_ai build/benchmark_tool build/demo_*
 
       - name: Install runtime dependencies
         run: |
@@ -491,9 +492,12 @@ jobs:
           # packages (libjsoncpp25, libssl3, ...): those names change with
           # each Ubuntu release, and the -dev packages pull in whichever
           # runtime the current runner ships.
+          # xvfb and the Mesa software renderer let the smoke test start
+          # the GUI without a real display.
           sudo apt-get install -y \
             libcurl4-openssl-dev libjsoncpp-dev libglfw3-dev \
-            libgl1-mesa-dev libssl-dev zlib1g-dev
+            libgl1-mesa-dev libssl-dev zlib1g-dev \
+            xvfb libgl1-mesa-dri
 
       - name: Run integration tests
         # Starts bolt and every demo program and fails if any of them hangs
