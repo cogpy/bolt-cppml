@@ -2,6 +2,8 @@
 
 #ifdef BOLT_HAVE_IMGUI
 #include <imgui.h>
+
+#include <cstdint>
 #endif
 
 #include <algorithm>

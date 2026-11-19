@@ -1,3 +1,5 @@
+#include <cstdint>
+
 #include "bolt/core/chat_store.hpp"
 #include "bolt/core/editor_store.hpp"
 #include "bolt/core/error_handling.hpp"

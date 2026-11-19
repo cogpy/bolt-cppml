@@ -1,6 +1,7 @@
 #include "bolt/ai/ggml_loader.hpp"
 
 #include <algorithm>
+#include <cstdint>
 #include <cstring>
 #include <iostream>
 

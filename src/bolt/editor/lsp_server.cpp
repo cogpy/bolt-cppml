@@ -1,6 +1,7 @@
 #include "bolt/editor/lsp_server.hpp"
 
 #include <algorithm>
+#include <cstdint>
 #include <sstream>
 
 #include "bolt/editor/lsp_protocol.hpp"

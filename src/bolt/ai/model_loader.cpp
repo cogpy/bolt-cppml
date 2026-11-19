@@ -1,5 +1,6 @@
 #include "bolt/ai/model_loader.hpp"
 
+#include <cstdint>
 #include <fstream>
 #include <iostream>
 

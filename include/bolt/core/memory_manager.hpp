@@ -3,6 +3,7 @@
 #define BOLT_CORE_MEMORY_MANAGER_HPP_
 
 #include <cstddef>
+#include <cstdint>
 #include <cstdlib>
 #include <memory>
 #include <mutex>

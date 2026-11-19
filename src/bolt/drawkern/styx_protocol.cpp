@@ -1,5 +1,6 @@
 #include "bolt/drawkern/styx_protocol.hpp"
 
+#include <cstdint>
 #include <cstring>
 #include <iostream>
 

@@ -18,6 +18,7 @@
 #include "bolt/ai/gpu_acceleration.hpp"
 #endif
 
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <vector>

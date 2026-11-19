@@ -1,5 +1,6 @@
 #include "bolt/editor/lsp_plugin_adapter.hpp"
 
+#include <cstdint>
 #include <fstream>
 #include <sstream>
 

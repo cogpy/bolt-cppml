@@ -1,6 +1,7 @@
 #include "bolt/ai/gguf_loader.hpp"
 
 #include <algorithm>
+#include <cstdint>
 #include <cstring>
 #include <iostream>
 

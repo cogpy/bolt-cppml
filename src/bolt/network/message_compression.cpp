@@ -1,6 +1,7 @@
 #include "bolt/network/message_compression.hpp"
 
 #include <algorithm>
+#include <cstdint>
 #include <cstring>
 #include <iostream>
 

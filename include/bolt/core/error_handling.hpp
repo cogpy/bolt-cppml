@@ -1,6 +1,7 @@
 #ifndef BOLT_CORE_ERROR_HANDLING_HPP_
 #define BOLT_CORE_ERROR_HANDLING_HPP_
 
+#include <cstdint>
 #include <stdexcept>
 #include <string>
 #include <system_error>

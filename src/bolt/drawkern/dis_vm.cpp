@@ -1,6 +1,7 @@
 #include "bolt/drawkern/dis_vm.hpp"
 
 #include <algorithm>
+#include <cstdint>
 #include <iostream>
 #include <regex>
 #include <sstream>

@@ -1,6 +1,7 @@
 #include "bolt/drawkern/drawkern.hpp"
 
 #include <chrono>
+#include <cstdint>
 #include <iostream>
 #include <sstream>
 #include <thread>
