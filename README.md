@@ -99,6 +99,12 @@ copied to other machines. For a build you will only run locally, add
 After building, `scripts/smoke_test.sh <build-dir>` starts `bolt` and every
 demo program and reports any that hang or crash.
 
+To use a local model, put a GGUF file in `./models` (or
+`~/.local/share/bolt/models`) and start `bolt_terminal_ai` or
+`demo_direct_gguf` from that directory; the first model found is loaded.
+`BOLT_SMOKE_MODEL=/path/to/model.gguf scripts/smoke_test.sh <build-dir>`
+adds a check that the model loads and generates text.
+
 ### Package Manager Integration Features
 
 - **🔧 Multi-Manager Support**: vcpkg (primary), Conan (alternative), system packages (fallback)

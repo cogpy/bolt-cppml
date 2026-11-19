@@ -499,9 +499,26 @@ jobs:
             libgl1-mesa-dev libssl-dev zlib1g-dev \
             xvfb libgl1-mesa-dri
 
+      - name: Download a small test model
+        # A 19 MB public model, enough to check that a GGUF file loads and
+        # generates text. If the download itself fails the model check is
+        # skipped with a warning; a model that downloads but does not work
+        # fails the smoke test below.
+        run: |
+          mkdir -p test-models
+          url=https://huggingface.co/ggml-org/models/resolve/main/tinyllamas/stories15M-q4_0.gguf
+          if curl -fsSL --retry 3 --retry-delay 5 --max-time 300 \
+                -o test-models/stories15M-q4_0.gguf "$url" \
+              && [ "$(head -c 4 test-models/stories15M-q4_0.gguf)" = "GGUF" ]; then
+            echo "BOLT_SMOKE_MODEL=$PWD/test-models/stories15M-q4_0.gguf" >> "$GITHUB_ENV"
+          else
+            echo "::warning::Could not download the test model; skipping the model inference check"
+          fi
+
       - name: Run integration tests
         # Starts bolt and every demo program and fails if any of them hangs
-        # or crashes. See scripts/smoke_test.sh.
+        # or crashes, then runs inference with the test model if it was
+        # downloaded. See scripts/smoke_test.sh.
         run: |
           set -o pipefail
           bash scripts/smoke_test.sh build 2>&1 | tee integration-test-smoke.log

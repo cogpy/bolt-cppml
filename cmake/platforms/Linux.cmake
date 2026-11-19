@@ -128,9 +128,13 @@ set(CPACK_RPM_PACKAGE_REQUIRES "libcurl >= 7.0, jsoncpp >= 1.9, glfw >= 3.3, mes
 set(CPACK_RPM_PACKAGE_GROUP "Development/Tools")
 set(CPACK_RPM_PACKAGE_LICENSE "MIT")
 
-# Runtime library paths
+# Runtime library paths. The same relocatable rpath is used in the build tree
+# and after install: $ORIGIN and $ORIGIN/bin let programs run straight from the
+# build directory (libbolt_lib.so sits next to them, llama.cpp's libraries in
+# bin/) and from an unpacked tarball; $ORIGIN/../lib covers an installed
+# bin/ + lib/ layout.
 set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
-set(CMAKE_INSTALL_RPATH "\$ORIGIN/../lib:\$ORIGIN/lib:/usr/local/lib")
+set(CMAKE_INSTALL_RPATH "\$ORIGIN:\$ORIGIN/bin:\$ORIGIN/../lib:\$ORIGIN/lib:/usr/local/lib")
 
 # Distribution-specific optimizations
 if(LINUX_DISTRO MATCHES "ubuntu|debian")

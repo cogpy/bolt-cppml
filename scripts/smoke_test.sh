@@ -9,6 +9,9 @@
 # treated as a failure, because several demos need tools that may not be
 # installed (clangd, a model file). GUI programs are started under xvfb when
 # there is no display and must stay up for a few seconds.
+#
+# Set BOLT_SMOKE_MODEL=/path/to/model.gguf to also load a real model and
+# generate text with it.
 
 set -u
 
@@ -21,11 +24,22 @@ if [ ! -x "$BUILD_DIR/bolt" ]; then
 fi
 
 BUILD_DIR="$(cd "$BUILD_DIR" && pwd)"
-export LD_LIBRARY_PATH="$BUILD_DIR:$BUILD_DIR/bin:${LD_LIBRARY_PATH:-}"
 
 failures=0
 pass() { echo "  ok    $1"; }
 fail() { echo "  FAIL  $1"; failures=$((failures + 1)); }
+
+echo "== shared libraries =="
+
+# The programs must find their own libraries from the build tree without any
+# help from the environment, so this check runs before LD_LIBRARY_PATH is set.
+if out="$(env -u LD_LIBRARY_PATH timeout "$TIMEOUT_SECS" "$BUILD_DIR/bolt" --version 2>&1)"; then
+    pass "bolt starts without LD_LIBRARY_PATH"
+else
+    fail "bolt does not start without LD_LIBRARY_PATH: $out"
+fi
+
+export LD_LIBRARY_PATH="$BUILD_DIR:$BUILD_DIR/bin:${LD_LIBRARY_PATH:-}"
 
 echo "== bolt command line =="
 
@@ -112,6 +126,36 @@ for prog in "$BUILD_DIR"/demo_* "$BUILD_DIR"/bolt_terminal_ai "$BUILD_DIR"/bench
         echo "  note  $name exited $rc (usually a missing optional tool)"
     fi
 done
+
+# Optional: real inference with a GGUF model. Set BOLT_SMOKE_MODEL to a model
+# file; the program looks for models in ./models, so it is run from a scratch
+# directory that has the model linked there.
+if [ -n "${BOLT_SMOKE_MODEL:-}" ]; then
+    echo "== model inference =="
+    if [ ! -f "$BOLT_SMOKE_MODEL" ]; then
+        fail "BOLT_SMOKE_MODEL=$BOLT_SMOKE_MODEL does not exist"
+    elif [ ! -x "$BUILD_DIR/demo_direct_gguf" ]; then
+        fail "demo_direct_gguf is not built, cannot test model inference"
+    else
+        model_path="$(cd "$(dirname "$BOLT_SMOKE_MODEL")" && pwd)/$(basename "$BOLT_SMOKE_MODEL")"
+        work_dir="$(mktemp -d)"
+        mkdir -p "$work_dir/models"
+        ln -s "$model_path" "$work_dir/models/$(basename "$model_path")"
+        out="$(cd "$work_dir" && timeout "${SMOKE_MODEL_TIMEOUT:-300}" "$BUILD_DIR/demo_direct_gguf" </dev/null 2>&1)"; rc=$?
+        rm -rf "$work_dir"
+        if [ "$rc" -ne 0 ]; then
+            fail "model inference exited $rc"
+        elif ! printf '%s' "$out" | grep -q 'Model loaded successfully'; then
+            fail "model was not loaded"
+        elif ! printf '%s' "$out" | grep -q 'Current provider: direct_gguf'; then
+            fail "AI manager did not switch to the loaded model"
+        elif printf '%s' "$out" | grep -q 'Failed: [1-9]'; then
+            fail "model inference reported failed requests"
+        else
+            pass "model loads and generates text ($(basename "$model_path"))"
+        fi
+    fi
+fi
 
 echo
 if [ "$failures" -eq 0 ]; then

@@ -10,6 +10,14 @@ option(BOLT_ENABLE_INTEGRATION_TESTS "Enable integration tests" ON)
 option(BOLT_ENABLE_UNIT_TESTS "Enable unit tests" ON)
 option(BOLT_ENABLE_PERFORMANCE_TESTS "Enable performance tests" OFF)
 
+# Test programs are built into <build>/test and are not installed, so on Linux
+# point their rpath at the build root (libbolt_lib.so) and <build>/bin
+# (llama.cpp's libraries). They can then be run directly, e.g.
+# ./test/bolt_unit_tests, without setting LD_LIBRARY_PATH.
+if(UNIX AND NOT APPLE)
+    set(CMAKE_INSTALL_RPATH "\$ORIGIN/..:\$ORIGIN/../bin")
+endif()
+
 # Find if GoogleTest is available
 find_package(GTest QUIET)
 
