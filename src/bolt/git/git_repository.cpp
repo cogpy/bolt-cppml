@@ -1,24 +1,24 @@
 #include "bolt/git/git_repository.hpp"
-#include <cstdlib>
-#include <iostream>
-#include <sstream>
-#include <filesystem>
-#include <fstream>
+
 #include <algorithm>
 #include <cstdio>
+#include <cstdlib>
+#include <filesystem>
+#include <fstream>
+#include <iostream>
 #include <memory>
+#include <sstream>
 #include <stdexcept>
 
 #ifdef _WIN32
-    #define popen _popen
-    #define pclose _pclose
+#define popen _popen
+#define pclose _pclose
 #endif
 
 namespace bolt {
 namespace git {
 
-GitRepository::GitRepository(const std::string& repositoryPath) 
-    : repositoryPath_(repositoryPath) {
+GitRepository::GitRepository(const std::string& repositoryPath) : repositoryPath_(repositoryPath) {
     if (repositoryPath_.empty()) {
         repositoryPath_ = std::filesystem::current_path().string();
     }
@@ -33,7 +33,7 @@ std::string GitRepository::getRepositoryRoot() const {
     if (!cachedRepositoryRoot_.empty()) {
         return cachedRepositoryRoot_;
     }
-    
+
     auto [success, output] = executeGitCommand({"rev-parse", "--show-toplevel"});
     if (success && !output.empty()) {
         // Remove trailing newline
@@ -43,7 +43,7 @@ std::string GitRepository::getRepositoryRoot() const {
         cachedRepositoryRoot_ = output;
         return output;
     }
-    
+
     return "";
 }
 
@@ -81,7 +81,7 @@ std::optional<GitFileInfo> GitRepository::getFileStatus(const std::string& fileP
     if (!success || output.empty()) {
         return std::nullopt;
     }
-    
+
     auto files = parseStatusOutput(output);
     if (!files.empty()) {
         return files[0];
@@ -92,39 +92,38 @@ std::optional<GitFileInfo> GitRepository::getFileStatus(const std::string& fileP
 bool GitRepository::addFile(const std::string& filePath) {
     std::string relativePath = getRelativePath(filePath);
     auto [success, output] = executeGitCommand({"add", relativePath});
-    
+
     if (statusCallback_) {
         statusCallback_(success, success ? "Added: " + relativePath : "Failed to add: " + output);
     }
-    
+
     return success;
 }
 
 bool GitRepository::addAll() {
     auto [success, output] = executeGitCommand({"add", "."});
-    
+
     if (statusCallback_) {
         statusCallback_(success, success ? "Added all changes" : "Failed to add all: " + output);
     }
-    
+
     return success;
 }
 
 bool GitRepository::commit(const std::string& message) {
     auto [success, output] = executeGitCommand({"commit", "-m", message});
-    
+
     if (statusCallback_) {
         statusCallback_(success, success ? "Committed: " + message : "Failed to commit: " + output);
     }
-    
+
     return success;
 }
 
 namespace {
 // Arguments for "git push" / "git pull": the branch is only meaningful when a
 // remote is given.
-std::vector<std::string> remoteCommandArgs(const std::string& command,
-                                           const std::string& remote,
+std::vector<std::string> remoteCommandArgs(const std::string& command, const std::string& remote,
                                            const std::string& branch) {
     std::vector<std::string> args = {command};
     if (!remote.empty()) {
@@ -135,25 +134,25 @@ std::vector<std::string> remoteCommandArgs(const std::string& command,
     }
     return args;
 }
-} // namespace
+}  // namespace
 
 bool GitRepository::push(const std::string& remote, const std::string& branch) {
     auto [success, output] = executeGitCommand(remoteCommandArgs("push", remote, branch));
-    
+
     if (statusCallback_) {
         statusCallback_(success, success ? "Pushed to remote" : "Failed to push: " + output);
     }
-    
+
     return success;
 }
 
 bool GitRepository::pull(const std::string& remote, const std::string& branch) {
     auto [success, output] = executeGitCommand(remoteCommandArgs("pull", remote, branch));
-    
+
     if (statusCallback_) {
         statusCallback_(success, success ? "Pulled from remote" : "Failed to pull: " + output);
     }
-    
+
     return success;
 }
 
@@ -168,7 +167,7 @@ std::vector<std::string> GitRepository::getCommitLog(int limit) const {
     if (!success) {
         return {};
     }
-    
+
     std::vector<std::string> commits;
     std::istringstream iss(output);
     std::string line;
@@ -187,22 +186,22 @@ bool GitRepository::hasUncommittedChanges() const {
 
 GitRepository::RemoteStatus GitRepository::getRemoteStatus() const {
     RemoteStatus status;
-    
+
     // Check if we have a remote
     auto [hasRemote, remoteOutput] = executeGitCommand({"remote"});
     status.hasRemote = hasRemote && !remoteOutput.empty();
-    
+
     if (!status.hasRemote) {
         return status;
     }
-    
+
     // Get ahead/behind info
     auto [success, output] = executeGitCommand({"rev-list", "--left-right", "--count", "HEAD...@{upstream}"});
     if (success && !output.empty()) {
         std::istringstream iss(output);
         iss >> status.ahead >> status.behind;
     }
-    
+
     return status;
 }
 
@@ -223,18 +222,18 @@ std::pair<bool, std::string> GitRepository::executeGitCommand(const std::vector<
 #else
     command += " 2>/dev/null";
 #endif
-    
+
     FILE* rawPipe = popen(command.c_str(), "r");
     if (!rawPipe) {
         return {false, "Failed to execute git command"};
     }
-    
+
     std::string result;
     char buffer[128];
     while (fgets(buffer, sizeof(buffer), rawPipe) != nullptr) {
         result += buffer;
     }
-    
+
     int exitCode = pclose(rawPipe);
     return {exitCode == 0, result};
 }
@@ -243,16 +242,17 @@ std::vector<GitFileInfo> GitRepository::parseStatusOutput(const std::string& out
     std::vector<GitFileInfo> files;
     std::istringstream iss(output);
     std::string line;
-    
+
     while (std::getline(iss, line)) {
-        if (line.length() < 3) continue;
-        
+        if (line.length() < 3)
+            continue;
+
         char indexStatus = line[0];
         char workingTreeStatus = line[1];
         std::string filePath = line.substr(3);
-        
+
         GitFileStatus status = GitFileStatus::CLEAN;
-        
+
         // Parse Git porcelain status format
         if (indexStatus == '?' && workingTreeStatus == '?') {
             status = GitFileStatus::UNTRACKED;
@@ -271,7 +271,7 @@ std::vector<GitFileInfo> GitRepository::parseStatusOutput(const std::string& out
         } else if (indexStatus == 'C' || workingTreeStatus == 'C') {
             status = GitFileStatus::COPIED;
         }
-        
+
         // Handle renames (format: "R  old_name -> new_name")
         size_t arrowPos = filePath.find(" -> ");
         if (status == GitFileStatus::RENAMED && arrowPos != std::string::npos) {
@@ -282,7 +282,7 @@ std::vector<GitFileInfo> GitRepository::parseStatusOutput(const std::string& out
             files.emplace_back(filePath, status);
         }
     }
-    
+
     return files;
 }
 
@@ -290,45 +290,46 @@ std::vector<GitBranchInfo> GitRepository::parseBranchOutput(const std::string& o
     std::vector<GitBranchInfo> branches;
     std::istringstream iss(output);
     std::string line;
-    
+
     while (std::getline(iss, line)) {
-        if (line.empty()) continue;
-        
+        if (line.empty())
+            continue;
+
         bool isCurrent = false;
         bool isRemote = false;
         std::string branchName;
-        
+
         // Check if this is the current branch (marked with *)
         if (line.length() > 0 && line[0] == '*') {
             isCurrent = true;
-            line = line.substr(1); // Remove the *
+            line = line.substr(1);  // Remove the *
         }
-        
+
         // Remove leading whitespace
         size_t nameStart = line.find_first_not_of(" ");
         if (nameStart != std::string::npos) {
             branchName = line.substr(nameStart);
-            
+
             // Remove any trailing whitespace
             size_t nameEnd = branchName.find_last_not_of(" \t\r\n");
             if (nameEnd != std::string::npos) {
                 branchName = branchName.substr(0, nameEnd + 1);
             }
-            
+
             // Check if it's a remote branch
             if (branchName.find("remotes/") == 0) {
                 isRemote = true;
                 // Keep the full remote branch name for clarity
             }
         }
-        
+
         if (!branchName.empty()) {
             GitBranchInfo branch(branchName, isCurrent);
             branch.isRemote = isRemote;
             branches.push_back(branch);
         }
     }
-    
+
     return branches;
 }
 
@@ -337,10 +338,10 @@ std::string GitRepository::getRelativePath(const std::string& absolutePath) cons
     if (repoRoot.empty()) {
         return absolutePath;
     }
-    
+
     std::filesystem::path absolute(absolutePath);
     std::filesystem::path root(repoRoot);
-    
+
     try {
         auto relative = std::filesystem::relative(absolute, root);
         return relative.string();
@@ -351,7 +352,7 @@ std::string GitRepository::getRelativePath(const std::string& absolutePath) cons
 
 std::string GitRepository::findRepositoryRoot() const {
     std::filesystem::path current(repositoryPath_);
-    
+
     while (!current.empty() && current != current.root_path()) {
         std::filesystem::path gitDir = current / ".git";
         if (std::filesystem::exists(gitDir)) {
@@ -359,9 +360,9 @@ std::string GitRepository::findRepositoryRoot() const {
         }
         current = current.parent_path();
     }
-    
+
     return "";
 }
 
-} // namespace git
-} // namespace bolt
+}  // namespace git
+}  // namespace bolt

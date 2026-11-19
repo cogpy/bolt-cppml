@@ -1,0 +1,27 @@
+---
+# C++ formatting for bolt-cppml, checked by the Lint Code Base workflow
+# (clang-format) together with CPPLINT.cfg (cpplint).
+#
+# Google style, which is what cpplint verifies, with the indentation and line
+# length this code base already uses.
+BasedOnStyle: Google
+Language: Cpp
+Standard: c++17
+
+# Four-space indentation; access specifiers sit one space in, as cpplint expects.
+IndentWidth: 4
+AccessModifierOffset: -3
+ContinuationIndentWidth: 4
+ConstructorInitializerIndentWidth: 4
+
+# Keep in step with "linelength" in CPPLINT.cfg.
+ColumnLimit: 120
+
+# "Type* name", never derived from the surrounding code.
+DerivePointerAlignment: false
+PointerAlignment: Left
+
+# Only short functions defined inside a class stay on one line.
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
