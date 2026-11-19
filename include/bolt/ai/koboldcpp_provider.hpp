@@ -1,12 +1,14 @@
-#ifndef BOLT_AI_KOBOLDCPP_PROVIDER_HPP
-#define BOLT_AI_KOBOLDCPP_PROVIDER_HPP
+#ifndef BOLT_AI_KOBOLDCPP_PROVIDER_HPP_
+#define BOLT_AI_KOBOLDCPP_PROVIDER_HPP_
+
+#include <chrono>
+#include <functional>
+#include <memory>
+#include <string>
+#include <utility>
+#include <vector>
 
 #include "bolt/ai/ai_completion_provider.hpp"
-#include <string>
-#include <vector>
-#include <memory>
-#include <functional>
-#include <chrono>
 
 namespace bolt {
 namespace ai {
@@ -19,7 +21,7 @@ namespace ai {
  */
 struct KoboldCppConfig {
     std::string endpoint = "http://localhost:5001";
-    
+
     // Generation parameters
     float temperature = 0.7f;
     float top_p = 0.9f;
@@ -29,13 +31,13 @@ struct KoboldCppConfig {
     int max_tokens = 200;
     int max_context_length = 4096;
     std::vector<std::string> stop_sequences;
-    
+
     // Connection settings
     int timeout_seconds = 30;
     int max_retries = 3;
     int retry_delay_ms = 500;
     bool use_streaming = false;
-    
+
     // API selection
     enum class APIMode {
         OPENAI_COMPATIBLE,  // /v1/completions, /v1/chat/completions
@@ -92,43 +94,40 @@ using StreamCallback = std::function<bool(const std::string& token)>;
  * - Configurable generation parameters
  */
 class KoboldCppProvider : public AICompletionProvider {
-public:
+ public:
     KoboldCppProvider();
     explicit KoboldCppProvider(const KoboldCppConfig& config);
     explicit KoboldCppProvider(const std::string& endpoint);
     ~KoboldCppProvider() override;
 
     // ── AICompletionProvider interface ──────────────────────────
-    std::vector<CompletionItem> generateCompletions(
-        const CodeContext& context,
-        const std::string& prefix,
-        size_t maxSuggestions = 10
-    ) override;
-    
+    std::vector<CompletionItem> generateCompletions(const CodeContext& context, const std::string& prefix,
+                                                    size_t maxSuggestions = 10) override;
+
     bool isReady() const override;
     bool initialize() override;
     void shutdown() override;
 
     // ── KoboldCpp-specific methods ─────────────────────────────
-    
+
     /// Raw text completion via /v1/completions or /api/v1/generate
     KoboldCppResponse complete(const std::string& prompt);
     KoboldCppResponse complete(const std::string& prompt, int max_tokens);
-    
+
     /// Chat completion via /v1/chat/completions
     KoboldCppResponse chat(const std::string& message);
     KoboldCppResponse chat(const std::string& message, const std::string& system_prompt);
-    KoboldCppResponse chat(const std::vector<std::pair<std::string,std::string>>& messages);
-    
+    KoboldCppResponse chat(const std::vector<std::pair<std::string, std::string>>& messages);
+
     /// Streaming completion (calls callback for each token)
     bool complete_streaming(const std::string& prompt, StreamCallback callback);
     bool chat_streaming(const std::string& message, StreamCallback callback);
-    
+
     /// Server health and info
     bool test_connection();
     KoboldCppServerInfo get_server_info();
     bool is_model_loaded();
-    
+
     /// Configuration
     void set_config(const KoboldCppConfig& config);
     const KoboldCppConfig& get_config() const { return config_; }
@@ -137,28 +136,28 @@ public:
     void set_max_tokens(int tokens) { config_.max_tokens = tokens; }
     void set_api_mode(KoboldCppConfig::APIMode mode) { config_.api_mode = mode; }
 
-private:
+ private:
     KoboldCppConfig config_;
     bool initialized_ = false;
     KoboldCppConfig::APIMode detected_mode_ = KoboldCppConfig::APIMode::OPENAI_COMPATIBLE;
-    
+
     // Internal HTTP helpers
     KoboldCppResponse send_openai_completion(const std::string& prompt, int max_tokens);
-    KoboldCppResponse send_openai_chat(const std::vector<std::pair<std::string,std::string>>& messages);
+    KoboldCppResponse send_openai_chat(const std::vector<std::pair<std::string, std::string>>& messages);
     KoboldCppResponse send_koboldai_generate(const std::string& prompt, int max_tokens);
     std::string http_post(const std::string& url, const std::string& json_body);
     std::string http_get(const std::string& url);
-    
+
     // Code completion helpers
     std::string build_code_prompt(const CodeContext& context, const std::string& prefix) const;
     std::vector<CompletionItem> parse_completions(const std::string& response_text, size_t max) const;
     std::string infer_kind(const std::string& text) const;
-    
+
     // Auto-detection
     bool detect_api_mode();
 };
 
-} // namespace ai
-} // namespace bolt
+}  // namespace ai
+}  // namespace bolt
 
-#endif // BOLT_AI_KOBOLDCPP_PROVIDER_HPP
+#endif  // BOLT_AI_KOBOLDCPP_PROVIDER_HPP_

@@ -1,9 +1,10 @@
-#ifndef MINIMAP_HPP
-#define MINIMAP_HPP
+#ifndef BOLT_EDITOR_MINIMAP_HPP_
+#define BOLT_EDITOR_MINIMAP_HPP_
 
-#include <string>
-#include <vector>
 #include <memory>
+#include <string>
+#include <utility>
+#include <vector>
 
 namespace bolt {
 
@@ -16,7 +17,7 @@ class MinimapUI;
  * Provides a miniaturized view of file content and navigation
  */
 class Minimap {
-public:
+ public:
     struct MinimapConfig {
         size_t width = 120;           // Width in characters
         size_t height = 40;           // Height in lines
@@ -27,13 +28,13 @@ public:
     };
 
     struct ViewportInfo {
-        size_t startLine = 0;         // First visible line in main editor
-        size_t endLine = 0;           // Last visible line in main editor
-        size_t totalLines = 0;        // Total lines in document
-        size_t currentLine = 0;       // Current cursor line
+        size_t startLine = 0;    // First visible line in main editor
+        size_t endLine = 0;      // Last visible line in main editor
+        size_t totalLines = 0;   // Total lines in document
+        size_t currentLine = 0;  // Current cursor line
     };
 
-private:
+ private:
     std::string documentPath_;
     std::vector<std::string> documentLines_;
     MinimapConfig config_;
@@ -41,7 +42,7 @@ private:
     std::unique_ptr<MinimapRenderer> renderer_;
     bool enabled_ = true;
 
-public:
+ public:
     Minimap();
     explicit Minimap(const MinimapConfig& config);
     ~Minimap();
@@ -77,13 +78,13 @@ public:
     size_t getVisibleLines() const;
     double getScrollPercentage() const;
 
-private:
+ private:
     void initializeRenderer();
     size_t calculateStartLine() const;
     size_t calculateEndLine() const;
     size_t calculateLinesPerMinimapLine() const;
 };
 
-} // namespace bolt
+}  // namespace bolt
 
-#endif
+#endif  // BOLT_EDITOR_MINIMAP_HPP_

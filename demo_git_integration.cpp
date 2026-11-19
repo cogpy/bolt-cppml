@@ -1,60 +1,60 @@
+#include <chrono>
+#include <filesystem>
+#include <fstream>
+#include <iomanip>
 #include <iostream>
 #include <string>
-#include <vector>
-#include <iomanip>
-#include <fstream>
-#include <filesystem>
 #include <thread>
-#include <chrono>
+#include <vector>
 
 #include "bolt/git/git.hpp"
 
 class GitIntegrationDemo {
-public:
+ public:
     static void runDemo() {
         std::cout << "=== Bolt C++ IDE - Git Integration Demo ===\n\n";
-        
+
         // Initialize Git integration
         auto& gitIntegration = bolt::git::getGitIntegration();
         std::string currentDir = std::filesystem::current_path().string();
-        
+
         if (!gitIntegration.initialize(currentDir)) {
             std::cout << "❌ This directory is not a Git repository.\n";
             std::cout << "Please run this demo from within a Git repository.\n";
             return;
         }
-        
+
         std::cout << "✅ Git integration initialized successfully!\n\n";
-        
+
         // Set up callbacks
         setupCallbacks();
-        
+
         // Demo the features
         showRepositoryInfo();
         showBranchInfo();
         showFileStatus();
         showGitOperations();
-        
+
         // Enable auto-refresh for demonstration
         std::cout << "Enabling auto-refresh (5 second interval)...\n";
         gitIntegration.setAutoRefresh(true, 5);
-        
+
         std::cout << "\n⏳ Auto-refresh enabled. File status will update automatically.\n";
         std::cout << "   You can modify files in another terminal to see status changes.\n";
         std::cout << "   Press Enter to continue...\n";
         std::cin.get();
-        
+
         gitIntegration.shutdown();
         std::cout << "\n✅ Git integration demo completed!\n";
     }
 
-private:
+ private:
     static void setupCallbacks() {
         auto& gitIntegration = bolt::git::getGitIntegration();
-        
+
         gitIntegration.setStatusUpdateCallback([](const std::vector<bolt::git::GitFileInfo>& files) {
             std::cout << "\n📊 Git status updated - " << files.size() << " files tracked\n";
-            
+
             int modified = 0, staged = 0, untracked = 0;
             for (const auto& file : files) {
                 switch (file.status) {
@@ -72,10 +72,11 @@ private:
                         break;
                 }
             }
-            
-            std::cout << "   📝 " << modified << " modified, 📦 " << staged << " staged, ❓ " << untracked << " untracked\n";
+
+            std::cout << "   📝 " << modified << " modified, 📦 " << staged << " staged, ❓ " << untracked
+                      << " untracked\n";
         });
-        
+
         gitIntegration.setOperationCallback([](bool success, const std::string& message) {
             if (success) {
                 std::cout << "✅ Git operation: " << message << "\n";
@@ -84,14 +85,14 @@ private:
             }
         });
     }
-    
+
     static void showRepositoryInfo() {
         std::cout << "📁 Repository Information:\n";
         std::cout << std::string(40, '-') << "\n";
-        
+
         auto& gitIntegration = bolt::git::getGitIntegration();
         auto repoInfo = gitIntegration.getRepositoryInfo();
-        
+
         std::cout << "Root Path:      " << repoInfo.rootPath << "\n";
         std::cout << "Current Branch: " << repoInfo.currentBranch << "\n";
         std::cout << "Status:         " << (repoInfo.isClean ? "🟢 Clean" : "🟡 Has changes") << "\n";
@@ -101,17 +102,17 @@ private:
         std::cout << "  ❓ Untracked:  " << repoInfo.untrackedFiles << "\n";
         std::cout << "\n";
     }
-    
+
     static void showBranchInfo() {
         std::cout << "🌿 Branch Information:\n";
         std::cout << std::string(40, '-') << "\n";
-        
+
         auto& gitIntegration = bolt::git::getGitIntegration();
         auto branchStatus = gitIntegration.getBranchStatus();
-        
+
         std::cout << "Current Branch:     " << branchStatus.currentBranch << "\n";
         std::cout << "Uncommitted Changes: " << (branchStatus.hasUncommittedChanges ? "Yes" : "No") << "\n";
-        
+
         if (branchStatus.hasRemote) {
             std::cout << "Remote Status:\n";
             std::cout << "  🔼 Commits ahead:  " << branchStatus.commitsAhead << "\n";
@@ -119,7 +120,7 @@ private:
         } else {
             std::cout << "Remote Status:      No remote configured\n";
         }
-        
+
         // Show all branches
         auto repo = gitIntegration.getRepository();
         if (repo) {
@@ -128,28 +129,29 @@ private:
             for (const auto& branch : branches) {
                 std::cout << "  " << (branch.isCurrent ? "→ " : "  ");
                 std::cout << branch.name;
-                if (branch.isRemote) std::cout << " (remote)";
+                if (branch.isRemote)
+                    std::cout << " (remote)";
                 std::cout << "\n";
             }
         }
         std::cout << "\n";
     }
-    
+
     static void showFileStatus() {
         std::cout << "📋 File Status:\n";
         std::cout << std::string(40, '-') << "\n";
-        
+
         auto& gitIntegration = bolt::git::getGitIntegration();
         auto allFiles = gitIntegration.getAllFileStatus();
-        
+
         if (allFiles.empty()) {
             std::cout << "🟢 Working directory is clean - no changes detected\n\n";
             return;
         }
-        
+
         // Group files by status
         std::vector<std::string> modified, staged, untracked, deleted, renamed;
-        
+
         for (const auto& file : allFiles) {
             switch (file.status) {
                 case bolt::git::GitFileStatus::MODIFIED:
@@ -171,8 +173,9 @@ private:
                     break;
             }
         }
-        
-        auto printFileList = [](const std::string& title, const std::string& icon, const std::vector<std::string>& files) {
+
+        auto printFileList = [](const std::string& title, const std::string& icon,
+                                const std::vector<std::string>& files) {
             if (!files.empty()) {
                 std::cout << icon << " " << title << " (" << files.size() << "):\n";
                 for (const auto& file : files) {
@@ -181,26 +184,26 @@ private:
                 std::cout << "\n";
             }
         };
-        
+
         printFileList("Modified files", "📝", modified);
         printFileList("Staged files", "📦", staged);
         printFileList("Untracked files", "❓", untracked);
         printFileList("Deleted files", "🗑️", deleted);
         printFileList("Renamed files", "🔄", renamed);
     }
-    
+
     static void showGitOperations() {
         std::cout << "⚡ Git Operations Demo:\n";
         std::cout << std::string(40, '-') << "\n";
-        
+
         auto& gitIntegration = bolt::git::getGitIntegration();
         auto repo = gitIntegration.getRepository();
-        
+
         if (!repo) {
             std::cout << "❌ No repository available\n";
             return;
         }
-        
+
         // Show recent commits
         auto commits = repo->getCommitLog(5);
         if (!commits.empty()) {
@@ -210,7 +213,7 @@ private:
             }
             std::cout << "\n";
         }
-        
+
         // Demonstrate file diff (if there are modified files)
         auto allFiles = gitIntegration.getAllFileStatus();
         for (const auto& file : allFiles) {
@@ -231,10 +234,10 @@ private:
                     }
                     std::cout << "\n";
                 }
-                break; // Just show diff for first modified file
+                break;  // Just show diff for first modified file
             }
         }
-        
+
         // Demonstrate quick operations (read-only for safety)
         std::cout << "🛠️  Available quick operations:\n";
         std::cout << "   - Stage file: bolt::git::quick::stage(\"filename\")\n";

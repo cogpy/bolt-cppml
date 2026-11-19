@@ -1,27 +1,28 @@
 #include "bolt/editor/integrated_editor.hpp"
+
+#include <fstream>
+
+#include "bolt/ai/ai_completion_provider.hpp"
 #include "bolt/editor/cursor_manager.hpp"
 #include "bolt/editor/keyboard_shortcuts.hpp"
 #include "bolt/editor/split_view_manager.hpp"
-#include "bolt/ai/ai_completion_provider.hpp"
-#include <fstream>
 
 namespace bolt {
 
-IntegratedEditor::IntegratedEditor() 
-    : editorStore_(EditorStore::getInstance())
-    , foldingManager_(CodeFoldingManager::getInstance())
-    , foldingUI_(std::make_unique<CodeFoldingUI>())
-    , fileTreeManager_(FileTreeManager::getInstance())
-    , fileTreeUI_(std::make_unique<FileTreeUI>())
-    , cursorManager_(CursorManager::getInstance())
-    , keyboardShortcuts_(KeyboardShortcuts::getInstance())
-    , splitViewManager_(SplitViewManager::getInstance())
-    , tabBar_(TabBar::getInstance())
-    , aiCompletionEngine_(AICodeCompletionEngine::getInstance())
-    , codeCompletion_(std::make_unique<CodeCompletion>())
-    , debugger_(std::make_shared<DebuggerInterface>())
-    , debuggerUI_(std::make_unique<DebuggerUI>()) {
-    
+IntegratedEditor::IntegratedEditor()
+    : editorStore_(EditorStore::getInstance()),
+      foldingManager_(CodeFoldingManager::getInstance()),
+      foldingUI_(std::make_unique<CodeFoldingUI>()),
+      fileTreeManager_(FileTreeManager::getInstance()),
+      fileTreeUI_(std::make_unique<FileTreeUI>()),
+      cursorManager_(CursorManager::getInstance()),
+      keyboardShortcuts_(KeyboardShortcuts::getInstance()),
+      splitViewManager_(SplitViewManager::getInstance()),
+      tabBar_(TabBar::getInstance()),
+      aiCompletionEngine_(AICodeCompletionEngine::getInstance()),
+      codeCompletion_(std::make_unique<CodeCompletion>()),
+      debugger_(std::make_shared<DebuggerInterface>()),
+      debuggerUI_(std::make_unique<DebuggerUI>()) {
     // Set up folding change callback to synchronize with editor store
     foldingManager_.setOnFoldingChanged([this]() {
         auto currentFile = editorStore_.getSelectedFile();
@@ -29,15 +30,13 @@ IntegratedEditor::IntegratedEditor()
             synchronizeFoldingState(currentFile);
         }
     });
-    
+
     // Set up file tree callbacks for editor integration
-    fileTreeManager_.setOnFileSelected([this](const std::string& path) {
-        openFileFromTree(path);
-    });
-    
+    fileTreeManager_.setOnFileSelected([this](const std::string& path) { openFileFromTree(path); });
+
     // Initialize keyboard shortcuts with multi-cursor support
     initializeKeyboardShortcuts();
-    
+
     // Set up split view callbacks
     splitViewManager_.setOnPaneOperation([this](SplitViewManager::PaneOperation op, const std::string& paneId) {
         // Handle pane operations (focus changes, etc.)
@@ -49,7 +48,7 @@ IntegratedEditor::IntegratedEditor()
             }
         }
     });
-    
+
     // Set up debugger integration
     debugger_->set_editor(this);
     debuggerUI_->set_debugger(debugger_);
@@ -62,14 +61,14 @@ void IntegratedEditor::openDocument(const std::string& filePath, const std::stri
     doc.filePath = filePath;
     doc.scroll = {0, 0};
     doc.cursor = {0, std::nullopt};
-    
+
     // Detect and set up folding ranges
     detectAndUpdateFolding(filePath, content);
     doc.foldingRanges = getFoldingRanges(filePath);
-    
+
     editorStore_.setDocument(filePath, doc);
     editorStore_.setSelectedFile(filePath);
-    
+
     // Open in active pane if split view is enabled
     if (splitViewManager_.isEnabled()) {
         EditorPane* activePane = splitViewManager_.getActivePane();
@@ -84,7 +83,7 @@ void IntegratedEditor::updateDocumentContent(const std::string& filePath, const 
     if (doc && doc->filePath == filePath) {
         doc->value = content;
     }
-    
+
     // Re-detect folding ranges when content changes
     detectAndUpdateFolding(filePath, content);
     synchronizeFoldingState(filePath);
@@ -93,7 +92,7 @@ void IntegratedEditor::updateDocumentContent(const std::string& filePath, const 
 void IntegratedEditor::closeDocument(const std::string& filePath) {
     // Clean up folding state
     foldingManager_.updateFoldingRanges(filePath, "");
-    
+
     // In a real implementation, we would remove the document from the store
     // For now, we'll just update the folding ranges
 }
@@ -134,7 +133,7 @@ void IntegratedEditor::renderEditor(const std::string& filePath) {
     if (foldingUI_->isVisible()) {
         foldingUI_->renderFoldingMarkers(filePath);
     }
-    
+
     if (fileTreeUI_->isVisible()) {
         renderFileTree();
     }
@@ -150,7 +149,7 @@ void IntegratedEditor::handleClick(const std::string& filePath, size_t line, siz
             return;
         }
     }
-    
+
     // Handle regular editor click...
 }
 
@@ -207,16 +206,14 @@ void IntegratedEditor::openFileFromTree(const std::string& filePath) {
         // Read file content
         std::ifstream file(filePath);
         if (!file.is_open()) {
-            return; // File couldn't be opened
+            return;  // File couldn't be opened
         }
-        
-        std::string content((std::istreambuf_iterator<char>(file)),
-                           std::istreambuf_iterator<char>());
+
+        std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
         file.close();
-        
+
         // Open the document in the editor
         openDocument(filePath, content);
-        
     } catch (const std::exception&) {
         // File reading failed, ignore silently for now
     }
@@ -280,150 +277,182 @@ bool IntegratedEditor::handleKeyboardShortcut(const std::string& key, const std:
 void IntegratedEditor::initializeKeyboardShortcuts() {
     // Set editor as active context
     keyboardShortcuts_.setActiveContext(ShortcutContext::Editor);
-    
+
     // Register multi-cursor specific shortcuts with proper context
-    keyboardShortcuts_.registerShortcut("Ctrl+D", "addCursorAtNextOccurrence", [this]() {
-        // Get selected text and add cursor at next occurrence
-        auto cursors = getAllCursors();
-        if (!cursors.empty()) {
-            // Simplified: add cursor at next line
-            auto& lastCursor = cursors.back();
-            addCursorAtPosition(lastCursor.line + 1, lastCursor.column);
-        }
-    }, ShortcutContext::Editor, "Add cursor at next occurrence of selected text");
-    
-    keyboardShortcuts_.registerShortcut("Ctrl+Shift+L", "selectAllOccurrences", [this]() {
-        // Get selected text and select all occurrences
-        selectAllOccurrences(""); // Simplified implementation
-    }, ShortcutContext::Editor, "Select all occurrences of selected text");
-    
-    keyboardShortcuts_.registerShortcut("Ctrl+Alt+Up", "addCursorAbove", [this]() {
-        auto cursors = getAllCursors();
-        if (!cursors.empty()) {
-            auto& primary = cursors[0];
-            if (primary.line > 0) {
-                addCursorAtPosition(primary.line - 1, primary.column);
+    keyboardShortcuts_.registerShortcut(
+        "Ctrl+D", "addCursorAtNextOccurrence",
+        [this]() {
+            // Get selected text and add cursor at next occurrence
+            auto cursors = getAllCursors();
+            if (!cursors.empty()) {
+                // Simplified: add cursor at next line
+                auto& lastCursor = cursors.back();
+                addCursorAtPosition(lastCursor.line + 1, lastCursor.column);
             }
-        }
-    }, ShortcutContext::Editor, "Add cursor above current line");
-    
-    keyboardShortcuts_.registerShortcut("Ctrl+Alt+Down", "addCursorBelow", [this]() {
-        auto cursors = getAllCursors();
-        if (!cursors.empty()) {
-            auto& primary = cursors[0];
-            addCursorAtPosition(primary.line + 1, primary.column);
-        }
-    }, ShortcutContext::Editor, "Add cursor below current line");
-    
-    keyboardShortcuts_.registerShortcut("Escape", "clearExtraCursors", [this]() {
-        clearExtraCursors();
-    }, ShortcutContext::Editor, "Clear all extra cursors");
-    
+        },
+        ShortcutContext::Editor, "Add cursor at next occurrence of selected text");
+
+    keyboardShortcuts_.registerShortcut(
+        "Ctrl+Shift+L", "selectAllOccurrences",
+        [this]() {
+            // Get selected text and select all occurrences
+            selectAllOccurrences("");  // Simplified implementation
+        },
+        ShortcutContext::Editor, "Select all occurrences of selected text");
+
+    keyboardShortcuts_.registerShortcut(
+        "Ctrl+Alt+Up", "addCursorAbove",
+        [this]() {
+            auto cursors = getAllCursors();
+            if (!cursors.empty()) {
+                auto& primary = cursors[0];
+                if (primary.line > 0) {
+                    addCursorAtPosition(primary.line - 1, primary.column);
+                }
+            }
+        },
+        ShortcutContext::Editor, "Add cursor above current line");
+
+    keyboardShortcuts_.registerShortcut(
+        "Ctrl+Alt+Down", "addCursorBelow",
+        [this]() {
+            auto cursors = getAllCursors();
+            if (!cursors.empty()) {
+                auto& primary = cursors[0];
+                addCursorAtPosition(primary.line + 1, primary.column);
+            }
+        },
+        ShortcutContext::Editor, "Add cursor below current line");
+
+    keyboardShortcuts_.registerShortcut(
+        "Escape", "clearExtraCursors", [this]() { clearExtraCursors(); }, ShortcutContext::Editor,
+        "Clear all extra cursors");
+
     // Initialize default shortcuts for all contexts
     keyboardShortcuts_.initDefaultShortcuts();
-    
+
     // Add split view shortcuts with global context
-    keyboardShortcuts_.registerShortcut("Ctrl+\\", "createHorizontalSplit", [this]() {
-        createHorizontalSplit();
-    }, ShortcutContext::Global, "Create horizontal split");
-    
-    keyboardShortcuts_.registerShortcut("Ctrl+Shift+\\", "createVerticalSplit", [this]() {
-        createVerticalSplit();
-    }, ShortcutContext::Global, "Create vertical split");
-    
-    keyboardShortcuts_.registerShortcut("Ctrl+W", "closePane", [this]() {
-        std::string activeId = splitViewManager_.getActivePaneId();
-        closePane(activeId);
-    }, ShortcutContext::Global, "Close current pane");
-    
-    keyboardShortcuts_.registerShortcut("Ctrl+Tab", "navigateToNextPane", [this]() {
-        navigateToNextPane();
-    }, ShortcutContext::Global, "Navigate to next pane");
-    
-    keyboardShortcuts_.registerShortcut("Ctrl+Shift+Tab", "navigateToPreviousPane", [this]() {
-        navigateToPreviousPane();
-    }, ShortcutContext::Global, "Navigate to previous pane");
-    
+    keyboardShortcuts_.registerShortcut(
+        "Ctrl+\\", "createHorizontalSplit", [this]() { createHorizontalSplit(); }, ShortcutContext::Global,
+        "Create horizontal split");
+
+    keyboardShortcuts_.registerShortcut(
+        "Ctrl+Shift+\\", "createVerticalSplit", [this]() { createVerticalSplit(); }, ShortcutContext::Global,
+        "Create vertical split");
+
+    keyboardShortcuts_.registerShortcut(
+        "Ctrl+W", "closePane",
+        [this]() {
+            std::string activeId = splitViewManager_.getActivePaneId();
+            closePane(activeId);
+        },
+        ShortcutContext::Global, "Close current pane");
+
+    keyboardShortcuts_.registerShortcut(
+        "Ctrl+Tab", "navigateToNextPane", [this]() { navigateToNextPane(); }, ShortcutContext::Global,
+        "Navigate to next pane");
+
+    keyboardShortcuts_.registerShortcut(
+        "Ctrl+Shift+Tab", "navigateToPreviousPane", [this]() { navigateToPreviousPane(); }, ShortcutContext::Global,
+        "Navigate to previous pane");
+
     // AI Code Completion shortcuts
-    keyboardShortcuts_.registerShortcut("Ctrl+Space", "triggerCodeCompletion", [this]() {
-        auto currentFile = editorStore_.getSelectedFile();
-        if (!currentFile.empty()) {
-            auto* doc = editorStore_.getCurrentDocument();
-            if (doc) {
-                // Convert cursor position to line/column (simplified implementation)
-                size_t line = 0, column = 0;
-                for (size_t i = 0; i < doc->cursor.position && i < doc->value.length(); ++i) {
-                    if (doc->value[i] == '\n') {
-                        line++;
-                        column = 0;
-                    } else {
-                        column++;
+    keyboardShortcuts_.registerShortcut(
+        "Ctrl+Space", "triggerCodeCompletion",
+        [this]() {
+            auto currentFile = editorStore_.getSelectedFile();
+            if (!currentFile.empty()) {
+                auto* doc = editorStore_.getCurrentDocument();
+                if (doc) {
+                    // Convert cursor position to line/column (simplified implementation)
+                    size_t line = 0, column = 0;
+                    for (size_t i = 0; i < doc->cursor.position && i < doc->value.length(); ++i) {
+                        if (doc->value[i] == '\n') {
+                            line++;
+                            column = 0;
+                        } else {
+                            column++;
+                        }
                     }
+                    triggerCodeCompletion(currentFile, line, column);
                 }
-                triggerCodeCompletion(currentFile, line, column);
             }
-        }
-    }, ShortcutContext::Editor, "Trigger AI code completion");
-    
-    keyboardShortcuts_.registerShortcut("Enter", "acceptCompletion", [this]() {
-        if (isCodeCompletionActive()) {
-            acceptCompletion();
-        }
-    }, ShortcutContext::Editor, "Accept code completion");
-    
-    keyboardShortcuts_.registerShortcut("Escape", "cancelCompletion", [this]() {
-        if (isCodeCompletionActive()) {
-            cancelCompletion();
-        }
-    }, ShortcutContext::Editor, "Cancel code completion");
-    
-    keyboardShortcuts_.registerShortcut("Down", "selectNextCompletion", [this]() {
-        if (isCodeCompletionActive()) {
-            selectNextCompletion();
-        }
-    }, ShortcutContext::Editor, "Select next completion");
-    
-    keyboardShortcuts_.registerShortcut("Up", "selectPreviousCompletion", [this]() {
-        if (isCodeCompletionActive()) {
-            selectPreviousCompletion();
-        }
-    }, ShortcutContext::Editor, "Select previous completion");
-    
+        },
+        ShortcutContext::Editor, "Trigger AI code completion");
+
+    keyboardShortcuts_.registerShortcut(
+        "Enter", "acceptCompletion",
+        [this]() {
+            if (isCodeCompletionActive()) {
+                acceptCompletion();
+            }
+        },
+        ShortcutContext::Editor, "Accept code completion");
+
+    keyboardShortcuts_.registerShortcut(
+        "Escape", "cancelCompletion",
+        [this]() {
+            if (isCodeCompletionActive()) {
+                cancelCompletion();
+            }
+        },
+        ShortcutContext::Editor, "Cancel code completion");
+
+    keyboardShortcuts_.registerShortcut(
+        "Down", "selectNextCompletion",
+        [this]() {
+            if (isCodeCompletionActive()) {
+                selectNextCompletion();
+            }
+        },
+        ShortcutContext::Editor, "Select next completion");
+
+    keyboardShortcuts_.registerShortcut(
+        "Up", "selectPreviousCompletion",
+        [this]() {
+            if (isCodeCompletionActive()) {
+                selectPreviousCompletion();
+            }
+        },
+        ShortcutContext::Editor, "Select previous completion");
+
     // Tab navigation shortcuts
-    keyboardShortcuts_.registerShortcut("Ctrl+PageDown", "nextTab", [this]() {
-        switchToNextTab();
-    }, ShortcutContext::Global, "Switch to next tab");
-    
-    keyboardShortcuts_.registerShortcut("Ctrl+PageUp", "previousTab", [this]() {
-        switchToPreviousTab();
-    }, ShortcutContext::Global, "Switch to previous tab");
-    
-    keyboardShortcuts_.registerShortcut("Ctrl+W", "closeCurrentTab", [this]() {
-        auto activeTab = getActiveTab();
-        if (activeTab.has_value()) {
-            closeTabById(activeTab->id);
-        }
-    }, ShortcutContext::Global, "Close current tab");
+    keyboardShortcuts_.registerShortcut(
+        "Ctrl+PageDown", "nextTab", [this]() { switchToNextTab(); }, ShortcutContext::Global, "Switch to next tab");
+
+    keyboardShortcuts_.registerShortcut(
+        "Ctrl+PageUp", "previousTab", [this]() { switchToPreviousTab(); }, ShortcutContext::Global,
+        "Switch to previous tab");
+
+    keyboardShortcuts_.registerShortcut(
+        "Ctrl+W", "closeCurrentTab",
+        [this]() {
+            auto activeTab = getActiveTab();
+            if (activeTab.has_value()) {
+                closeTabById(activeTab->id);
+            }
+        },
+        ShortcutContext::Global, "Close current tab");
 }
 
 // Split view operations
 std::string IntegratedEditor::createHorizontalSplit(const std::string& filePath) {
     std::string newPaneId = splitViewManager_.createHorizontalSplit();
-    
+
     if (!newPaneId.empty() && !filePath.empty()) {
         openDocumentInPane(newPaneId, filePath);
     }
-    
+
     return newPaneId;
 }
 
 std::string IntegratedEditor::createVerticalSplit(const std::string& filePath) {
     std::string newPaneId = splitViewManager_.createVerticalSplit();
-    
+
     if (!newPaneId.empty() && !filePath.empty()) {
         openDocumentInPane(newPaneId, filePath);
     }
-    
+
     return newPaneId;
 }
 
@@ -493,14 +522,14 @@ std::string IntegratedEditor::findPaneWithDocument(const std::string& filePath) 
 void IntegratedEditor::triggerCodeCompletion(const std::string& filePath, size_t line, size_t column) {
     auto* doc = editorStore_.getCurrentDocument();
     if (!doc || doc->filePath != filePath) {
-        return; // Document not found or not active
+        return;  // Document not found or not active
     }
-    
+
     // Calculate cursor position in the document
     size_t cursorPosition = 0;
     std::string content = doc->value;
     size_t currentLine = 0;
-    
+
     for (size_t i = 0; i < content.length() && currentLine < line; ++i) {
         if (content[i] == '\n') {
             currentLine++;
@@ -510,17 +539,18 @@ void IntegratedEditor::triggerCodeCompletion(const std::string& filePath, size_t
             }
         }
     }
-    
+
     // Extract prefix (word before cursor)
     std::string prefix;
     if (cursorPosition > 0) {
         size_t start = cursorPosition;
-        while (start > 0 && (std::isalnum(content[start - 1]) || content[start - 1] == '_' || content[start - 1] == ':')) {
+        while (start > 0 &&
+               (std::isalnum(content[start - 1]) || content[start - 1] == '_' || content[start - 1] == ':')) {
             start--;
         }
         prefix = content.substr(start, cursorPosition - start);
     }
-    
+
     triggerCodeCompletion(filePath, prefix);
 }
 
@@ -529,22 +559,23 @@ void IntegratedEditor::triggerCodeCompletion(const std::string& filePath, const 
     if (!doc || doc->filePath != filePath) {
         return;
     }
-    
+
     // Get AI completions
     auto completions = getAICompletions(filePath, prefix);
-    
+
     if (!completions.empty()) {
         codeCompletion_->setSuggestions(completions);
         codeCompletion_->activate();
     }
 }
 
-std::vector<CompletionItem> IntegratedEditor::getAICompletions(const std::string& filePath, const std::string& prefix, size_t limit) {
+std::vector<CompletionItem> IntegratedEditor::getAICompletions(const std::string& filePath, const std::string& prefix,
+                                                               size_t limit) {
     auto* doc = editorStore_.getCurrentDocument();
     if (!doc || doc->filePath != filePath) {
         return {};
     }
-    
+
     // Determine file language from extension
     std::string language = "text";
     if (filePath.length() >= 4) {
@@ -565,7 +596,7 @@ std::vector<CompletionItem> IntegratedEditor::getAICompletions(const std::string
             language = "javascript";
         }
     }
-    
+
     // Convert cursor position to line/column
     size_t line = 0, column = 0;
     for (size_t i = 0; i < doc->cursor.position && i < doc->value.length(); ++i) {
@@ -576,7 +607,7 @@ std::vector<CompletionItem> IntegratedEditor::getAICompletions(const std::string
             column++;
         }
     }
-    
+
     // Create context for AI completion
     CodeContext context;
     context.filePath = filePath;
@@ -585,7 +616,7 @@ std::vector<CompletionItem> IntegratedEditor::getAICompletions(const std::string
     context.line = line;
     context.column = column;
     context.language = language;
-    
+
     return aiCompletionEngine_.getCompletions(context, prefix, limit);
 }
 
@@ -596,33 +627,32 @@ bool IntegratedEditor::isCodeCompletionActive() const {
 void IntegratedEditor::acceptCompletion() {
     if (codeCompletion_->isActive()) {
         auto selectedCompletion = codeCompletion_->getSelectedSuggestion();
-        
+
         // Get current document
         auto* doc = editorStore_.getCurrentDocument();
         if (!doc || selectedCompletion.label.empty()) {
             codeCompletion_->deactivate();
             return;
         }
-        
+
         // Calculate the prefix to remove (word before cursor)
         size_t cursorPos = doc->cursor.position;
         std::string content = doc->value;
-        
+
         // Bounds check for cursor position
         if (cursorPos > content.length()) {
             cursorPos = content.length();
         }
-        
+
         size_t prefixStart = cursorPos;
-        
+
         // Find the start of the current word/prefix
         while (prefixStart > 0 && prefixStart <= content.length() &&
-               (std::isalnum(content[prefixStart - 1]) || 
-                content[prefixStart - 1] == '_' || 
+               (std::isalnum(content[prefixStart - 1]) || content[prefixStart - 1] == '_' ||
                 content[prefixStart - 1] == ':')) {
             prefixStart--;
         }
-        
+
         // Determine what text to insert based on completion kind
         std::string insertText;
         if (selectedCompletion.kind == "snippet") {
@@ -632,22 +662,20 @@ void IntegratedEditor::acceptCompletion() {
             // For simple completions, use the label
             insertText = selectedCompletion.label;
         }
-        
+
         // Remove the prefix and insert the completion
-        std::string newContent = content.substr(0, prefixStart) + 
-                                 insertText + 
-                                 content.substr(cursorPos);
-        
+        std::string newContent = content.substr(0, prefixStart) + insertText + content.substr(cursorPos);
+
         // Update document content
         doc->value = newContent;
-        
+
         // Move cursor to end of inserted text
         size_t newCursorPos = prefixStart + insertText.length();
         doc->cursor.position = newCursorPos;
-        
+
         // Update editor store
         editorStore_.setDocument(doc->filePath, *doc);
-        
+
         // Deactivate completion
         codeCompletion_->deactivate();
     }
@@ -694,14 +722,12 @@ bool IntegratedEditor::startDebugSession(const std::string& filePath) {
         if (!file.is_open()) {
             return false;
         }
-        
-        std::string content((std::istreambuf_iterator<char>(file)),
-                           std::istreambuf_iterator<char>());
+
+        std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
         file.close();
-        
+
         // Start debug session from Limbo source
         return debugger_->start_debug_session_from_source(content);
-        
     } catch (const std::exception&) {
         return false;
     }
@@ -807,10 +833,10 @@ std::map<std::string, std::string> IntegratedEditor::getDebugGlobalVariables() c
 size_t IntegratedEditor::openDocumentInTab(const std::string& filePath, const std::string& content) {
     // Add tab first
     size_t tabId = tabBar_.addTab(filePath);
-    
+
     // Open the document
     openDocument(filePath, content);
-    
+
     return tabId;
 }
 
@@ -820,10 +846,10 @@ bool IntegratedEditor::closeTabById(size_t tabId) {
     if (!tab.has_value()) {
         return false;
     }
-    
+
     // Close the document
     closeDocument(tab->filePath);
-    
+
     // Close the tab
     return tabBar_.closeTab(tabId);
 }
@@ -831,7 +857,7 @@ bool IntegratedEditor::closeTabById(size_t tabId) {
 bool IntegratedEditor::closeTabByPath(const std::string& filePath) {
     // Close the document
     closeDocument(filePath);
-    
+
     // Close the tab
     return tabBar_.closeTabByPath(filePath);
 }
@@ -839,14 +865,14 @@ bool IntegratedEditor::closeTabByPath(const std::string& filePath) {
 void IntegratedEditor::closeAllTabs() {
     // Get all tabs first (to avoid modification during iteration)
     auto tabs = tabBar_.getAllTabs();
-    
+
     // Close all documents
     for (const auto& tab : tabs) {
         if (!tab.isPinned) {
             closeDocument(tab.filePath);
         }
     }
-    
+
     // Close all tabs
     tabBar_.closeAllTabs();
 }
@@ -854,14 +880,14 @@ void IntegratedEditor::closeAllTabs() {
 void IntegratedEditor::closeOtherTabs(size_t exceptTabId) {
     // Get all tabs first
     auto tabs = tabBar_.getAllTabs();
-    
+
     // Close all documents except the one we're keeping
     for (const auto& tab : tabs) {
         if (tab.id != exceptTabId && !tab.isPinned) {
             closeDocument(tab.filePath);
         }
     }
-    
+
     // Close other tabs
     tabBar_.closeOtherTabs(exceptTabId);
 }
@@ -872,10 +898,10 @@ bool IntegratedEditor::switchToTab(size_t tabId) {
     if (!tab.has_value()) {
         return false;
     }
-    
+
     // Set as selected file in editor store
     editorStore_.setSelectedFile(tab->filePath);
-    
+
     // Activate the tab
     return tabBar_.activateTab(tabId);
 }
@@ -883,14 +909,14 @@ bool IntegratedEditor::switchToTab(size_t tabId) {
 bool IntegratedEditor::switchToTabByPath(const std::string& filePath) {
     // Set as selected file in editor store
     editorStore_.setSelectedFile(filePath);
-    
+
     // Activate the tab
     return tabBar_.activateTabByPath(filePath);
 }
 
 void IntegratedEditor::switchToNextTab() {
     tabBar_.activateNextTab();
-    
+
     // Update selected file in editor store
     auto activeTab = tabBar_.getActiveTab();
     if (activeTab.has_value()) {
@@ -900,7 +926,7 @@ void IntegratedEditor::switchToNextTab() {
 
 void IntegratedEditor::switchToPreviousTab() {
     tabBar_.activatePreviousTab();
-    
+
     // Update selected file in editor store
     auto activeTab = tabBar_.getActiveTab();
     if (activeTab.has_value()) {
@@ -968,7 +994,7 @@ void IntegratedEditor::clearAllHighlights(const std::string& filePath) {
 
 void IntegratedEditor::clearAllHighlightsOfType(HighlightType type) {
     for (auto& [filePath, lines] : lineHighlights_) {
-        for (auto lineIt = lines.begin(); lineIt != lines.end(); ) {
+        for (auto lineIt = lines.begin(); lineIt != lines.end();) {
             lineIt->second.erase(type);
             if (lineIt->second.empty()) {
                 lineIt = lines.erase(lineIt);
@@ -978,7 +1004,7 @@ void IntegratedEditor::clearAllHighlightsOfType(HighlightType type) {
         }
     }
     // Clean up empty file entries
-    for (auto it = lineHighlights_.begin(); it != lineHighlights_.end(); ) {
+    for (auto it = lineHighlights_.begin(); it != lineHighlights_.end();) {
         if (it->second.empty()) {
             it = lineHighlights_.erase(it);
         } else {
@@ -998,7 +1024,8 @@ bool IntegratedEditor::hasHighlight(const std::string& filePath, size_t line, Hi
     return false;
 }
 
-std::vector<std::pair<size_t, IntegratedEditor::HighlightType>> IntegratedEditor::getHighlights(const std::string& filePath) const {
+std::vector<std::pair<size_t, IntegratedEditor::HighlightType>> IntegratedEditor::getHighlights(
+    const std::string& filePath) const {
     std::vector<std::pair<size_t, HighlightType>> result;
     auto fileIt = lineHighlights_.find(filePath);
     if (fileIt != lineHighlights_.end()) {
@@ -1128,7 +1155,7 @@ void IntegratedEditor::clearSourceMappings(const std::string& filePath) {
     std::string prefix = filePath + ":";
 
     // Find and remove line->PC mappings
-    for (auto it = lineToPc_.begin(); it != lineToPc_.end(); ) {
+    for (auto it = lineToPc_.begin(); it != lineToPc_.end();) {
         if (it->first.compare(0, prefix.length(), prefix) == 0) {
             // Also remove the corresponding PC->line mapping
             pcToLine_.erase(it->second);
@@ -1156,4 +1183,4 @@ std::optional<std::pair<std::string, size_t>> IntegratedEditor::getLineForPC(siz
     return std::nullopt;
 }
 
-} // namespace bolt
+}  // namespace bolt

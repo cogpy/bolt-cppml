@@ -1,10 +1,11 @@
 
-#ifndef CODE_FOLDING_HPP
-#define CODE_FOLDING_HPP
+#ifndef BOLT_EDITOR_CODE_FOLDING_HPP_
+#define BOLT_EDITOR_CODE_FOLDING_HPP_
 
+#include <map>
 #include <string>
 #include <vector>
-#include <map>
+
 #include "../core/thread_safety.hpp"
 
 namespace bolt {
@@ -17,19 +18,17 @@ struct FoldRange {
 };
 
 class CodeFolding {
-private:
+ private:
     ThreadSafe<std::map<std::string, std::vector<FoldRange>>> foldingRanges_;
 
-public:
+ public:
     static CodeFolding& getInstance() {
         static CodeFolding instance;
         return instance;
     }
 
     void addFoldRange(const std::string& filePath, size_t startLine, size_t endLine) {
-        foldingRanges_.write([&](auto& ranges) {
-            ranges[filePath].push_back({startLine, endLine, false, "..."});
-        });
+        foldingRanges_.write([&](auto& ranges) { ranges[filePath].push_back({startLine, endLine, false, "..."}); });
     }
 
     void toggleFold(const std::string& filePath, size_t line) {
@@ -52,6 +51,6 @@ public:
     }
 };
 
-} // namespace bolt
+}  // namespace bolt
 
-#endif
+#endif  // BOLT_EDITOR_CODE_FOLDING_HPP_

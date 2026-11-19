@@ -1,9 +1,10 @@
 
 #include "bolt/editor/theme_system.hpp"
+
+#include <algorithm>
 #include <map>
 #include <string>
 #include <vector>
-#include <algorithm>
 
 namespace bolt {
 
@@ -24,7 +25,7 @@ void ThemeSystem::initializeDefaults() {
     defaultColorScheme_.number = "#B5CEA8";
     defaultColorScheme_.type = "#4EC9B0";
     defaultColorScheme_.function = "#DCDCAA";
-    
+
     // Initialize default font settings
     defaultFontSettings_.family = "Consolas, 'Courier New', monospace";
     defaultFontSettings_.size = 14;
@@ -71,7 +72,7 @@ void ThemeSystem::loadDefaultThemes() {
     darkTheme.fontSettings.family = "Consolas, 'Courier New', monospace";
     darkTheme.fontSettings.size = 14;
     darkTheme.fontSettings.lineHeight = 1.5;
-    
+
     // Light theme
     Theme lightTheme;
     lightTheme.colors.background = "#FFFFFF";
@@ -90,7 +91,7 @@ void ThemeSystem::loadDefaultThemes() {
 
     addTheme("dark", darkTheme);
     addTheme("light", lightTheme);
-    setTheme("dark"); // Set default theme
+    setTheme("dark");  // Set default theme
 }
 
 std::vector<std::string> ThemeSystem::getAvailableThemes() const {
@@ -110,4 +111,4 @@ bool ThemeSystem::hasTheme(const std::string& themeName) const {
     return themes_.find(themeName) != themes_.end();
 }
 
-} // namespace bolt
+}  // namespace bolt

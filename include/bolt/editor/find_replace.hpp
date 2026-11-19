@@ -1,11 +1,10 @@
-#ifndef BOLT_EDITOR_FIND_REPLACE_HPP
-#define BOLT_EDITOR_FIND_REPLACE_HPP
+#ifndef BOLT_EDITOR_FIND_REPLACE_HPP_
+#define BOLT_EDITOR_FIND_REPLACE_HPP_
 
+#include <algorithm>  // Added for std::transform
+#include <regex>
 #include <string>
 #include <vector>
-#include <regex>
-#include <algorithm> //Added for std::transform
-
 
 namespace bolt {
 
@@ -15,12 +14,13 @@ struct TextRange {
 };
 
 class FindReplace {
-public:
+ public:
     FindReplace() : case_sensitive_(false), use_regex_(false) {}
 
     std::vector<TextRange> find(const std::string& text, const std::string& search_term) {
         std::vector<TextRange> results;
-        if (search_term.empty()) return results;
+        if (search_term.empty())
+            return results;
 
         if (use_regex_) {
             results = findWithRegex(text, search_term);
@@ -46,7 +46,7 @@ public:
     bool isCaseSensitive() const { return case_sensitive_; }
     bool isUsingRegex() const { return use_regex_; }
 
-private:
+ private:
     bool case_sensitive_;
     bool use_regex_;
 
@@ -92,6 +92,6 @@ private:
     }
 };
 
-} // namespace bolt
+}  // namespace bolt
 
-#endif // BOLT_EDITOR_FIND_REPLACE_HPP
+#endif  // BOLT_EDITOR_FIND_REPLACE_HPP_

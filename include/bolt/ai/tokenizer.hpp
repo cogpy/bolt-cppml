@@ -1,17 +1,19 @@
 
-#ifndef TOKENIZER_HPP
-#define TOKENIZER_HPP
+#ifndef BOLT_AI_TOKENIZER_HPP_
+#define BOLT_AI_TOKENIZER_HPP_
 
-#include <string>
-#include <vector>
-#include <unordered_map>
+#include <algorithm>
 #include <memory>
+#include <string>
+#include <unordered_map>
+#include <vector>
+
 #include "bolt/core/thread_safety.hpp"
 
 namespace bolt {
 
 class Tokenizer {
-private:
+ private:
     ThreadSafe<std::unordered_map<std::string, int>> vocab_;
     ThreadSafe<std::unordered_map<int, std::string>> reverse_vocab_;
     int next_token_id_;
@@ -24,19 +26,15 @@ private:
         addToken("<unk>", 3);
     }
 
-public:
+ public:
     static Tokenizer& getInstance() {
         static Tokenizer instance;
         return instance;
     }
 
     void addToken(const std::string& token, int id) {
-        vocab_.write([&](auto& vocab) {
-            vocab[token] = id;
-        });
-        reverse_vocab_.write([&](auto& rev_vocab) {
-            rev_vocab[id] = token;
-        });
+        vocab_.write([&](auto& vocab) { vocab[token] = id; });
+        reverse_vocab_.write([&](auto& rev_vocab) { rev_vocab[id] = token; });
         next_token_id_ = std::max(next_token_id_, id + 1);
     }
 
@@ -49,30 +47,24 @@ public:
     std::vector<int> encode(const std::string& text) {
         std::vector<int> tokens;
         std::string current_token;
-        
+
         for (size_t i = 0; i < text.length(); i++) {
             current_token += text[i];
-            bool found = vocab_.read([&](const auto& vocab) {
-                return vocab.find(current_token) != vocab.end();
-            });
+            bool found = vocab_.read([&](const auto& vocab) { return vocab.find(current_token) != vocab.end(); });
 
             if (!found) {
                 if (current_token.length() > 1) {
                     std::string prev_token = current_token.substr(0, current_token.length() - 1);
-                    int token_id = vocab_.read([&](const auto& vocab) {
-                        return vocab.at(prev_token);
-                    });
+                    int token_id = vocab_.read([&](const auto& vocab) { return vocab.at(prev_token); });
                     tokens.push_back(token_id);
                     current_token = text[i];
                 }
             } else if (i == text.length() - 1) {
-                int token_id = vocab_.read([&](const auto& vocab) {
-                    return vocab.at(current_token);
-                });
+                int token_id = vocab_.read([&](const auto& vocab) { return vocab.at(current_token); });
                 tokens.push_back(token_id);
             }
         }
-        
+
         return tokens;
     }
 
@@ -89,6 +81,6 @@ public:
     }
 };
 
-} // namespace bolt
+}  // namespace bolt
 
-#endif
+#endif  // BOLT_AI_TOKENIZER_HPP_

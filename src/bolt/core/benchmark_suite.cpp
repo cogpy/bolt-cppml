@@ -1,14 +1,16 @@
 #include "bolt/core/benchmark_suite.hpp"
-#include "bolt/core/performance_profiler.hpp"
-#include "bolt/core/logging.hpp"
+
 #include <algorithm>
-#include <numeric>
 #include <cmath>
-#include <sstream>
-#include <iomanip>
 #include <fstream>
-#include <thread>
+#include <iomanip>
+#include <numeric>
 #include <set>
+#include <sstream>
+#include <thread>
+
+#include "bolt/core/logging.hpp"
+#include "bolt/core/performance_profiler.hpp"
 
 namespace bolt {
 
@@ -31,7 +33,7 @@ BenchmarkSuite& BenchmarkSuite::getInstance() {
 void BenchmarkSuite::registerBenchmark(const BenchmarkConfig& config, BenchmarkFunction function) {
     std::lock_guard<std::mutex> lock(benchmarksMutex_);
     benchmarks_[config.name] = std::make_pair(config, function);
-    
+
     if (verboseOutput_) {
         BOLT_INFO("Registered benchmark '" + config.name + "' in category '" + config.category + "'");
     }
@@ -39,39 +41,40 @@ void BenchmarkSuite::registerBenchmark(const BenchmarkConfig& config, BenchmarkF
 
 std::vector<BenchmarkResult> BenchmarkSuite::runAllBenchmarks() {
     std::vector<BenchmarkResult> results;
-    
+
     std::lock_guard<std::mutex> lock(benchmarksMutex_);
     for (const auto& benchmark : benchmarks_) {
         if (verboseOutput_) {
             BOLT_INFO("Running benchmark '" + benchmark.first + "'...");
         }
-        
+
         BenchmarkResult result = executeBenchmark(benchmark.second.first, benchmark.second.second);
         results.push_back(result);
-        
+
         if (verboseOutput_) {
-            BOLT_INFO("Benchmark '" + result.name + "' completed: " + std::to_string(result.averageDurationMs) + "ms avg (" + std::to_string(result.successfulRuns) + " runs)");
+            BOLT_INFO("Benchmark '" + result.name + "' completed: " + std::to_string(result.averageDurationMs) +
+                      "ms avg (" + std::to_string(result.successfulRuns) + " runs)");
         }
     }
-    
+
     return results;
 }
 
 std::vector<BenchmarkResult> BenchmarkSuite::runBenchmarksByCategory(const std::string& category) {
     std::vector<BenchmarkResult> results;
-    
+
     std::lock_guard<std::mutex> lock(benchmarksMutex_);
     for (const auto& benchmark : benchmarks_) {
         if (benchmark.second.first.category == category) {
             if (verboseOutput_) {
                 BOLT_INFO("Running benchmark '" + benchmark.first + "' in category '" + category + "'...");
             }
-            
+
             BenchmarkResult result = executeBenchmark(benchmark.second.first, benchmark.second.second);
             results.push_back(result);
         }
     }
-    
+
     return results;
 }
 
@@ -84,7 +87,7 @@ BenchmarkResult BenchmarkSuite::runBenchmark(const std::string& name) {
         result.errorMessage = "Benchmark not found";
         return result;
     }
-    
+
     return executeBenchmark(it->second.first, it->second.second);
 }
 
@@ -95,18 +98,18 @@ BenchmarkResult BenchmarkSuite::executeBenchmark(const BenchmarkConfig& config, 
     result.description = config.description;
     result.timestamp = std::chrono::steady_clock::now();
     result.totalIterations = config.iterations;
-    
+
     auto& profiler = PerformanceProfiler::getInstance();
     profiler.enable();
-    
+
     // Create a benchmark session
     auto session = profiler.createSession("benchmark_" + config.name);
     profiler.setCurrentSession("benchmark_" + config.name);
-    
+
     std::vector<double> durations;
     std::vector<double> memoryUsages;
     std::vector<double> cpuUsages;
-    
+
     try {
         // Warmup runs
         for (int i = 0; i < config.warmupRuns; ++i) {
@@ -118,27 +121,28 @@ BenchmarkResult BenchmarkSuite::executeBenchmark(const BenchmarkConfig& config, 
                 }
             }
         }
-        
+
         // Actual benchmark runs
         for (int i = 0; i < config.iterations; ++i) {
             auto runStart = std::chrono::steady_clock::now();
             size_t memoryBefore = getCurrentMemoryUsage();
-            
+
             try {
                 auto metric = profiler.startMetric(config.name + "_run_" + std::to_string(i), config.category);
-                
+
                 function(config);
-                
+
                 profiler.endMetric(metric);
-                
+
                 auto runEnd = std::chrono::steady_clock::now();
                 double duration = std::chrono::duration<double, std::milli>(runEnd - runStart).count();
                 size_t memoryAfter = getCurrentMemoryUsage();
-                
+
                 durations.push_back(duration);
-                memoryUsages.push_back(static_cast<double>(memoryAfter - memoryBefore) / (1024 * 1024)); // Convert to MB
+                memoryUsages.push_back(static_cast<double>(memoryAfter - memoryBefore) /
+                                       (1024 * 1024));  // Convert to MB
                 cpuUsages.push_back(getCurrentCpuUsage());
-                
+
                 result.successfulRuns++;
             } catch (const std::exception& e) {
                 result.failedRuns++;
@@ -150,7 +154,7 @@ BenchmarkResult BenchmarkSuite::executeBenchmark(const BenchmarkConfig& config, 
                 }
             }
         }
-        
+
         // Calculate statistics
         if (!durations.empty()) {
             result.rawDurations = durations;
@@ -159,44 +163,42 @@ BenchmarkResult BenchmarkSuite::executeBenchmark(const BenchmarkConfig& config, 
             result.maxDurationMs = *std::max_element(durations.begin(), durations.end());
             result.standardDeviationMs = calculateStandardDeviation(durations, result.averageDurationMs);
         }
-        
+
         if (!memoryUsages.empty()) {
-            result.averageMemoryUsageMB = std::accumulate(memoryUsages.begin(), memoryUsages.end(), 0.0) / memoryUsages.size();
+            result.averageMemoryUsageMB =
+                std::accumulate(memoryUsages.begin(), memoryUsages.end(), 0.0) / memoryUsages.size();
             result.maxMemoryUsageMB = *std::max_element(memoryUsages.begin(), memoryUsages.end());
         }
-        
+
         if (!cpuUsages.empty()) {
             result.averageCpuUsagePercent = std::accumulate(cpuUsages.begin(), cpuUsages.end(), 0.0) / cpuUsages.size();
         }
-        
+
         // Add session metadata
         if (session) {
             result.metadata["session_metrics"] = std::to_string(session->getMetricsCount());
             result.metadata["session_duration"] = std::to_string(session->getTotalDurationMs());
         }
-        
     } catch (const std::exception& e) {
         result.errorMessage = "Benchmark execution failed: " + std::string(e.what());
         BOLT_ERROR("Benchmark '" + config.name + "' failed: " + e.what());
     }
-    
+
     profiler.endSession("benchmark_" + config.name);
-    
+
     return result;
 }
 
-std::vector<BenchmarkComparison> BenchmarkSuite::compareWithBaseline(
-    const std::vector<BenchmarkResult>& current,
-    const std::vector<BenchmarkResult>& baseline
-) {
+std::vector<BenchmarkComparison> BenchmarkSuite::compareWithBaseline(const std::vector<BenchmarkResult>& current,
+                                                                     const std::vector<BenchmarkResult>& baseline) {
     std::vector<BenchmarkComparison> comparisons;
-    
+
     // Create a map for quick baseline lookup
     std::unordered_map<std::string, BenchmarkResult> baselineMap;
     for (const auto& result : baseline) {
         baselineMap[result.name] = result;
     }
-    
+
     for (const auto& currentResult : current) {
         auto baselineIt = baselineMap.find(currentResult.name);
         if (baselineIt != baselineMap.end()) {
@@ -204,33 +206,36 @@ std::vector<BenchmarkComparison> BenchmarkSuite::compareWithBaseline(
             comparison.benchmarkName = currentResult.name;
             comparison.current = currentResult;
             comparison.baseline = baselineIt->second;
-            
+
             // Calculate performance changes
             if (baselineIt->second.averageDurationMs > 0) {
-                comparison.durationChangePercent = 
-                    ((currentResult.averageDurationMs - baselineIt->second.averageDurationMs) / 
-                     baselineIt->second.averageDurationMs) * 100.0;
+                comparison.durationChangePercent =
+                    ((currentResult.averageDurationMs - baselineIt->second.averageDurationMs) /
+                     baselineIt->second.averageDurationMs) *
+                    100.0;
             }
-            
+
             if (baselineIt->second.averageMemoryUsageMB > 0) {
-                comparison.memoryChangePercent = 
-                    ((currentResult.averageMemoryUsageMB - baselineIt->second.averageMemoryUsageMB) / 
-                     baselineIt->second.averageMemoryUsageMB) * 100.0;
+                comparison.memoryChangePercent =
+                    ((currentResult.averageMemoryUsageMB - baselineIt->second.averageMemoryUsageMB) /
+                     baselineIt->second.averageMemoryUsageMB) *
+                    100.0;
             }
-            
+
             if (baselineIt->second.averageCpuUsagePercent > 0) {
-                comparison.cpuChangePercent = 
-                    ((currentResult.averageCpuUsagePercent - baselineIt->second.averageCpuUsagePercent) / 
-                     baselineIt->second.averageCpuUsagePercent) * 100.0;
+                comparison.cpuChangePercent =
+                    ((currentResult.averageCpuUsagePercent - baselineIt->second.averageCpuUsagePercent) /
+                     baselineIt->second.averageCpuUsagePercent) *
+                    100.0;
             }
-            
+
             // Determine performance status
             comparison.performanceStatus = determinePerformanceStatus(baselineIt->second, currentResult);
-            
+
             comparisons.push_back(comparison);
         }
     }
-    
+
     return comparisons;
 }
 
@@ -240,13 +245,15 @@ void BenchmarkSuite::generateJsonReport(const std::vector<BenchmarkResult>& resu
         BOLT_ERROR("Failed to open file for JSON report: " + filename);
         return;
     }
-    
+
     file << "{\n";
     file << "  \"benchmark_suite_version\": \"1.0.0\",\n";
-    file << "  \"timestamp\": \"" << std::chrono::duration_cast<std::chrono::seconds>(
-        std::chrono::system_clock::now().time_since_epoch()).count() << "\",\n";
+    file
+        << "  \"timestamp\": \""
+        << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count()
+        << "\",\n";
     file << "  \"results\": [\n";
-    
+
     for (size_t i = 0; i < results.size(); ++i) {
         const auto& result = results[i];
         file << "    {\n";
@@ -266,13 +273,14 @@ void BenchmarkSuite::generateJsonReport(const std::vector<BenchmarkResult>& resu
         file << "      \"success_rate\": " << result.getSuccessRate() << ",\n";
         file << "      \"error_message\": \"" << result.errorMessage << "\"\n";
         file << "    }";
-        if (i < results.size() - 1) file << ",";
+        if (i < results.size() - 1)
+            file << ",";
         file << "\n";
     }
-    
+
     file << "  ]\n";
     file << "}\n";
-    
+
     file.close();
     BOLT_INFO("JSON report generated: " + filename);
 }
@@ -283,30 +291,23 @@ void BenchmarkSuite::generateCsvReport(const std::vector<BenchmarkResult>& resul
         BOLT_ERROR("Failed to open file for CSV report: " + filename);
         return;
     }
-    
+
     // Header
-    file << "Name,Category,Description,AvgDurationMs,MinDurationMs,MaxDurationMs,StdDevMs,"
-         << "AvgMemoryMB,MaxMemoryMB,AvgCpuPercent,TotalIterations,SuccessfulRuns,FailedRuns,SuccessRate,ErrorMessage\n";
-    
+    file
+        << "Name,Category,Description,AvgDurationMs,MinDurationMs,MaxDurationMs,StdDevMs,"
+        << "AvgMemoryMB,MaxMemoryMB,AvgCpuPercent,TotalIterations,SuccessfulRuns,FailedRuns,SuccessRate,ErrorMessage\n";
+
     // Data rows
     for (const auto& result : results) {
         file << "\"" << result.name << "\","
              << "\"" << result.category << "\","
-             << "\"" << result.description << "\","
-             << result.averageDurationMs << ","
-             << result.minDurationMs << ","
-             << result.maxDurationMs << ","
-             << result.standardDeviationMs << ","
-             << result.averageMemoryUsageMB << ","
-             << result.maxMemoryUsageMB << ","
-             << result.averageCpuUsagePercent << ","
-             << result.totalIterations << ","
-             << result.successfulRuns << ","
-             << result.failedRuns << ","
-             << result.getSuccessRate() << ","
+             << "\"" << result.description << "\"," << result.averageDurationMs << "," << result.minDurationMs << ","
+             << result.maxDurationMs << "," << result.standardDeviationMs << "," << result.averageMemoryUsageMB << ","
+             << result.maxMemoryUsageMB << "," << result.averageCpuUsagePercent << "," << result.totalIterations << ","
+             << result.successfulRuns << "," << result.failedRuns << "," << result.getSuccessRate() << ","
              << "\"" << result.errorMessage << "\"\n";
     }
-    
+
     file.close();
     BOLT_INFO("CSV report generated: " + filename);
 }
@@ -317,8 +318,9 @@ void BenchmarkSuite::generateHtmlReport(const std::vector<BenchmarkResult>& resu
         BOLT_ERROR("Failed to open file for HTML report: " + filename);
         return;
     }
-    
-    file << R"(<!DOCTYPE html>
+
+    file
+        << R"(<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -340,12 +342,14 @@ void BenchmarkSuite::generateHtmlReport(const std::vector<BenchmarkResult>& resu
 <body>
     <div class="header">
         <h1>Bolt Performance Benchmark Report</h1>
-        <p>Generated: )" << std::chrono::duration_cast<std::chrono::seconds>(
-            std::chrono::system_clock::now().time_since_epoch()).count() << R"(</p>
-        <p>Total Benchmarks: )" << results.size() << R"(</p>
+        <p>Generated: )"
+        << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count()
+        << R"(</p>
+        <p>Total Benchmarks: )"
+        << results.size() << R"(</p>
     </div>
 )";
-    
+
     // Summary statistics
     int totalSuccessful = 0, totalFailed = 0;
     double averageTime = 0.0;
@@ -357,31 +361,43 @@ void BenchmarkSuite::generateHtmlReport(const std::vector<BenchmarkResult>& resu
     if (!results.empty()) {
         averageTime /= results.size();
     }
-    
+
     file << R"(    <div class="benchmark success">
         <h3>Summary Statistics</h3>
         <div class="stats">
-            <div class="stat">Successful Runs: )" << totalSuccessful << R"(</div>
-            <div class="stat">Failed Runs: )" << totalFailed << R"(</div>
-            <div class="stat">Average Duration: )" << formatDuration(averageTime) << R"(</div>
+            <div class="stat">Successful Runs: )"
+         << totalSuccessful << R"(</div>
+            <div class="stat">Failed Runs: )"
+         << totalFailed << R"(</div>
+            <div class="stat">Average Duration: )"
+         << formatDuration(averageTime) << R"(</div>
         </div>
     </div>
 )";
-    
+
     // Individual benchmark results
     for (const auto& result : results) {
         std::string cssClass = result.isValid() ? "success" : "failure";
         file << R"(    <div class="benchmark )" << cssClass << R"(">
-        <h3>)" << result.name << R"( ()" << result.category << R"()</h3>
-        <p>)" << result.description << R"(</p>
+        <h3>)"
+             << result.name << R"( ()" << result.category << R"()</h3>
+        <p>)" << result.description
+             << R"(</p>
         <div class="stats">
-            <div class="stat">Avg: )" << formatDuration(result.averageDurationMs) << R"(</div>
-            <div class="stat">Min: )" << formatDuration(result.minDurationMs) << R"(</div>
-            <div class="stat">Max: )" << formatDuration(result.maxDurationMs) << R"(</div>
-            <div class="stat">StdDev: )" << formatDuration(result.standardDeviationMs) << R"(</div>
-            <div class="stat">Memory: )" << formatMemory(result.averageMemoryUsageMB) << R"(</div>
-            <div class="stat">CPU: )" << formatPercentage(result.averageCpuUsagePercent) << R"(</div>
-            <div class="stat">Success Rate: )" << formatPercentage(result.getSuccessRate() * 100) << R"(</div>
+            <div class="stat">Avg: )"
+             << formatDuration(result.averageDurationMs) << R"(</div>
+            <div class="stat">Min: )"
+             << formatDuration(result.minDurationMs) << R"(</div>
+            <div class="stat">Max: )"
+             << formatDuration(result.maxDurationMs) << R"(</div>
+            <div class="stat">StdDev: )"
+             << formatDuration(result.standardDeviationMs) << R"(</div>
+            <div class="stat">Memory: )"
+             << formatMemory(result.averageMemoryUsageMB) << R"(</div>
+            <div class="stat">CPU: )"
+             << formatPercentage(result.averageCpuUsagePercent) << R"(</div>
+            <div class="stat">Success Rate: )"
+             << formatPercentage(result.getSuccessRate() * 100) << R"(</div>
         </div>
 )";
         if (!result.errorMessage.empty()) {
@@ -390,10 +406,10 @@ void BenchmarkSuite::generateHtmlReport(const std::vector<BenchmarkResult>& resu
         file << R"(    </div>
 )";
     }
-    
+
     file << R"(</body>
 </html>)";
-    
+
     file.close();
     BOLT_INFO("HTML report generated: " + filename);
 }
@@ -429,8 +445,9 @@ std::vector<std::string> BenchmarkSuite::getAvailableCategories() const {
 }
 
 double BenchmarkSuite::calculateStandardDeviation(const std::vector<double>& values, double mean) {
-    if (values.empty()) return 0.0;
-    
+    if (values.empty())
+        return 0.0;
+
     double variance = 0.0;
     for (double value : values) {
         variance += (value - mean) * (value - mean);
@@ -439,16 +456,14 @@ double BenchmarkSuite::calculateStandardDeviation(const std::vector<double>& val
     return std::sqrt(variance);
 }
 
-BenchmarkComparison::Status BenchmarkSuite::determinePerformanceStatus(
-    const BenchmarkResult& baseline, const BenchmarkResult& current) {
-    
+BenchmarkComparison::Status BenchmarkSuite::determinePerformanceStatus(const BenchmarkResult& baseline,
+                                                                       const BenchmarkResult& current) {
     if (!baseline.isValid() || !current.isValid()) {
         return BenchmarkComparison::Status::INCONCLUSIVE;
     }
-    
-    double change = ((current.averageDurationMs - baseline.averageDurationMs) / 
-                     baseline.averageDurationMs) * 100.0;
-    
+
+    double change = ((current.averageDurationMs - baseline.averageDurationMs) / baseline.averageDurationMs) * 100.0;
+
     if (change <= IMPROVEMENT_THRESHOLD) {
         return BenchmarkComparison::Status::IMPROVED;
     } else if (change >= REGRESSION_THRESHOLD) {
@@ -486,7 +501,7 @@ size_t getCurrentMemoryUsage() {
             std::istringstream iss(line);
             std::string label, value, unit;
             iss >> label >> value >> unit;
-            return std::stoul(value) * 1024; // Convert from KB to bytes
+            return std::stoul(value) * 1024;  // Convert from KB to bytes
         }
     }
     return 0;
@@ -498,4 +513,4 @@ double getCurrentCpuUsage() {
     return 0.0;
 }
 
-} // namespace bolt
+}  // namespace bolt

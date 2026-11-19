@@ -1,24 +1,25 @@
-#ifndef CODE_FOLDING_MANAGER_HPP
-#define CODE_FOLDING_MANAGER_HPP
+#ifndef BOLT_EDITOR_CODE_FOLDING_MANAGER_HPP_
+#define BOLT_EDITOR_CODE_FOLDING_MANAGER_HPP_
 
-#include "code_folding.hpp"
-#include "code_folding_detector.hpp"
-#include "code_folding_visibility.hpp"
+#include <functional>
 #include <map>
 #include <string>
 #include <vector>
-#include <functional>
+
+#include "bolt/editor/code_folding.hpp"
+#include "bolt/editor/code_folding_detector.hpp"
+#include "bolt/editor/code_folding_visibility.hpp"
 
 namespace bolt {
 
 class CodeFoldingManager {
-private:
+ private:
     std::map<std::string, std::vector<FoldRange>> foldingRanges_;
     ThreadSafe<bool> foldingEnabled_{true};
     CodeFoldingVisibilityManager visibilityManager_;
     std::function<void()> onFoldingChanged_;
 
-public:
+ public:
     static CodeFoldingManager& getInstance() {
         static CodeFoldingManager instance;
         return instance;
@@ -32,10 +33,10 @@ public:
     void handleClick(const std::string& filePath, size_t lineNumber);
     void setOnFoldingChanged(std::function<void()> callback);
 
-private:
+ private:
     void refreshFoldingRanges();
 };
 
-} // namespace bolt
+}  // namespace bolt
 
-#endif
+#endif  // BOLT_EDITOR_CODE_FOLDING_MANAGER_HPP_

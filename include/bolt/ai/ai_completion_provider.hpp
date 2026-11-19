@@ -1,10 +1,11 @@
-#ifndef AI_COMPLETION_PROVIDER_HPP
-#define AI_COMPLETION_PROVIDER_HPP
+#ifndef BOLT_AI_AI_COMPLETION_PROVIDER_HPP_
+#define BOLT_AI_AI_COMPLETION_PROVIDER_HPP_
 
+#include <functional>
+#include <memory>
 #include <string>
 #include <vector>
-#include <memory>
-#include <functional>
+
 #include "bolt/editor/code_completion.hpp"
 
 namespace bolt {
@@ -19,70 +20,64 @@ struct CodeContext {
 };
 
 class AICompletionProvider {
-public:
+ public:
     virtual ~AICompletionProvider() = default;
-    
+
     // Generate AI-powered code completions
-    virtual std::vector<CompletionItem> generateCompletions(
-        const CodeContext& context,
-        const std::string& prefix,
-        size_t maxSuggestions = 10
-    ) = 0;
-    
+    virtual std::vector<CompletionItem> generateCompletions(const CodeContext& context, const std::string& prefix,
+                                                            size_t maxSuggestions = 10) = 0;
+
     // Check if the provider is ready/initialized
     virtual bool isReady() const = 0;
-    
+
     // Initialize the provider (load models, etc.)
     virtual bool initialize() = 0;
-    
+
     // Shutdown and cleanup
     virtual void shutdown() = 0;
 };
 
 // Mock implementation for testing/demo purposes
 class MockAICompletionProvider : public AICompletionProvider {
-private:
+ private:
     bool initialized_ = false;
-    
-public:
-    std::vector<CompletionItem> generateCompletions(
-        const CodeContext& context,
-        const std::string& prefix,
-        size_t maxSuggestions = 10
-    ) override;
-    
+
+ public:
+    std::vector<CompletionItem> generateCompletions(const CodeContext& context, const std::string& prefix,
+                                                    size_t maxSuggestions = 10) override;
+
     bool isReady() const override { return initialized_; }
-    bool initialize() override { initialized_ = true; return true; }
+    bool initialize() override {
+        initialized_ = true;
+        return true;
+    }
     void shutdown() override { initialized_ = false; }
 };
 
 // AI-powered code completion engine that integrates with existing CodeCompletionEngine
 class AICodeCompletionEngine {
-private:
+ private:
     std::unique_ptr<AICompletionProvider> provider_;
     CodeCompletionEngine& baseEngine_;
     bool aiEnabled_ = true;
-    
-public:
+
+ public:
     AICodeCompletionEngine();
-    
+
     // Set the AI provider
     void setProvider(std::unique_ptr<AICompletionProvider> provider);
-    
+
     // Get completions with AI integration
-    std::vector<CompletionItem> getCompletions(
-        const CodeContext& context,
-        const std::string& prefix,
-        size_t limit = 10
-    );
-    
+    std::vector<CompletionItem> getCompletions(const CodeContext& context, const std::string& prefix,
+                                               size_t limit = 10);
+
     // Enable/disable AI completions
     void setAIEnabled(bool enabled) { aiEnabled_ = enabled; }
     bool isAIEnabled() const { return aiEnabled_; }
-    
+
     // Check if AI provider is ready
     bool isAIReady() const;
-    
+
     // Singleton access
     static AICodeCompletionEngine& getInstance() {
         static AICodeCompletionEngine instance;
@@ -90,6 +85,6 @@ public:
     }
 };
 
-} // namespace bolt
+}  // namespace bolt
 
-#endif
+#endif  // BOLT_AI_AI_COMPLETION_PROVIDER_HPP_

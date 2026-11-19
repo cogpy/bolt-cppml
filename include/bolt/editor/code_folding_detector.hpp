@@ -1,19 +1,20 @@
-#ifndef CODE_FOLDING_DETECTOR_HPP
-#define CODE_FOLDING_DETECTOR_HPP
+#ifndef BOLT_EDITOR_CODE_FOLDING_DETECTOR_HPP_
+#define BOLT_EDITOR_CODE_FOLDING_DETECTOR_HPP_
 
-#include "code_folding.hpp"
 #include <string>
 #include <vector>
+
+#include "bolt/editor/code_folding.hpp"
 
 namespace bolt {
 
 class CodeFoldingDetector {
-public:
+ public:
     static std::vector<FoldRange> detectFoldableRanges(const std::string& content);
     static bool isFoldableRegion(const std::string& line);
     static int findMatchingEnd(const std::vector<std::string>& lines, int startLine);
 };
 
-} // namespace bolt
+}  // namespace bolt
 
-#endif
+#endif  // BOLT_EDITOR_CODE_FOLDING_DETECTOR_HPP_

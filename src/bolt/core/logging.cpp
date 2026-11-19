@@ -1,8 +1,9 @@
 #include "bolt/core/logging.hpp"
-#include <iomanip>
-#include <filesystem>
+
 #include <algorithm>
 #include <cstring>
+#include <filesystem>
+#include <iomanip>
 
 namespace bolt {
 
@@ -15,9 +16,8 @@ std::string extractFilename(const std::string& filepath) {
 // Helper function to format timestamp
 std::string formatTimestamp(const std::chrono::system_clock::time_point& timestamp) {
     auto time_t = std::chrono::system_clock::to_time_t(timestamp);
-    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
-        timestamp.time_since_epoch()) % 1000;
-    
+    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(timestamp.time_since_epoch()) % 1000;
+
     std::stringstream ss;
     ss << std::put_time(std::localtime(&time_t), "%Y-%m-%d %H:%M:%S");
     ss << '.' << std::setfill('0') << std::setw(3) << ms.count();
@@ -35,26 +35,25 @@ std::string formatThreadId(const std::thread::id& threadId) {
 std::string SimpleFormatter::format(const LogEntry& entry) {
     std::stringstream ss;
     ss << "[" << Logger::levelToString(entry.level) << "] "
-       << "[" << Logger::categoryToString(entry.category) << "] "
-       << entry.message;
+       << "[" << Logger::categoryToString(entry.category) << "] " << entry.message;
     return ss.str();
 }
 
 // DetailedFormatter implementation
 std::string DetailedFormatter::format(const LogEntry& entry) {
     std::stringstream ss;
-    
+
     if (includeTimestamp_) {
         ss << "[" << formatTimestamp(entry.timestamp) << "] ";
     }
-    
+
     ss << "[" << Logger::levelToString(entry.level) << "] ";
     ss << "[" << Logger::categoryToString(entry.category) << "] ";
-    
+
     if (includeThreadId_) {
         ss << "[T:" << formatThreadId(entry.threadId) << "] ";
     }
-    
+
     if (includeLocation_ && !entry.file.empty()) {
         ss << "[" << extractFilename(entry.file) << ":" << entry.line;
         if (!entry.function.empty()) {
@@ -62,7 +61,7 @@ std::string DetailedFormatter::format(const LogEntry& entry) {
         }
         ss << "] ";
     }
-    
+
     ss << entry.message;
     return ss.str();
 }
@@ -76,16 +75,16 @@ std::string JsonFormatter::format(const LogEntry& entry) {
        << "\"category\":\"" << Logger::categoryToString(entry.category) << "\","
        << "\"thread\":\"" << formatThreadId(entry.threadId) << "\","
        << "\"message\":\"" << entry.message << "\"";
-    
+
     if (!entry.file.empty()) {
         ss << ",\"file\":\"" << extractFilename(entry.file) << "\""
            << ",\"line\":" << entry.line;
     }
-    
+
     if (!entry.function.empty()) {
         ss << ",\"function\":\"" << entry.function << "\"";
     }
-    
+
     ss << "}";
     return ss.str();
 }
@@ -93,16 +92,16 @@ std::string JsonFormatter::format(const LogEntry& entry) {
 // ConsoleSink implementation
 void ConsoleSink::write(const LogEntry& entry, const std::string& formattedMessage) {
     std::ostream& stream = useStderr_ ? std::cerr : std::cout;
-    
+
     // Use different colors based on log level (if terminal supports it)
     if (entry.level >= LogLevel::ERROR) {
-        stream << "\033[31m" << formattedMessage << "\033[0m" << std::endl; // Red
+        stream << "\033[31m" << formattedMessage << "\033[0m" << std::endl;  // Red
     } else if (entry.level == LogLevel::WARN) {
-        stream << "\033[33m" << formattedMessage << "\033[0m" << std::endl; // Yellow
+        stream << "\033[33m" << formattedMessage << "\033[0m" << std::endl;  // Yellow
     } else if (entry.level == LogLevel::DEBUG) {
-        stream << "\033[36m" << formattedMessage << "\033[0m" << std::endl; // Cyan
+        stream << "\033[36m" << formattedMessage << "\033[0m" << std::endl;  // Cyan
     } else {
-        stream << formattedMessage << std::endl; // Default color
+        stream << formattedMessage << std::endl;  // Default color
     }
 }
 
@@ -118,7 +117,7 @@ FileSink::FileSink(const std::string& filename) : filename_(filename) {
     if (filepath.has_parent_path()) {
         std::filesystem::create_directories(filepath.parent_path());
     }
-    
+
     file_.open(filename, std::ios::app);
     if (!file_.is_open()) {
         throw std::runtime_error("Failed to open log file: " + filename);
@@ -152,18 +151,17 @@ bool FileSink::isOpen() const {
 // RotatingFileSink implementation
 RotatingFileSink::RotatingFileSink(const std::string& baseFilename, size_t maxFileSize, size_t maxFiles)
     : baseFilename_(baseFilename), maxFileSize_(maxFileSize), maxFiles_(maxFiles), currentFileSize_(0) {
-    
     // Create directory if it doesn't exist
     std::filesystem::path filepath(baseFilename);
     if (filepath.has_parent_path()) {
         std::filesystem::create_directories(filepath.parent_path());
     }
-    
+
     currentFile_ = std::make_unique<std::ofstream>(baseFilename, std::ios::app);
     if (!currentFile_->is_open()) {
         throw std::runtime_error("Failed to open rotating log file: " + baseFilename);
     }
-    
+
     // Get current file size
     std::filesystem::path path(baseFilename);
     if (std::filesystem::exists(path)) {
@@ -181,22 +179,22 @@ void RotatingFileSink::rotateFile() {
     if (currentFile_ && currentFile_->is_open()) {
         currentFile_->close();
     }
-    
+
     // Move existing files
     for (int i = maxFiles_ - 1; i >= 1; --i) {
         std::string oldFile = getRotatedFilename(i - 1);
         std::string newFile = getRotatedFilename(i);
-        
+
         if (std::filesystem::exists(oldFile)) {
             std::filesystem::rename(oldFile, newFile);
         }
     }
-    
+
     // Move current file to .1
     if (std::filesystem::exists(baseFilename_)) {
         std::filesystem::rename(baseFilename_, getRotatedFilename(1));
     }
-    
+
     // Open new current file
     currentFile_ = std::make_unique<std::ofstream>(baseFilename_, std::ios::app);
     currentFileSize_ = 0;
@@ -208,17 +206,17 @@ std::string RotatingFileSink::getRotatedFilename(size_t index) {
 
 void RotatingFileSink::write(const LogEntry& entry, const std::string& formattedMessage) {
     std::lock_guard<std::mutex> lock(mutex_);
-    
+
     if (!currentFile_ || !currentFile_->is_open()) {
         return;
     }
-    
+
     // Check if we need to rotate
-    size_t messageSize = formattedMessage.length() + 1; // +1 for newline
+    size_t messageSize = formattedMessage.length() + 1;  // +1 for newline
     if (currentFileSize_ + messageSize > maxFileSize_) {
         rotateFile();
     }
-    
+
     if (currentFile_ && currentFile_->is_open()) {
         *currentFile_ << formattedMessage << std::endl;
         currentFileSize_ += messageSize;
@@ -245,9 +243,7 @@ bool CategoryFilter::shouldLog(const LogEntry& entry) {
 
 // Logger implementation
 Logger::Logger(LogLevel level, LogCategory defaultCategory)
-    : level_(level), defaultCategory_(defaultCategory), enabled_(true),
-      totalMessages_(0), droppedMessages_(0) {
-    
+    : level_(level), defaultCategory_(defaultCategory), enabled_(true), totalMessages_(0), droppedMessages_(0) {
     // Set default formatter
     formatter_ = std::make_unique<DetailedFormatter>();
 }
@@ -261,19 +257,19 @@ bool Logger::shouldLog(const LogEntry& entry) const {
     if (!enabled_.read([](const bool& e) { return e; })) {
         return false;
     }
-    
+
     // Check level
     if (entry.level < level_) {
         return false;
     }
-    
+
     // Check filters
     for (const auto& filter : filters_) {
         if (!filter->shouldLog(entry)) {
             return false;
         }
     }
-    
+
     return true;
 }
 
@@ -281,9 +277,9 @@ void Logger::writeToSinks(const LogEntry& entry) {
     if (sinks_.empty()) {
         return;
     }
-    
+
     std::string formattedMessage = formatter_->format(entry);
-    
+
     for (const auto& sink : sinks_) {
         try {
             if (sink->isOpen()) {
@@ -297,17 +293,17 @@ void Logger::writeToSinks(const LogEntry& entry) {
     }
 }
 
-void Logger::log(LogLevel level, LogCategory category, const std::string& message,
-                 const std::string& file, int line, const std::string& function) {
+void Logger::log(LogLevel level, LogCategory category, const std::string& message, const std::string& file, int line,
+                 const std::string& function) {
     LogEntry entry(level, category, message, file, line, function);
-    
+
     totalMessages_++;
-    
+
     if (!shouldLog(entry)) {
         droppedMessages_++;
         return;
     }
-    
+
     std::lock_guard<std::mutex> lock(mutex_);
     writeToSinks(entry);
 }
@@ -360,64 +356,101 @@ void Logger::flush() {
 
 std::string Logger::levelToString(LogLevel level) {
     switch (level) {
-        case LogLevel::TRACE: return "TRACE";
-        case LogLevel::DEBUG: return "DEBUG";
-        case LogLevel::INFO: return "INFO";
-        case LogLevel::WARN: return "WARN";
-        case LogLevel::ERROR: return "ERROR";
-        case LogLevel::FATAL: return "FATAL";
-        case LogLevel::OFF: return "OFF";
-        default: return "UNKNOWN";
+        case LogLevel::TRACE:
+            return "TRACE";
+        case LogLevel::DEBUG:
+            return "DEBUG";
+        case LogLevel::INFO:
+            return "INFO";
+        case LogLevel::WARN:
+            return "WARN";
+        case LogLevel::ERROR:
+            return "ERROR";
+        case LogLevel::FATAL:
+            return "FATAL";
+        case LogLevel::OFF:
+            return "OFF";
+        default:
+            return "UNKNOWN";
     }
 }
 
 std::string Logger::categoryToString(LogCategory category) {
     switch (category) {
-        case LogCategory::CORE: return "CORE";
-        case LogCategory::MEMORY: return "MEMORY";
-        case LogCategory::EDITOR: return "EDITOR";
-        case LogCategory::AI: return "AI";
-        case LogCategory::GUI: return "GUI";
-        case LogCategory::NETWORK: return "NETWORK";
-        case LogCategory::PLUGIN: return "PLUGIN";
-        case LogCategory::COLLABORATION: return "COLLABORATION";
-        case LogCategory::DEBUGGER: return "DEBUGGER";
-        case LogCategory::TESTING: return "TESTING";
-        case LogCategory::UNKNOWN: return "UNKNOWN";
-        default: return "UNKNOWN";
+        case LogCategory::CORE:
+            return "CORE";
+        case LogCategory::MEMORY:
+            return "MEMORY";
+        case LogCategory::EDITOR:
+            return "EDITOR";
+        case LogCategory::AI:
+            return "AI";
+        case LogCategory::GUI:
+            return "GUI";
+        case LogCategory::NETWORK:
+            return "NETWORK";
+        case LogCategory::PLUGIN:
+            return "PLUGIN";
+        case LogCategory::COLLABORATION:
+            return "COLLABORATION";
+        case LogCategory::DEBUGGER:
+            return "DEBUGGER";
+        case LogCategory::TESTING:
+            return "TESTING";
+        case LogCategory::UNKNOWN:
+            return "UNKNOWN";
+        default:
+            return "UNKNOWN";
     }
 }
 
 LogLevel Logger::stringToLevel(const std::string& levelStr) {
     std::string upper = levelStr;
     std::transform(upper.begin(), upper.end(), upper.begin(), ::toupper);
-    
-    if (upper == "TRACE") return LogLevel::TRACE;
-    if (upper == "DEBUG") return LogLevel::DEBUG;
-    if (upper == "INFO") return LogLevel::INFO;
-    if (upper == "WARN" || upper == "WARNING") return LogLevel::WARN;
-    if (upper == "ERROR") return LogLevel::ERROR;
-    if (upper == "FATAL") return LogLevel::FATAL;
-    if (upper == "OFF") return LogLevel::OFF;
-    
-    return LogLevel::INFO; // Default
+
+    if (upper == "TRACE")
+        return LogLevel::TRACE;
+    if (upper == "DEBUG")
+        return LogLevel::DEBUG;
+    if (upper == "INFO")
+        return LogLevel::INFO;
+    if (upper == "WARN" || upper == "WARNING")
+        return LogLevel::WARN;
+    if (upper == "ERROR")
+        return LogLevel::ERROR;
+    if (upper == "FATAL")
+        return LogLevel::FATAL;
+    if (upper == "OFF")
+        return LogLevel::OFF;
+
+    return LogLevel::INFO;  // Default
 }
 
 LogCategory Logger::stringToCategory(const std::string& categoryStr) {
     std::string upper = categoryStr;
     std::transform(upper.begin(), upper.end(), upper.begin(), ::toupper);
-    
-    if (upper == "CORE") return LogCategory::CORE;
-    if (upper == "MEMORY") return LogCategory::MEMORY;
-    if (upper == "EDITOR") return LogCategory::EDITOR;
-    if (upper == "AI") return LogCategory::AI;
-    if (upper == "GUI") return LogCategory::GUI;
-    if (upper == "NETWORK") return LogCategory::NETWORK;
-    if (upper == "PLUGIN") return LogCategory::PLUGIN;
-    if (upper == "COLLABORATION") return LogCategory::COLLABORATION;
-    if (upper == "DEBUGGER") return LogCategory::DEBUGGER;
-    if (upper == "TESTING") return LogCategory::TESTING;
-    
+
+    if (upper == "CORE")
+        return LogCategory::CORE;
+    if (upper == "MEMORY")
+        return LogCategory::MEMORY;
+    if (upper == "EDITOR")
+        return LogCategory::EDITOR;
+    if (upper == "AI")
+        return LogCategory::AI;
+    if (upper == "GUI")
+        return LogCategory::GUI;
+    if (upper == "NETWORK")
+        return LogCategory::NETWORK;
+    if (upper == "PLUGIN")
+        return LogCategory::PLUGIN;
+    if (upper == "COLLABORATION")
+        return LogCategory::COLLABORATION;
+    if (upper == "DEBUGGER")
+        return LogCategory::DEBUGGER;
+    if (upper == "TESTING")
+        return LogCategory::TESTING;
+
     return LogCategory::UNKNOWN;
 }
 
@@ -448,68 +481,68 @@ void LogManager::reset() {
 void LogManager::configureConsoleLogging(LogLevel level, bool useDetailedFormat) {
     auto logger = std::make_unique<Logger>(level);
     logger->addSink(std::make_unique<ConsoleSink>());
-    
+
     if (useDetailedFormat) {
         logger->setFormatter(std::make_unique<DetailedFormatter>(true, true, false));
     } else {
         logger->setFormatter(std::make_unique<SimpleFormatter>());
     }
-    
+
     setGlobalLogger(std::move(logger));
 }
 
 void LogManager::configureFileLogging(const std::string& filename, LogLevel level, bool useDetailedFormat) {
     auto logger = std::make_unique<Logger>(level);
     logger->addSink(std::make_unique<FileSink>(filename));
-    
+
     if (useDetailedFormat) {
         logger->setFormatter(std::make_unique<DetailedFormatter>(true, true, true));
     } else {
         logger->setFormatter(std::make_unique<SimpleFormatter>());
     }
-    
+
     setGlobalLogger(std::move(logger));
 }
 
-void LogManager::configureRotatingFileLogging(const std::string& baseFilename, size_t maxFileSize, size_t maxFiles, LogLevel level) {
+void LogManager::configureRotatingFileLogging(const std::string& baseFilename, size_t maxFileSize, size_t maxFiles,
+                                              LogLevel level) {
     auto logger = std::make_unique<Logger>(level);
     logger->addSink(std::make_unique<RotatingFileSink>(baseFilename, maxFileSize, maxFiles));
     logger->setFormatter(std::make_unique<DetailedFormatter>(true, true, true));
-    
+
     setGlobalLogger(std::move(logger));
 }
 
 void LogManager::configureDualLogging(const std::string& filename, LogLevel consoleLevel, LogLevel fileLevel) {
     auto logger = std::make_unique<Logger>(std::min(consoleLevel, fileLevel));
-    
+
     // Add console sink with level filter
     logger->addSink(std::make_unique<ConsoleSink>());
     logger->addFilter(std::make_unique<LevelFilter>(consoleLevel));
-    
+
     // Add file sink
     logger->addSink(std::make_unique<FileSink>(filename));
-    
+
     // Use detailed formatter for file logging
     logger->setFormatter(std::make_unique<DetailedFormatter>(true, true, true));
-    
+
     setGlobalLogger(std::move(logger));
 }
 
 // ScopedLogger implementation
 ScopedLogger::ScopedLogger(const std::string& function, LogCategory category)
     : function_(function), category_(category), startTime_(std::chrono::steady_clock::now()) {
-    
     LogManager::getInstance().log(LogLevel::TRACE, category_, "Entering " + function_);
 }
 
 ScopedLogger::~ScopedLogger() {
     auto endTime = std::chrono::steady_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(endTime - startTime_);
-    
+
     std::stringstream ss;
     ss << "Exiting " << function_ << " (took " << duration.count() << "μs)";
-    
+
     LogManager::getInstance().log(LogLevel::TRACE, category_, ss.str());
 }
 
-} // namespace bolt
+}  // namespace bolt

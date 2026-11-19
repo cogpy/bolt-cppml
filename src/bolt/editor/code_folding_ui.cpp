@@ -17,7 +17,8 @@ bool CodeFoldingUI::isVisible() const {
 }
 
 void CodeFoldingUI::renderFoldingIndicator(size_t lineNumber, bool isFolded) {
-    if (!visible_) return;
+    if (!visible_)
+        return;
 
     // Render folding indicator icon based on fold state
     std::string indicator = isFolded ? "[+]" : "[-]";
@@ -25,7 +26,8 @@ void CodeFoldingUI::renderFoldingIndicator(size_t lineNumber, bool isFolded) {
 }
 
 void CodeFoldingUI::handleFoldingClick(size_t lineNumber) {
-    if (!visible_) return;
+    if (!visible_)
+        return;
 
     // In a real implementation, this would emit an event or signal
     // emit("fold-click", lineNumber);
@@ -33,10 +35,10 @@ void CodeFoldingUI::handleFoldingClick(size_t lineNumber) {
 
 CodeFoldingUI::FoldingGutter CodeFoldingUI::createGutter() {
     return {
-        true,     // isVisible
-        14,       // width in pixels
-        "▶",      // iconCollapsed
-        "▼"       // iconExpanded
+        true,  // isVisible
+        14,    // width in pixels
+        "▶",   // iconCollapsed
+        "▼"    // iconExpanded
     };
 }
 
@@ -55,7 +57,8 @@ void CodeFoldingUI::renderFoldingMarkers(const std::string& filePath) {
 
 void CodeFoldingUI::renderMarker(size_t startLine, size_t endLine, bool isCollapsed) {
     auto gutter = createGutter();
-    if (!gutter.isVisible) return;
+    if (!gutter.isVisible)
+        return;
 
     // Position calculation for the marker
     int xPos = 0;
@@ -71,4 +74,4 @@ void CodeFoldingUI::drawIcon(int x, int y, const std::string& icon) {
     // This is a placeholder for the actual drawing implementation
 }
 
-} // namespace bolt
+}  // namespace bolt

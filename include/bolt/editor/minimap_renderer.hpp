@@ -1,5 +1,5 @@
-#ifndef MINIMAP_RENDERER_HPP
-#define MINIMAP_RENDERER_HPP
+#ifndef BOLT_EDITOR_MINIMAP_RENDERER_HPP_
+#define BOLT_EDITOR_MINIMAP_RENDERER_HPP_
 
 #include <string>
 #include <vector>
@@ -11,14 +11,14 @@ namespace bolt {
  * Converts full document content into miniaturized representation
  */
 class MinimapRenderer {
-public:
+ public:
     struct RenderConfig {
         size_t width = 120;
         size_t height = 40;
-        char fillChar = '#';          // Character for filled areas
-        char emptyChar = ' ';         // Character for empty areas
-        char viewportChar = '*';      // Character for viewport indicator
-        char currentLineChar = '|';   // Character for current line
+        char fillChar = '#';         // Character for filled areas
+        char emptyChar = ' ';        // Character for empty areas
+        char viewportChar = '*';     // Character for viewport indicator
+        char currentLineChar = '|';  // Character for current line
     };
 
     struct RenderContext {
@@ -30,10 +30,10 @@ public:
         size_t viewportEnd;
     };
 
-private:
+ private:
     RenderConfig config_;
 
-public:
+ public:
     MinimapRenderer();
     explicit MinimapRenderer(const RenderConfig& config);
 
@@ -50,17 +50,16 @@ public:
     char analyzeLinesRange(const std::vector<std::string>& lines, size_t start, size_t end) const;
 
     // Viewport rendering
-    std::string addViewportOverlay(const std::string& line, size_t minimapLine, 
-                                   const RenderContext& context) const;
+    std::string addViewportOverlay(const std::string& line, size_t minimapLine, const RenderContext& context) const;
     bool isViewportLine(size_t minimapLine, const RenderContext& context) const;
     bool isCurrentLine(size_t minimapLine, const RenderContext& context) const;
 
-private:
+ private:
     size_t mapDocumentLineToMinimap(size_t documentLine, size_t totalLines, size_t minimapHeight) const;
     size_t calculateContentDensity(const std::string& line) const;
     char selectRepresentationChar(size_t density) const;
 };
 
-} // namespace bolt
+}  // namespace bolt
 
-#endif
+#endif  // BOLT_EDITOR_MINIMAP_RENDERER_HPP_

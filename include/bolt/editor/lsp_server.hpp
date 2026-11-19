@@ -1,13 +1,15 @@
-#ifndef LSP_SERVER_HPP
-#define LSP_SERVER_HPP
+#ifndef BOLT_EDITOR_LSP_SERVER_HPP_
+#define BOLT_EDITOR_LSP_SERVER_HPP_
 
-#include "bolt/editor/lsp_protocol.hpp"
-#include "bolt/editor/lsp_json_rpc.hpp"
-#include "bolt/core/plugin_interface.hpp"
-#include <string>
-#include <memory>
-#include <map>
 #include <functional>
+#include <map>
+#include <memory>
+#include <string>
+#include <vector>
+
+#include "bolt/core/plugin_interface.hpp"
+#include "bolt/editor/lsp_json_rpc.hpp"
+#include "bolt/editor/lsp_protocol.hpp"
 
 namespace bolt {
 namespace lsp {
@@ -49,34 +51,34 @@ struct InitializeResult {
 
 // LSP Language Server
 class LanguageServer {
-private:
+ private:
     JsonRpcHandler rpcHandler_;
     ServerCapabilities capabilities_;
     bool initialized_ = false;
     std::string rootPath_;
-    
+
     // Document storage
     std::map<std::string, TextDocumentItem> documents_;
-    
+
     // Language plugin registry
     std::map<std::string, std::shared_ptr<ILanguagePlugin>> languagePlugins_;
-    
-public:
+
+ public:
     LanguageServer();
     ~LanguageServer() = default;
-    
+
     // Server lifecycle
     void initialize(const InitializeParams& params);
     void shutdown();
     bool isInitialized() const { return initialized_; }
-    
+
     // Document management
     void didOpenTextDocument(const TextDocumentItem& document);
-    void didChangeTextDocument(const VersionedTextDocumentIdentifier& document, 
-                              const std::vector<TextDocumentContentChangeEvent>& changes);
+    void didChangeTextDocument(const VersionedTextDocumentIdentifier& document,
+                               const std::vector<TextDocumentContentChangeEvent>& changes);
     void didCloseTextDocument(const TextDocumentIdentifier& document);
     void didSaveTextDocument(const TextDocumentIdentifier& document);
-    
+
     // Language features
     CompletionList completion(const TextDocumentPositionParams& params);
     std::optional<Hover> hover(const TextDocumentPositionParams& params);
@@ -85,34 +87,39 @@ public:
     std::vector<DocumentSymbol> documentSymbol(const TextDocumentIdentifier& document);
     std::vector<TextEdit> formatting(const TextDocumentIdentifier& document, const FormattingOptions& options);
     std::vector<Diagnostic> diagnostics(const TextDocumentIdentifier& document);
-    
+
     // Plugin management
     void registerLanguagePlugin(const std::string& languageId, std::shared_ptr<ILanguagePlugin> plugin);
     void unregisterLanguagePlugin(const std::string& languageId);
     std::shared_ptr<ILanguagePlugin> getLanguagePlugin(const std::string& uri);
-    
+
     // Message processing
     std::string processMessage(const std::string& message);
-    
+
     // Capabilities
     const ServerCapabilities& getCapabilities() const { return capabilities_; }
     void setCapabilities(const ServerCapabilities& caps) { capabilities_ = caps; }
-    
-private:
+
+ private:
     void setupMessageHandlers();
     std::string getLanguageIdFromUri(const std::string& uri);
     std::string uriToFilePath(const std::string& uri);
     std::string filePathToUri(const std::string& filePath);
-    
+
     // JSON-RPC handlers
     std::shared_ptr<JsonValue> handleInitialize(const std::string& method, std::shared_ptr<JsonValue> params);
-    std::shared_ptr<JsonValue> handleTextDocumentCompletion(const std::string& method, std::shared_ptr<JsonValue> params);
+    std::shared_ptr<JsonValue> handleTextDocumentCompletion(const std::string& method,
+                                                            std::shared_ptr<JsonValue> params);
     std::shared_ptr<JsonValue> handleTextDocumentHover(const std::string& method, std::shared_ptr<JsonValue> params);
-    std::shared_ptr<JsonValue> handleTextDocumentDefinition(const std::string& method, std::shared_ptr<JsonValue> params);
-    std::shared_ptr<JsonValue> handleTextDocumentReferences(const std::string& method, std::shared_ptr<JsonValue> params);
-    std::shared_ptr<JsonValue> handleTextDocumentDocumentSymbol(const std::string& method, std::shared_ptr<JsonValue> params);
-    std::shared_ptr<JsonValue> handleTextDocumentFormatting(const std::string& method, std::shared_ptr<JsonValue> params);
-    
+    std::shared_ptr<JsonValue> handleTextDocumentDefinition(const std::string& method,
+                                                            std::shared_ptr<JsonValue> params);
+    std::shared_ptr<JsonValue> handleTextDocumentReferences(const std::string& method,
+                                                            std::shared_ptr<JsonValue> params);
+    std::shared_ptr<JsonValue> handleTextDocumentDocumentSymbol(const std::string& method,
+                                                                std::shared_ptr<JsonValue> params);
+    std::shared_ptr<JsonValue> handleTextDocumentFormatting(const std::string& method,
+                                                            std::shared_ptr<JsonValue> params);
+
     void handleTextDocumentDidOpen(const std::string& method, std::shared_ptr<JsonValue> params);
     void handleTextDocumentDidChange(const std::string& method, std::shared_ptr<JsonValue> params);
     void handleTextDocumentDidClose(const std::string& method, std::shared_ptr<JsonValue> params);
@@ -120,13 +127,13 @@ private:
     void handleInitialized(const std::string& method, std::shared_ptr<JsonValue> params);
     void handleShutdown(const std::string& method, std::shared_ptr<JsonValue> params);
     void handleExit(const std::string& method, std::shared_ptr<JsonValue> params);
-    
+
     // JSON conversion helpers
     Position jsonToPosition(std::shared_ptr<JsonValue> json);
     Range jsonToRange(std::shared_ptr<JsonValue> json);
     TextDocumentIdentifier jsonToTextDocumentIdentifier(std::shared_ptr<JsonValue> json);
     TextDocumentPositionParams jsonToTextDocumentPositionParams(std::shared_ptr<JsonValue> json);
-    
+
     std::shared_ptr<JsonValue> positionToJson(const Position& pos);
     std::shared_ptr<JsonValue> rangeToJson(const Range& range);
     std::shared_ptr<JsonValue> completionItemToJson(const CompletionItem& item);
@@ -137,7 +144,7 @@ private:
     std::shared_ptr<JsonValue> textEditToJson(const TextEdit& edit);
 };
 
-} // namespace lsp
-} // namespace bolt
+}  // namespace lsp
+}  // namespace bolt
 
-#endif
+#endif  // BOLT_EDITOR_LSP_SERVER_HPP_

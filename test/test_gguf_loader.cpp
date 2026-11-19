@@ -1,7 +1,8 @@
+#include <fstream>
+#include <iostream>
+
 #include "bolt/ai/gguf_loader.hpp"
 #include "bolt/test/test_framework.hpp"
-#include <iostream>
-#include <fstream>
 
 using namespace bolt;
 
@@ -24,7 +25,7 @@ BOLT_TEST(GGUFLoader, MetadataAccess) {
     // This test would require a real GGUF file
     // For now, just verify the API works
     GGUFLoader loader("test.gguf");
-    
+
     // These should not crash even with no file loaded
     BOLT_ASSERT_FALSE(loader.hasMetadata("test.key"));
     BOLT_ASSERT_EQUAL(loader.getMetadataString("test.key", "default"), std::string("default"));
@@ -34,7 +35,7 @@ BOLT_TEST(GGUFLoader, MetadataAccess) {
 // Test tensor access
 BOLT_TEST(GGUFLoader, TensorAccess) {
     GGUFLoader loader("test.gguf");
-    
+
     // Should not crash with no file loaded
     BOLT_ASSERT_FALSE(loader.hasTensor("test.tensor"));
     BOLT_ASSERT_EQUAL(loader.getTensorInfo("test.tensor"), nullptr);
@@ -44,7 +45,7 @@ BOLT_TEST(GGUFLoader, TensorAccess) {
 // Test model information extraction
 BOLT_TEST(GGUFLoader, ModelInformation) {
     GGUFLoader loader("test.gguf");
-    
+
     // Should return 0 for unloaded model
     BOLT_ASSERT_EQUAL(loader.getNumLayers(), 0);
     BOLT_ASSERT_EQUAL(loader.getEmbedDim(), 0);
@@ -54,9 +55,9 @@ BOLT_TEST(GGUFLoader, ModelInformation) {
 
 int main() {
     std::cout << "Running GGUF Loader tests..." << std::endl;
-    
+
     // Note: Full integration tests with real GGUF files should be added
     // when test models are available
-    
+
     return bolt::test::run_all_tests();
 }

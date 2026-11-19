@@ -1,7 +1,8 @@
 #include "bolt/network/message_compression.hpp"
-#include <iostream>
-#include <cstring>
+
 #include <algorithm>
+#include <cstring>
+#include <iostream>
 
 namespace bolt {
 
@@ -19,24 +20,24 @@ void MessageCompressor::initializeZlib() {
     if (type_ == CompressionType::NONE) {
         return;
     }
-    
+
     memset(&compressStream_, 0, sizeof(compressStream_));
     memset(&decompressStream_, 0, sizeof(decompressStream_));
-    
+
     // Initialize compression stream
     int windowBits = (type_ == CompressionType::GZIP) ? 15 + 16 : 15;
     if (deflateInit2(&compressStream_, compressionLevel_, Z_DEFLATED, windowBits, 8, Z_DEFAULT_STRATEGY) != Z_OK) {
         std::cerr << "Failed to initialize compression stream" << std::endl;
         return;
     }
-    
+
     // Initialize decompression stream
     if (inflateInit2(&decompressStream_, windowBits) != Z_OK) {
         std::cerr << "Failed to initialize decompression stream" << std::endl;
         deflateEnd(&compressStream_);
         return;
     }
-    
+
     zlibInitialized_ = true;
 #else
     std::cerr << "Warning: zlib support not available, compression disabled" << std::endl;
@@ -61,12 +62,12 @@ std::vector<uint8_t> MessageCompressor::compress(const std::vector<uint8_t>& dat
     if (type_ == CompressionType::NONE || !shouldCompress(data)) {
         return data;
     }
-    
+
     stats_.totalBytesIn += data.size();
     stats_.compressionCalls++;
-    
+
     std::vector<uint8_t> result;
-    
+
     switch (type_) {
         case CompressionType::GZIP:
             result = compressGzip(data.data(), data.size());
@@ -78,7 +79,7 @@ std::vector<uint8_t> MessageCompressor::compress(const std::vector<uint8_t>& dat
             result = data;
             break;
     }
-    
+
     stats_.totalBytesOut += result.size();
     return result;
 }
@@ -88,33 +89,32 @@ std::vector<uint8_t> MessageCompressor::compressGzip(const uint8_t* data, size_t
     if (!zlibInitialized_) {
         return std::vector<uint8_t>(data, data + size);
     }
-    
+
     // Reset compression stream
     deflateReset(&compressStream_);
-    
+
     std::vector<uint8_t> compressed;
-    compressed.reserve(size); // Initial guess
-    
+    compressed.reserve(size);  // Initial guess
+
     compressStream_.next_in = const_cast<uint8_t*>(data);
     compressStream_.avail_in = size;
-    
+
     int flush = Z_FINISH;
     do {
         uint8_t buffer[8192];
         compressStream_.next_out = buffer;
         compressStream_.avail_out = sizeof(buffer);
-        
+
         int result = deflate(&compressStream_, flush);
         if (result != Z_OK && result != Z_STREAM_END) {
             // Compression failed, return original data
             return std::vector<uint8_t>(data, data + size);
         }
-        
+
         size_t bytesCompressed = sizeof(buffer) - compressStream_.avail_out;
         compressed.insert(compressed.end(), buffer, buffer + bytesCompressed);
-        
     } while (compressStream_.avail_out == 0);
-    
+
     return compressed;
 #else
     // Return original data when zlib is not available
@@ -136,9 +136,9 @@ std::vector<uint8_t> MessageCompressor::decompressToBytes(const std::vector<uint
     if (type_ == CompressionType::NONE || !isCompressed(compressedData)) {
         return compressedData;
     }
-    
+
     stats_.decompressionCalls++;
-    
+
     switch (type_) {
         case CompressionType::GZIP:
             return decompressGzip(compressedData.data(), compressedData.size());
@@ -154,32 +154,31 @@ std::vector<uint8_t> MessageCompressor::decompressGzip(const uint8_t* data, size
     if (!zlibInitialized_) {
         return std::vector<uint8_t>(data, data + size);
     }
-    
+
     // Reset decompression stream
     inflateReset(&decompressStream_);
-    
+
     std::vector<uint8_t> decompressed;
-    decompressed.reserve(size * 4); // Guess expansion ratio
-    
+    decompressed.reserve(size * 4);  // Guess expansion ratio
+
     decompressStream_.next_in = const_cast<uint8_t*>(data);
     decompressStream_.avail_in = size;
-    
+
     do {
         uint8_t buffer[8192];
         decompressStream_.next_out = buffer;
         decompressStream_.avail_out = sizeof(buffer);
-        
+
         int result = inflate(&decompressStream_, Z_NO_FLUSH);
         if (result != Z_OK && result != Z_STREAM_END) {
             // Decompression failed, return original data
             return std::vector<uint8_t>(data, data + size);
         }
-        
+
         size_t bytesDecompressed = sizeof(buffer) - decompressStream_.avail_out;
         decompressed.insert(decompressed.end(), buffer, buffer + bytesDecompressed);
-        
     } while (decompressStream_.avail_out == 0);
-    
+
     return decompressed;
 #else
     // Return original data when zlib is not available
@@ -218,20 +217,21 @@ bool MessageCompressor::shouldCompress(const std::vector<uint8_t>& data) const {
 }
 
 bool MessageCompressor::isCompressed(const std::vector<uint8_t>& data) {
-    if (data.size() < 2) return false;
-    
+    if (data.size() < 2)
+        return false;
+
     // Check for GZIP magic number
     if (data[0] == 0x1f && data[1] == 0x8b) {
         return true;
     }
-    
+
     // Check for DEFLATE (basic heuristic)
     uint8_t cmf = data[0];
     uint8_t flg = data[1];
     if ((cmf & 0x0f) == 8 && (cmf >> 4) <= 7 && ((cmf * 256 + flg) % 31) == 0) {
         return true;
     }
-    
+
     return false;
 }
 
@@ -248,24 +248,23 @@ WebSocketCompression::WebSocketCompression()
       serverMaxNoContextTakeover_(false),
       clientMaxNoContextTakeover_(false),
       minCompressionSize_(256),
-      minCompressionRatio_(0.8) {
-}
+      minCompressionRatio_(0.8) {}
 
 std::vector<uint8_t> WebSocketCompression::compressMessage(const std::string& message, bool& compressed) {
     compressed = false;
-    
+
     if (message.size() < minCompressionSize_) {
         return std::vector<uint8_t>(message.begin(), message.end());
     }
-    
+
     auto compressedData = compressor_.compress(message);
     double ratio = static_cast<double>(compressedData.size()) / message.size();
-    
+
     if (ratio < minCompressionRatio_) {
         compressed = true;
         return compressedData;
     }
-    
+
     return std::vector<uint8_t>(message.begin(), message.end());
 }
 
@@ -273,29 +272,29 @@ std::string WebSocketCompression::decompressMessage(const std::vector<uint8_t>& 
     if (!isCompressed) {
         return std::string(data.begin(), data.end());
     }
-    
+
     return compressor_.decompress(data);
 }
 
 std::string WebSocketCompression::getExtensionOffer() const {
     std::string offer = "permessage-deflate";
-    
+
     if (serverMaxWindowBits_ != 15) {
         offer += "; server_max_window_bits=" + std::to_string(serverMaxWindowBits_);
     }
-    
+
     if (clientMaxWindowBits_ != 15) {
         offer += "; client_max_window_bits=" + std::to_string(clientMaxWindowBits_);
     }
-    
+
     if (serverMaxNoContextTakeover_) {
         offer += "; server_no_context_takeover";
     }
-    
+
     if (clientMaxNoContextTakeover_) {
         offer += "; client_no_context_takeover";
     }
-    
+
     return offer;
 }
 
@@ -304,17 +303,17 @@ bool WebSocketCompression::parseExtensionResponse(const std::string& response) {
     if (response.find("permessage-deflate") == std::string::npos) {
         return false;
     }
-    
+
     // Parse parameters (simplified implementation)
     if (response.find("server_no_context_takeover") != std::string::npos) {
         serverMaxNoContextTakeover_ = true;
     }
-    
+
     if (response.find("client_no_context_takeover") != std::string::npos) {
         clientMaxNoContextTakeover_ = true;
     }
-    
+
     return true;
 }
 
-} // namespace bolt
+}  // namespace bolt

@@ -1,29 +1,28 @@
 
-#ifndef LINE_NUMBERS_HPP
-#define LINE_NUMBERS_HPP
+#ifndef BOLT_EDITOR_LINE_NUMBERS_HPP_
+#define BOLT_EDITOR_LINE_NUMBERS_HPP_
 
 #include <string>
 #include <vector>
+
 #include "bolt/core/thread_safety.hpp"
 
 namespace bolt {
 
 class LineNumberManager {
-private:
+ private:
     ThreadSafe<bool> showLineNumbers_{true};
     ThreadSafe<std::string> lineNumberFormat_{"%d"};
     ThreadSafe<size_t> gutterWidth_{4};
 
-public:
+ public:
     static LineNumberManager& getInstance() {
         static LineNumberManager instance;
         return instance;
     }
 
     void toggleLineNumbers() {
-        showLineNumbers_.write([](bool& show) {
-            show = !show;
-        });
+        showLineNumbers_.write([](bool& show) { show = !show; });
     }
 
     bool areLineNumbersVisible() const {
@@ -31,9 +30,7 @@ public:
     }
 
     void setGutterWidth(size_t width) {
-        gutterWidth_.write([width](size_t& w) {
-            w = width;
-        });
+        gutterWidth_.write([width](size_t& w) { w = width; });
     }
 
     size_t getGutterWidth() const {
@@ -57,6 +54,6 @@ public:
     }
 };
 
-} // namespace bolt
+}  // namespace bolt
 
-#endif
+#endif  // BOLT_EDITOR_LINE_NUMBERS_HPP_

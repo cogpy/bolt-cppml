@@ -1,26 +1,28 @@
 
-#ifndef MEMORY_MANAGER_HPP
-#define MEMORY_MANAGER_HPP
+#ifndef BOLT_CORE_MEMORY_MANAGER_HPP_
+#define BOLT_CORE_MEMORY_MANAGER_HPP_
 
-#include <memory>
-#include <unordered_map>
-#include <vector>
-#include <cstdlib>
 #include <cstddef>
+#include <cstdlib>
+#include <memory>
 #include <mutex>
-#include "error_handling.hpp"
+#include <unordered_map>
+#include <utility>
+#include <vector>
+
+#include "bolt/core/error_handling.hpp"
 
 namespace bolt {
 
 class MemoryManager {
-private:
+ private:
     size_t totalAllocated_ = 0;
     size_t peakUsage_ = 0;
     size_t maxAllowedUsage_ = SIZE_MAX;
     std::unordered_map<void*, size_t> allocations_;
-    mutable std::mutex mutex_; // Thread safety for memory operations
+    mutable std::mutex mutex_;  // Thread safety for memory operations
 
-public:
+ public:
     static MemoryManager& getInstance() {
         static MemoryManager instance;
         return instance;
@@ -35,43 +37,44 @@ public:
 
     void* allocate(size_t size) {
         ErrorHandler::validateMemorySize(size);
-        
+
         std::lock_guard<std::mutex> lock(mutex_);
-        
+
         // Check if allocation would exceed maximum allowed usage
         if (totalAllocated_ + size > maxAllowedUsage_) {
             throw MemoryException(ErrorCode::MEMORY_ALLOCATION_FAILED,
-                "Allocation would exceed maximum allowed usage. Requested: " + 
-                std::to_string(size) + ", Current: " + std::to_string(totalAllocated_) + 
-                ", Max: " + std::to_string(maxAllowedUsage_));
+                                  "Allocation would exceed maximum allowed usage. Requested: " + std::to_string(size) +
+                                      ", Current: " + std::to_string(totalAllocated_) +
+                                      ", Max: " + std::to_string(maxAllowedUsage_));
         }
-        
+
         void* ptr = std::malloc(size);
         if (!ptr) {
             throw MemoryException(ErrorCode::MEMORY_ALLOCATION_FAILED,
-                "Failed to allocate " + std::to_string(size) + " bytes");
+                                  "Failed to allocate " + std::to_string(size) + " bytes");
         }
-        
+
         allocations_[ptr] = size;
         totalAllocated_ += size;
         if (totalAllocated_ > peakUsage_) {
             peakUsage_ = totalAllocated_;
         }
-        
+
         return ptr;
     }
 
     void deallocate(void* ptr) {
-        if (!ptr) return; // Allow null pointer deallocation (like standard free)
-        
+        if (!ptr)
+            return;  // Allow null pointer deallocation (like standard free)
+
         std::lock_guard<std::mutex> lock(mutex_);
-        
+
         auto it = allocations_.find(ptr);
         if (it == allocations_.end()) {
             throw MemoryException(ErrorCode::MEMORY_CORRUPTION,
-                "Attempting to deallocate untracked or already freed pointer");
+                                  "Attempting to deallocate untracked or already freed pointer");
         }
-        
+
         totalAllocated_ -= it->second;
         allocations_.erase(it);
         std::free(ptr);
@@ -115,13 +118,13 @@ public:
 
     void reset() {
         std::lock_guard<std::mutex> lock(mutex_);
-        
+
         if (!allocations_.empty()) {
             throw MemoryException(ErrorCode::MEMORY_CORRUPTION,
-                "Cannot reset memory manager with " + std::to_string(allocations_.size()) + 
-                " active allocations. This would cause memory leaks.");
+                                  "Cannot reset memory manager with " + std::to_string(allocations_.size()) +
+                                      " active allocations. This would cause memory leaks.");
         }
-        
+
         totalAllocated_ = 0;
         peakUsage_ = 0;
     }
@@ -129,18 +132,18 @@ public:
     // Safe reset that frees all allocations (use with caution)
     void forceReset() {
         std::lock_guard<std::mutex> lock(mutex_);
-        
+
         // Free all tracked allocations
         for (const auto& allocation : allocations_) {
             std::free(allocation.first);
         }
-        
+
         allocations_.clear();
         totalAllocated_ = 0;
         peakUsage_ = 0;
     }
 };
 
-} // namespace bolt
+}  // namespace bolt
 
-#endif
+#endif  // BOLT_CORE_MEMORY_MANAGER_HPP_

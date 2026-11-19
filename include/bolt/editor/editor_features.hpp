@@ -1,9 +1,10 @@
-#ifndef EDITOR_FEATURES_HPP
-#define EDITOR_FEATURES_HPP
+#ifndef BOLT_EDITOR_EDITOR_FEATURES_HPP_
+#define BOLT_EDITOR_EDITOR_FEATURES_HPP_
 
+#include <map>
 #include <string>
 #include <vector>
-#include <map>
+
 #include "bolt/core/thread_safety.hpp"
 
 namespace bolt {
@@ -15,12 +16,12 @@ struct FoldingRange {
 };
 
 class EditorFeatures {
-private:
+ private:
     ThreadSafe<std::map<std::string, std::vector<FoldingRange>>> foldingRanges_;
     ThreadSafe<bool> showFoldingMarkers_{true};
     ThreadSafe<bool> showLineNumbers_{true};
 
-public:
+ public:
     static EditorFeatures& getInstance() {
         static EditorFeatures instance;
         return instance;
@@ -38,9 +39,7 @@ public:
     }
 
     void addFoldingRange(const std::string& filePath, int startLine, int endLine) {
-        foldingRanges_.write([&](auto& ranges) {
-            ranges[filePath].push_back({startLine, endLine, false});
-        });
+        foldingRanges_.write([&](auto& ranges) { ranges[filePath].push_back({startLine, endLine, false}); });
     }
 
     void toggleFold(const std::string& filePath, int line) {
@@ -70,11 +69,9 @@ public:
         for (size_t i = 0; i < content.length(); ++i) {
             if (content[i] == '\n') {
                 lineNumber++;
-            }
-            else if (content[i] == '{') {
+            } else if (content[i] == '{') {
                 bracketStack.push_back(lineNumber);
-            }
-            else if (content[i] == '}' && !bracketStack.empty()) {
+            } else if (content[i] == '}' && !bracketStack.empty()) {
                 int startLine = bracketStack.back();
                 bracketStack.pop_back();
                 if (lineNumber > startLine) {
@@ -83,12 +80,10 @@ public:
             }
         }
 
-        foldingRanges_.write([&](auto& allRanges) {
-            allRanges[filePath] = ranges;
-        });
+        foldingRanges_.write([&](auto& allRanges) { allRanges[filePath] = ranges; });
     }
 };
 
-} // namespace bolt
+}  // namespace bolt
 
-#endif
+#endif  // BOLT_EDITOR_EDITOR_FEATURES_HPP_

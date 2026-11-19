@@ -1,46 +1,47 @@
-#ifndef BOLT_LOGGING_HPP
-#define BOLT_LOGGING_HPP
+#ifndef BOLT_CORE_LOGGING_HPP_
+#define BOLT_CORE_LOGGING_HPP_
 
-#include <string>
+#include <atomic>
+#include <chrono>
+#include <fstream>
+#include <functional>
+#include <iostream>
 #include <memory>
 #include <mutex>
-#include <vector>
-#include <fstream>
-#include <chrono>
-#include <iostream>
 #include <sstream>
-#include <atomic>
-#include <functional>
-#include <unordered_map>
+#include <string>
 #include <thread>
-#include "thread_safety.hpp"
+#include <unordered_map>
+#include <vector>
+
+#include "bolt/core/thread_safety.hpp"
 
 namespace bolt {
 
 // Log levels in order of severity
 enum class LogLevel {
-    TRACE = 0,   // Detailed debugging information
-    DEBUG = 1,   // General debugging information
-    INFO = 2,    // Informational messages
-    WARN = 3,    // Warning messages
-    ERROR = 4,   // Error messages
-    FATAL = 5,   // Fatal error messages
-    OFF = 6      // Disable logging
+    TRACE = 0,  // Detailed debugging information
+    DEBUG = 1,  // General debugging information
+    INFO = 2,   // Informational messages
+    WARN = 3,   // Warning messages
+    ERROR = 4,  // Error messages
+    FATAL = 5,  // Fatal error messages
+    OFF = 6     // Disable logging
 };
 
 // Log categories for different components
 enum class LogCategory {
-    CORE,         // Core system components
-    MEMORY,       // Memory management
-    EDITOR,       // Editor functionality
-    AI,           // AI/ML components
-    GUI,          // User interface
-    NETWORK,      // Network operations
-    PLUGIN,       // Plugin system
-    COLLABORATION,// Collaborative editing
-    DEBUGGER,     // Debugger functionality
-    TESTING,      // Test framework
-    UNKNOWN       // Unknown or miscellaneous
+    CORE,           // Core system components
+    MEMORY,         // Memory management
+    EDITOR,         // Editor functionality
+    AI,             // AI/ML components
+    GUI,            // User interface
+    NETWORK,        // Network operations
+    PLUGIN,         // Plugin system
+    COLLABORATION,  // Collaborative editing
+    DEBUGGER,       // Debugger functionality
+    TESTING,        // Test framework
+    UNKNOWN         // Unknown or miscellaneous
 };
 
 // Forward declarations
@@ -57,40 +58,45 @@ struct LogEntry {
     std::string function;
     std::chrono::system_clock::time_point timestamp;
     std::thread::id threadId;
-    
-    LogEntry(LogLevel lvl, LogCategory cat, const std::string& msg, 
-             const std::string& f = "", int l = 0, const std::string& func = "")
-        : level(lvl), category(cat), message(msg), file(f), line(l), 
-          function(func), timestamp(std::chrono::system_clock::now()),
+
+    LogEntry(LogLevel lvl, LogCategory cat, const std::string& msg, const std::string& f = "", int l = 0,
+             const std::string& func = "")
+        : level(lvl),
+          category(cat),
+          message(msg),
+          file(f),
+          line(l),
+          function(func),
+          timestamp(std::chrono::system_clock::now()),
           threadId(std::this_thread::get_id()) {}
 };
 
 // Abstract base class for log formatters
 class LogFormatter {
-public:
+ public:
     virtual ~LogFormatter() = default;
     virtual std::string format(const LogEntry& entry) = 0;
 };
 
 // Simple text formatter
 class SimpleFormatter : public LogFormatter {
-public:
+ public:
     std::string format(const LogEntry& entry) override;
 };
 
 // Detailed formatter with timestamp, thread ID, etc.
 class DetailedFormatter : public LogFormatter {
-private:
+ private:
     bool includeTimestamp_;
     bool includeThreadId_;
     bool includeLocation_;
-    
-public:
-    DetailedFormatter(bool timestamp = true, bool threadId = true, bool location = false)
+
+ public:
+    explicit DetailedFormatter(bool timestamp = true, bool threadId = true, bool location = false)
         : includeTimestamp_(timestamp), includeThreadId_(threadId), includeLocation_(location) {}
-    
+
     std::string format(const LogEntry& entry) override;
-    
+
     void setIncludeTimestamp(bool include) { includeTimestamp_ = include; }
     void setIncludeThreadId(bool include) { includeThreadId_ = include; }
     void setIncludeLocation(bool include) { includeLocation_ = include; }
@@ -98,13 +104,13 @@ public:
 
 // JSON formatter for structured logging
 class JsonFormatter : public LogFormatter {
-public:
+ public:
     std::string format(const LogEntry& entry) override;
 };
 
 // Abstract base class for log output destinations
 class LogSink {
-public:
+ public:
     virtual ~LogSink() = default;
     virtual void write(const LogEntry& entry, const std::string& formattedMessage) = 0;
     virtual void flush() = 0;
@@ -113,12 +119,12 @@ public:
 
 // Console output sink
 class ConsoleSink : public LogSink {
-private:
+ private:
     bool useStderr_;
-    
-public:
+
+ public:
     explicit ConsoleSink(bool useStderr = false) : useStderr_(useStderr) {}
-    
+
     void write(const LogEntry& entry, const std::string& formattedMessage) override;
     void flush() override;
     bool isOpen() const override { return true; }
@@ -126,39 +132,39 @@ public:
 
 // File output sink
 class FileSink : public LogSink {
-private:
+ private:
     std::ofstream file_;
     std::string filename_;
     std::mutex mutex_;
-    
-public:
+
+ public:
     explicit FileSink(const std::string& filename);
     ~FileSink();
-    
+
     void write(const LogEntry& entry, const std::string& formattedMessage) override;
     void flush() override;
     bool isOpen() const override;
-    
+
     const std::string& getFilename() const { return filename_; }
 };
 
 // Rotating file sink (creates new files when size limit is reached)
 class RotatingFileSink : public LogSink {
-private:
+ private:
     std::string baseFilename_;
     size_t maxFileSize_;
     size_t maxFiles_;
     std::unique_ptr<std::ofstream> currentFile_;
     size_t currentFileSize_;
     std::mutex mutex_;
-    
+
     void rotateFile();
     std::string getRotatedFilename(size_t index);
-    
-public:
+
+ public:
     RotatingFileSink(const std::string& baseFilename, size_t maxFileSize, size_t maxFiles);
     ~RotatingFileSink();
-    
+
     void write(const LogEntry& entry, const std::string& formattedMessage) override;
     void flush() override;
     bool isOpen() const override;
@@ -166,49 +172,44 @@ public:
 
 // Log filter interface
 class LogFilter {
-public:
+ public:
     virtual ~LogFilter() = default;
     virtual bool shouldLog(const LogEntry& entry) = 0;
 };
 
 // Level-based filter
 class LevelFilter : public LogFilter {
-private:
+ private:
     LogLevel minLevel_;
-    
-public:
+
+ public:
     explicit LevelFilter(LogLevel minLevel) : minLevel_(minLevel) {}
-    
-    bool shouldLog(const LogEntry& entry) override {
-        return entry.level >= minLevel_;
-    }
-    
+
+    bool shouldLog(const LogEntry& entry) override { return entry.level >= minLevel_; }
+
     void setMinLevel(LogLevel level) { minLevel_ = level; }
     LogLevel getMinLevel() const { return minLevel_; }
 };
 
 // Category-based filter
 class CategoryFilter : public LogFilter {
-private:
+ private:
     std::unordered_map<LogCategory, LogLevel> categoryLevels_;
     LogLevel defaultLevel_;
-    
-public:
-    explicit CategoryFilter(LogLevel defaultLevel = LogLevel::INFO)
-        : defaultLevel_(defaultLevel) {}
-    
+
+ public:
+    explicit CategoryFilter(LogLevel defaultLevel = LogLevel::INFO) : defaultLevel_(defaultLevel) {}
+
     bool shouldLog(const LogEntry& entry) override;
-    
-    void setCategoryLevel(LogCategory category, LogLevel level) {
-        categoryLevels_[category] = level;
-    }
-    
+
+    void setCategoryLevel(LogCategory category, LogLevel level) { categoryLevels_[category] = level; }
+
     void setDefaultLevel(LogLevel level) { defaultLevel_ = level; }
 };
 
 // Main logger class
 class Logger {
-private:
+ private:
     LogLevel level_;
     LogCategory defaultCategory_;
     std::vector<std::unique_ptr<LogSink>> sinks_;
@@ -216,109 +217,129 @@ private:
     std::unique_ptr<LogFormatter> formatter_;
     ThreadSafe<bool> enabled_;
     mutable std::mutex mutex_;
-    
+
     // Performance metrics
     std::atomic<size_t> totalMessages_;
     std::atomic<size_t> droppedMessages_;
-    
+
     bool shouldLog(const LogEntry& entry) const;
     void writeToSinks(const LogEntry& entry);
-    
-public:
-    Logger(LogLevel level = LogLevel::INFO, LogCategory defaultCategory = LogCategory::CORE);
+
+ public:
+    explicit Logger(LogLevel level = LogLevel::INFO, LogCategory defaultCategory = LogCategory::CORE);
     ~Logger();
-    
+
     // Core logging methods
-    void log(LogLevel level, LogCategory category, const std::string& message,
-             const std::string& file = "", int line = 0, const std::string& function = "");
-    
-    void log(LogLevel level, const std::string& message,
-             const std::string& file = "", int line = 0, const std::string& function = "") {
+    void log(LogLevel level, LogCategory category, const std::string& message, const std::string& file = "",
+             int line = 0, const std::string& function = "");
+
+    void log(LogLevel level, const std::string& message, const std::string& file = "", int line = 0,
+             const std::string& function = "") {
         log(level, defaultCategory_, message, file, line, function);
     }
-    
+
     // Convenience methods for different log levels
-    void trace(const std::string& message, const std::string& file = "", int line = 0, const std::string& function = "") {
+    void trace(const std::string& message, const std::string& file = "", int line = 0,
+               const std::string& function = "") {
         log(LogLevel::TRACE, message, file, line, function);
     }
-    
-    void debug(const std::string& message, const std::string& file = "", int line = 0, const std::string& function = "") {
+
+    void debug(const std::string& message, const std::string& file = "", int line = 0,
+               const std::string& function = "") {
         log(LogLevel::DEBUG, message, file, line, function);
     }
-    
-    void info(const std::string& message, const std::string& file = "", int line = 0, const std::string& function = "") {
+
+    void info(const std::string& message, const std::string& file = "", int line = 0,
+              const std::string& function = "") {
         log(LogLevel::INFO, message, file, line, function);
     }
-    
-    void warn(const std::string& message, const std::string& file = "", int line = 0, const std::string& function = "") {
+
+    void warn(const std::string& message, const std::string& file = "", int line = 0,
+              const std::string& function = "") {
         log(LogLevel::WARN, message, file, line, function);
     }
-    
-    void error(const std::string& message, const std::string& file = "", int line = 0, const std::string& function = "") {
+
+    void error(const std::string& message, const std::string& file = "", int line = 0,
+               const std::string& function = "") {
         log(LogLevel::ERROR, message, file, line, function);
     }
-    
-    void fatal(const std::string& message, const std::string& file = "", int line = 0, const std::string& function = "") {
+
+    void fatal(const std::string& message, const std::string& file = "", int line = 0,
+               const std::string& function = "") {
         log(LogLevel::FATAL, message, file, line, function);
     }
-    
+
     // Category-specific logging
-    void logCore(LogLevel level, const std::string& message, const std::string& file = "", int line = 0, const std::string& function = "") {
+    void logCore(LogLevel level, const std::string& message, const std::string& file = "", int line = 0,
+                 const std::string& function = "") {
         log(level, LogCategory::CORE, message, file, line, function);
     }
-    
-    void logMemory(LogLevel level, const std::string& message, const std::string& file = "", int line = 0, const std::string& function = "") {
+
+    void logMemory(LogLevel level, const std::string& message, const std::string& file = "", int line = 0,
+                   const std::string& function = "") {
         log(level, LogCategory::MEMORY, message, file, line, function);
     }
-    
-    void logEditor(LogLevel level, const std::string& message, const std::string& file = "", int line = 0, const std::string& function = "") {
+
+    void logEditor(LogLevel level, const std::string& message, const std::string& file = "", int line = 0,
+                   const std::string& function = "") {
         log(level, LogCategory::EDITOR, message, file, line, function);
     }
-    
-    void logAI(LogLevel level, const std::string& message, const std::string& file = "", int line = 0, const std::string& function = "") {
+
+    void logAI(LogLevel level, const std::string& message, const std::string& file = "", int line = 0,
+               const std::string& function = "") {
         log(level, LogCategory::AI, message, file, line, function);
     }
-    
-    void logGUI(LogLevel level, const std::string& message, const std::string& file = "", int line = 0, const std::string& function = "") {
+
+    void logGUI(LogLevel level, const std::string& message, const std::string& file = "", int line = 0,
+                const std::string& function = "") {
         log(level, LogCategory::GUI, message, file, line, function);
     }
-    
-    void logNetwork(LogLevel level, const std::string& message, const std::string& file = "", int line = 0, const std::string& function = "") {
+
+    void logNetwork(LogLevel level, const std::string& message, const std::string& file = "", int line = 0,
+                    const std::string& function = "") {
         log(level, LogCategory::NETWORK, message, file, line, function);
     }
-    
-    void logPlugin(LogLevel level, const std::string& message, const std::string& file = "", int line = 0, const std::string& function = "") {
+
+    void logPlugin(LogLevel level, const std::string& message, const std::string& file = "", int line = 0,
+                   const std::string& function = "") {
         log(level, LogCategory::PLUGIN, message, file, line, function);
     }
-    
+
     // Configuration methods
     void setLevel(LogLevel level) { level_ = level; }
     LogLevel getLevel() const { return level_; }
-    
+
     void setDefaultCategory(LogCategory category) { defaultCategory_ = category; }
     LogCategory getDefaultCategory() const { return defaultCategory_; }
-    
-    void setEnabled(bool enabled) { enabled_.write([enabled](bool& e) { e = enabled; }); }
-    bool isEnabled() const { return enabled_.read([](const bool& e) { return e; }); }
-    
+
+    void setEnabled(bool enabled) {
+        enabled_.write([enabled](bool& e) { e = enabled; });
+    }
+    bool isEnabled() const {
+        return enabled_.read([](const bool& e) { return e; });
+    }
+
     // Sink management
     void addSink(std::unique_ptr<LogSink> sink);
     void clearSinks();
     size_t getSinkCount() const;
-    
+
     // Filter management
     void addFilter(std::unique_ptr<LogFilter> filter);
     void clearFilters();
     size_t getFilterCount() const;
-    
+
     // Formatter management
     void setFormatter(std::unique_ptr<LogFormatter> formatter);
-    
+
     // Performance metrics
     size_t getTotalMessages() const { return totalMessages_.load(); }
     size_t getDroppedMessages() const { return droppedMessages_.load(); }
-    void resetMetrics() { totalMessages_.store(0); droppedMessages_.store(0); }
-    
+    void resetMetrics() {
+        totalMessages_.store(0);
+        droppedMessages_.store(0);
+    }
+
     // Utility methods
     void flush();
     static std::string levelToString(LogLevel level);
@@ -329,25 +350,27 @@ public:
 
 // Global logger instance manager
 class LogManager {
-private:
+ private:
     static std::unique_ptr<Logger> globalLogger_;
     static std::mutex mutex_;
-    
-public:
+
+ public:
     static Logger& getInstance();
     static void setGlobalLogger(std::unique_ptr<Logger> logger);
     static void reset();
-    
+
     // Quick configuration methods
     static void configureConsoleLogging(LogLevel level = LogLevel::INFO, bool useDetailedFormat = true);
-    static void configureFileLogging(const std::string& filename, LogLevel level = LogLevel::DEBUG, bool useDetailedFormat = true);
-    static void configureRotatingFileLogging(const std::string& baseFilename, size_t maxFileSize, size_t maxFiles, LogLevel level = LogLevel::DEBUG);
-    static void configureDualLogging(const std::string& filename, LogLevel consoleLevel = LogLevel::INFO, LogLevel fileLevel = LogLevel::DEBUG);
+    static void configureFileLogging(const std::string& filename, LogLevel level = LogLevel::DEBUG,
+                                     bool useDetailedFormat = true);
+    static void configureRotatingFileLogging(const std::string& baseFilename, size_t maxFileSize, size_t maxFiles,
+                                             LogLevel level = LogLevel::DEBUG);
+    static void configureDualLogging(const std::string& filename, LogLevel consoleLevel = LogLevel::INFO,
+                                     LogLevel fileLevel = LogLevel::DEBUG);
 };
 
 // Utility macros for easier logging with file/line information
-#define BOLT_LOG(level, message) \
-    bolt::LogManager::getInstance().log(level, message, __FILE__, __LINE__, __func__)
+#define BOLT_LOG(level, message) bolt::LogManager::getInstance().log(level, message, __FILE__, __LINE__, __func__)
 
 #define BOLT_LOG_CATEGORY(level, category, message) \
     bolt::LogManager::getInstance().log(level, category, message, __FILE__, __LINE__, __func__)
@@ -370,19 +393,19 @@ public:
 
 // Scoped logging for tracking function entry/exit
 class ScopedLogger {
-private:
+ private:
     std::string function_;
     LogCategory category_;
     std::chrono::steady_clock::time_point startTime_;
-    
-public:
-    ScopedLogger(const std::string& function, LogCategory category = LogCategory::CORE);
+
+ public:
+    explicit ScopedLogger(const std::string& function, LogCategory category = LogCategory::CORE);
     ~ScopedLogger();
 };
 
 #define BOLT_SCOPED_LOG(category) bolt::ScopedLogger _scopedLogger(__func__, category)
 #define BOLT_SCOPED_LOG_CORE() BOLT_SCOPED_LOG(bolt::LogCategory::CORE)
 
-} // namespace bolt
+}  // namespace bolt
 
-#endif // BOLT_LOGGING_HPP
+#endif  // BOLT_CORE_LOGGING_HPP_

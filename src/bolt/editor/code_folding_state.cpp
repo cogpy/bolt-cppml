@@ -1,5 +1,8 @@
-#include "bolt/editor/code_folding.hpp"
+#include <fstream>
 #include <map>
+
+#include "bolt/editor/code_folding.hpp"
+#include "json/json.hpp"
 
 namespace bolt {
 
@@ -26,19 +29,16 @@ void CodeFoldingState::clear() {
     foldedLines_.clear();
 }
 
-} // namespace bolt
-
-#include <fstream>
-#include <json/json.hpp>
+}  // namespace bolt
 
 namespace bolt {
 
 class CodeFoldingStateManager {
-private:
+ private:
     std::map<std::string, std::vector<FoldRange>> storedStates_;
     const std::string stateFile_ = "code_folding_state.json";
 
-public:
+ public:
     void saveState(const std::string& filePath, const std::vector<FoldRange>& ranges) {
         storedStates_[filePath] = ranges;
         persistToDisk();
@@ -54,17 +54,14 @@ public:
         persistToDisk();
     }
 
-private:
+ private:
     void persistToDisk() {
         nlohmann::json j;
         for (const auto& [path, ranges] : storedStates_) {
             nlohmann::json rangeArray = nlohmann::json::array();
             for (const auto& range : ranges) {
-                rangeArray.push_back({
-                    {"startLine", range.startLine},
-                    {"endLine", range.endLine},
-                    {"isFolded", range.isFolded}
-                });
+                rangeArray.push_back(
+                    {{"startLine", range.startLine}, {"endLine", range.endLine}, {"isFolded", range.isFolded}});
             }
             j[path] = rangeArray;
         }
@@ -83,11 +80,7 @@ private:
                 for (auto& [path, ranges] : j.items()) {
                     std::vector<FoldRange> foldRanges;
                     for (auto& range : ranges) {
-                        foldRanges.push_back({
-                            range["startLine"],
-                            range["endLine"],
-                            range["isFolded"]
-                        });
+                        foldRanges.push_back({range["startLine"], range["endLine"], range["isFolded"]});
                     }
                     storedStates_[path] = foldRanges;
                 }
@@ -99,4 +92,4 @@ private:
     }
 };
 
-} // namespace bolt
+}  // namespace bolt

@@ -1,21 +1,21 @@
 #include "bolt/ai/gguf_loader.hpp"
-#include <iostream>
-#include <cstring>
+
 #include <algorithm>
+#include <cstring>
+#include <iostream>
 
 namespace bolt {
 
 GGUFLoader::GGUFLoader(const std::string& file_path)
-    : file_path_(file_path)
-    , loaded_(false)
-    , magic_(0)
-    , version_(0)
-    , tensor_count_(0)
-    , metadata_kv_count_(0)
-    , tensor_data_offset_(0)
-    , alignment_(32) // Default alignment
-{
-}
+    : file_path_(file_path),
+      loaded_(false),
+      magic_(0),
+      version_(0),
+      tensor_count_(0),
+      metadata_kv_count_(0),
+      tensor_data_offset_(0),
+      alignment_(32)  // Default alignment
+{}
 
 GGUFLoader::~GGUFLoader() {
     if (file_.is_open()) {
@@ -30,27 +30,27 @@ bool GGUFLoader::load() {
         setError("Failed to open file: " + file_path_);
         return false;
     }
-    
+
     // Read header
     if (!readHeader()) {
         return false;
     }
-    
+
     // Read metadata
     if (!readMetadata()) {
         return false;
     }
-    
+
     // Get alignment from metadata
     if (hasMetadata("general.alignment")) {
         alignment_ = getMetadataInt("general.alignment", 32);
     }
-    
+
     // Read tensor information
     if (!readTensorInfo()) {
         return false;
     }
-    
+
     loaded_ = true;
     return true;
 }
@@ -61,37 +61,35 @@ bool GGUFLoader::readHeader() {
         setError("Failed to read magic number");
         return false;
     }
-    
+
     if (magic_ != GGUF_MAGIC) {
-        setError("Invalid GGUF magic number. Expected 0x46554747, got 0x" + 
-                 std::to_string(magic_));
+        setError("Invalid GGUF magic number. Expected 0x46554747, got 0x" + std::to_string(magic_));
         return false;
     }
-    
+
     // Read version
     if (!readValue(version_)) {
         setError("Failed to read version");
         return false;
     }
-    
+
     if (version_ != GGUF_VERSION_V2 && version_ != GGUF_VERSION_V3) {
-        setError("Unsupported GGUF version: " + std::to_string(version_) + 
-                 ". Supported versions: 2, 3");
+        setError("Unsupported GGUF version: " + std::to_string(version_) + ". Supported versions: 2, 3");
         return false;
     }
-    
+
     // Read tensor count
     if (!readValue(tensor_count_)) {
         setError("Failed to read tensor count");
         return false;
     }
-    
+
     // Read metadata count
     if (!readValue(metadata_kv_count_)) {
         setError("Failed to read metadata count");
         return false;
     }
-    
+
     return true;
 }
 
@@ -100,20 +98,20 @@ bool GGUFLoader::readString(std::string& str) {
     if (!readValue(len)) {
         return false;
     }
-    
+
     if (len == 0) {
         str.clear();
         return true;
     }
-    
+
     str.resize(len);
     file_.read(&str[0], len);
-    
+
     if (!file_.good()) {
         setError("Failed to read string data");
         return false;
     }
-    
+
     return true;
 }
 
@@ -121,86 +119,100 @@ bool GGUFLoader::readMetadataValue(GGUFValueType type, MetadataValue& value) {
     switch (type) {
         case GGUFValueType::UINT8: {
             uint8_t v;
-            if (!readValue(v)) return false;
+            if (!readValue(v))
+                return false;
             value = v;
             break;
         }
         case GGUFValueType::INT8: {
             int8_t v;
-            if (!readValue(v)) return false;
+            if (!readValue(v))
+                return false;
             value = v;
             break;
         }
         case GGUFValueType::UINT16: {
             uint16_t v;
-            if (!readValue(v)) return false;
+            if (!readValue(v))
+                return false;
             value = v;
             break;
         }
         case GGUFValueType::INT16: {
             int16_t v;
-            if (!readValue(v)) return false;
+            if (!readValue(v))
+                return false;
             value = v;
             break;
         }
         case GGUFValueType::UINT32: {
             uint32_t v;
-            if (!readValue(v)) return false;
+            if (!readValue(v))
+                return false;
             value = v;
             break;
         }
         case GGUFValueType::INT32: {
             int32_t v;
-            if (!readValue(v)) return false;
+            if (!readValue(v))
+                return false;
             value = v;
             break;
         }
         case GGUFValueType::UINT64: {
             uint64_t v;
-            if (!readValue(v)) return false;
+            if (!readValue(v))
+                return false;
             value = v;
             break;
         }
         case GGUFValueType::INT64: {
             int64_t v;
-            if (!readValue(v)) return false;
+            if (!readValue(v))
+                return false;
             value = v;
             break;
         }
         case GGUFValueType::FLOAT32: {
             float v;
-            if (!readValue(v)) return false;
+            if (!readValue(v))
+                return false;
             value = v;
             break;
         }
         case GGUFValueType::FLOAT64: {
             double v;
-            if (!readValue(v)) return false;
+            if (!readValue(v))
+                return false;
             value = v;
             break;
         }
         case GGUFValueType::BOOL: {
             uint8_t v;
-            if (!readValue(v)) return false;
+            if (!readValue(v))
+                return false;
             value = static_cast<bool>(v);
             break;
         }
         case GGUFValueType::STRING: {
             std::string v;
-            if (!readString(v)) return false;
+            if (!readString(v))
+                return false;
             value = v;
             break;
         }
         case GGUFValueType::ARRAY: {
             // Read array type
             uint32_t array_type_raw;
-            if (!readValue(array_type_raw)) return false;
+            if (!readValue(array_type_raw))
+                return false;
             GGUFValueType array_type = static_cast<GGUFValueType>(array_type_raw);
-            
+
             // Read array count
             uint64_t count;
-            if (!readValue(count)) return false;
-            
+            if (!readValue(count))
+                return false;
+
             // Read array elements based on type
             switch (array_type) {
                 case GGUFValueType::STRING: {
@@ -208,7 +220,8 @@ bool GGUFLoader::readMetadataValue(GGUFValueType type, MetadataValue& value) {
                     arr.reserve(count);
                     for (uint64_t i = 0; i < count; i++) {
                         std::string elem;
-                        if (!readString(elem)) return false;
+                        if (!readString(elem))
+                            return false;
                         arr.push_back(std::move(elem));
                     }
                     value = arr;
@@ -216,19 +229,22 @@ bool GGUFLoader::readMetadataValue(GGUFValueType type, MetadataValue& value) {
                 }
                 case GGUFValueType::FLOAT32: {
                     std::vector<float> arr;
-                    if (!readArray(arr, count)) return false;
+                    if (!readArray(arr, count))
+                        return false;
                     value = arr;
                     break;
                 }
                 case GGUFValueType::INT32: {
                     std::vector<int32_t> arr;
-                    if (!readArray(arr, count)) return false;
+                    if (!readArray(arr, count))
+                        return false;
                     value = arr;
                     break;
                 }
                 case GGUFValueType::UINT32: {
                     std::vector<uint32_t> arr;
-                    if (!readArray(arr, count)) return false;
+                    if (!readArray(arr, count))
+                        return false;
                     value = arr;
                     break;
                 }
@@ -242,7 +258,7 @@ bool GGUFLoader::readMetadataValue(GGUFValueType type, MetadataValue& value) {
             setError("Unsupported metadata value type: " + std::to_string(static_cast<uint32_t>(type)));
             return false;
     }
-    
+
     return true;
 }
 
@@ -254,7 +270,7 @@ bool GGUFLoader::readMetadata() {
             setError("Failed to read metadata key at index " + std::to_string(i));
             return false;
         }
-        
+
         // Read value type
         uint32_t type_raw;
         if (!readValue(type_raw)) {
@@ -262,17 +278,17 @@ bool GGUFLoader::readMetadata() {
             return false;
         }
         GGUFValueType type = static_cast<GGUFValueType>(type_raw);
-        
+
         // Read value
         MetadataValue value;
         if (!readMetadataValue(type, value)) {
             setError("Failed to read metadata value for key: " + key);
             return false;
         }
-        
+
         metadata_[key] = value;
     }
-    
+
     return true;
 }
 
@@ -280,19 +296,19 @@ bool GGUFLoader::readTensorInfo() {
     // Read tensor information
     for (uint64_t i = 0; i < tensor_count_; i++) {
         TensorInfo info;
-        
+
         // Read tensor name
         if (!readString(info.name)) {
             setError("Failed to read tensor name at index " + std::to_string(i));
             return false;
         }
-        
+
         // Read number of dimensions
         if (!readValue(info.n_dims)) {
             setError("Failed to read tensor dimensions count for: " + info.name);
             return false;
         }
-        
+
         // Read dimensions
         info.dims.resize(info.n_dims);
         for (uint32_t d = 0; d < info.n_dims; d++) {
@@ -301,7 +317,7 @@ bool GGUFLoader::readTensorInfo() {
                 return false;
             }
         }
-        
+
         // Read tensor type
         uint32_t type_raw;
         if (!readValue(type_raw)) {
@@ -309,26 +325,26 @@ bool GGUFLoader::readTensorInfo() {
             return false;
         }
         info.type = static_cast<ggml_type>(type_raw);
-        
+
         // Read tensor offset
         if (!readValue(info.offset)) {
             setError("Failed to read tensor offset for: " + info.name);
             return false;
         }
-        
+
         // Calculate tensor size
         size_t n_elements = 1;
         for (uint64_t dim : info.dims) {
             n_elements *= dim;
         }
         info.size = n_elements * ggml_type_size(info.type) / ggml_blck_size(info.type);
-        
+
         tensors_[info.name] = info;
     }
-    
+
     // Calculate tensor data offset (current position, aligned)
     tensor_data_offset_ = alignOffset(file_.tellg());
-    
+
     return true;
 }
 
@@ -422,9 +438,9 @@ ggml_tensor* GGUFLoader::loadTensor(ggml_context* ctx, const std::string& name) 
         setError("Tensor not found: " + name);
         return nullptr;
     }
-    
+
     const TensorInfo& info = it->second;
-    
+
     // Create GGML tensor
     ggml_tensor* tensor = nullptr;
     switch (info.n_dims) {
@@ -444,32 +460,32 @@ ggml_tensor* GGUFLoader::loadTensor(ggml_context* ctx, const std::string& name) 
             setError("Unsupported tensor dimensionality: " + std::to_string(info.n_dims));
             return nullptr;
     }
-    
+
     if (!tensor) {
         setError("Failed to create GGML tensor for: " + name);
         return nullptr;
     }
-    
+
     // Set tensor name
     ggml_set_name(tensor, name.c_str());
-    
+
     // Seek to tensor data
     uint64_t data_offset = tensor_data_offset_ + info.offset;
     file_.seekg(data_offset);
-    
+
     if (!file_.good()) {
         setError("Failed to seek to tensor data for: " + name);
         return nullptr;
     }
-    
+
     // Read tensor data
     file_.read(static_cast<char*>(tensor->data), info.size);
-    
+
     if (!file_.good()) {
         setError("Failed to read tensor data for: " + name);
         return nullptr;
     }
-    
+
     return tensor;
 }
 
@@ -509,7 +525,7 @@ int GGUFLoader::getVocabSize() const {
     if (!tokens.empty()) {
         return tokens.size();
     }
-    
+
     // Fallback to metadata
     if (hasMetadata("rwkv.vocab_size")) {
         return getMetadataInt("rwkv.vocab_size");
@@ -521,7 +537,7 @@ std::string GGUFLoader::getArchitecture() const {
     return getMetadataString("general.architecture", "unknown");
 }
 
-template<typename T>
+template <typename T>
 bool GGUFLoader::readValue(T& value) {
     file_.read(reinterpret_cast<char*>(&value), sizeof(T));
     if (!file_.good()) {
@@ -531,7 +547,7 @@ bool GGUFLoader::readValue(T& value) {
     return true;
 }
 
-template<typename T>
+template <typename T>
 bool GGUFLoader::readArray(std::vector<T>& arr, uint64_t count) {
     arr.resize(count);
     file_.read(reinterpret_cast<char*>(arr.data()), count * sizeof(T));
@@ -551,4 +567,4 @@ uint64_t GGUFLoader::alignOffset(uint64_t offset) const {
     return (offset + alignment_ - 1) & ~(alignment_ - 1);
 }
 
-} // namespace bolt
+}  // namespace bolt

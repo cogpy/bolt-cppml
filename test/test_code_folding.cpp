@@ -1,21 +1,22 @@
-#include "bolt/test_framework.hpp"
+#include <iostream>
+
 #include "bolt/editor/code_folding.hpp"
 #include "bolt/editor/code_folding_detector.hpp"
 #include "bolt/editor/code_folding_manager.hpp"
 #include "bolt/editor/integrated_editor.hpp"
-#include <iostream>
+#include "bolt/test_framework.hpp"
 
 namespace bolt {
 namespace test {
 
 // Helper assertion macros for comparisons
-#define BOLT_ASSERT_GE(a, b) \
-    do { \
-        if (!((a) >= (b))) { \
-            std::stringstream ss; \
-            ss << "Expected " << (a) << " >= " << (b); \
+#define BOLT_ASSERT_GE(a, b)                                             \
+    do {                                                                 \
+        if (!((a) >= (b))) {                                             \
+            std::stringstream ss;                                        \
+            ss << "Expected " << (a) << " >= " << (b);                   \
             throw bolt::test::TestFailure(ss.str(), __FILE__, __LINE__); \
-        } \
+        }                                                                \
     } while (0)
 
 // Test fold range creation
@@ -66,9 +67,10 @@ BOLT_TEST(CodeFolding, ToggleFold) {
 
 // Code Folding Detector tests
 BOLT_TEST(CodeFoldingDetector, SimpleBraceDetection) {
-    std::string code = "int main() {\n"
-                      "    return 0;\n"
-                      "}\n";
+    std::string code =
+        "int main() {\n"
+        "    return 0;\n"
+        "}\n";
 
     auto ranges = CodeFoldingDetector::detectFoldableRanges(code);
     BOLT_ASSERT_GE(ranges.size(), static_cast<size_t>(1));
@@ -78,17 +80,18 @@ BOLT_TEST(CodeFoldingDetector, SimpleBraceDetection) {
 }
 
 BOLT_TEST(CodeFoldingDetector, NestedBraces) {
-    std::string code = "class Test {\n"
-                      "public:\n"
-                      "    void func() {\n"
-                      "        if (true) {\n"
-                      "            return;\n"
-                      "        }\n"
-                      "    }\n"
-                      "}\n";
+    std::string code =
+        "class Test {\n"
+        "public:\n"
+        "    void func() {\n"
+        "        if (true) {\n"
+        "            return;\n"
+        "        }\n"
+        "    }\n"
+        "}\n";
 
     auto ranges = CodeFoldingDetector::detectFoldableRanges(code);
-    BOLT_ASSERT_GE(ranges.size(), static_cast<size_t>(3)); // Class, function, if statement
+    BOLT_ASSERT_GE(ranges.size(), static_cast<size_t>(3));  // Class, function, if statement
 }
 
 BOLT_TEST(CodeFoldingDetector, FoldableRegionDetection) {
@@ -119,9 +122,10 @@ BOLT_TEST(CodeFoldingManager, UpdateFoldingRanges) {
     auto& manager = CodeFoldingManager::getInstance();
     manager.setFoldingEnabled(true);
 
-    std::string code = "void test() {\n"
-                      "    int x = 1;\n"
-                      "}\n";
+    std::string code =
+        "void test() {\n"
+        "    int x = 1;\n"
+        "}\n";
 
     manager.updateFoldingRanges("/test/manager_cf.cpp", code);
     auto ranges = manager.getFoldingRanges("/test/manager_cf.cpp");
@@ -132,9 +136,10 @@ BOLT_TEST(CodeFoldingManager, ToggleFold) {
     auto& manager = CodeFoldingManager::getInstance();
     manager.setFoldingEnabled(true);
 
-    std::string code = "int func() {\n"
-                      "    return 42;\n"
-                      "}\n";
+    std::string code =
+        "int func() {\n"
+        "    return 42;\n"
+        "}\n";
 
     manager.updateFoldingRanges("/test/toggle_mgr_cf.cpp", code);
 
@@ -161,12 +166,13 @@ BOLT_TEST(IntegratedEditor, Singleton) {
 BOLT_TEST(IntegratedEditor, OpenDocumentWithFolding) {
     auto& editor = IntegratedEditor::getInstance();
 
-    std::string code = "class TestClass {\n"
-                      "public:\n"
-                      "    void method() {\n"
-                      "        // code here\n"
-                      "    }\n"
-                      "}\n";
+    std::string code =
+        "class TestClass {\n"
+        "public:\n"
+        "    void method() {\n"
+        "        // code here\n"
+        "    }\n"
+        "}\n";
 
     editor.openDocument("/test/integrated_cf.cpp", code);
 
@@ -178,9 +184,10 @@ BOLT_TEST(IntegratedEditor, FoldingOperations) {
     auto& editor = IntegratedEditor::getInstance();
     editor.setFoldingEnabled(true);
 
-    std::string code = "namespace test {\n"
-                      "    int value = 100;\n"
-                      "}\n";
+    std::string code =
+        "namespace test {\n"
+        "    int value = 100;\n"
+        "}\n";
 
     editor.openDocument("/test/operations_cf.cpp", code);
 
@@ -203,9 +210,10 @@ BOLT_TEST(IntegratedEditor, UpdateContentRefolding) {
     auto& editor = IntegratedEditor::getInstance();
 
     std::string originalCode = "int x = 1;\n";
-    std::string newCode = "struct Data {\n"
-                         "    int value;\n"
-                         "};\n";
+    std::string newCode =
+        "struct Data {\n"
+        "    int value;\n"
+        "};\n";
 
     editor.openDocument("/test/update_cf.cpp", originalCode);
     auto originalRanges = editor.getFoldingRanges("/test/update_cf.cpp");
@@ -217,8 +225,8 @@ BOLT_TEST(IntegratedEditor, UpdateContentRefolding) {
     BOLT_ASSERT_GE(newRanges.size(), static_cast<size_t>(1));
 }
 
-} // namespace test
-} // namespace bolt
+}  // namespace test
+}  // namespace bolt
 
 int main() {
     return bolt::test::TestSuite::getInstance().runAllTests();

@@ -1,5 +1,6 @@
 
 #include "bolt/editor/code_completion.hpp"
+
 #include <algorithm>
 #include <memory>
 #include <string>
@@ -8,7 +9,7 @@
 namespace bolt {
 
 class CodeCompletionImpl {
-public:
+ public:
     CodeCompletionImpl() : active_(false) {}
 
     void activate() {
@@ -21,9 +22,7 @@ public:
         suggestions_.clear();
     }
 
-    bool isActive() const { 
-        return active_; 
-    }
+    bool isActive() const { return active_; }
 
     void setSuggestions(const std::vector<CompletionItem>& suggestions) {
         suggestions_ = suggestions;
@@ -31,7 +30,8 @@ public:
     }
 
     CompletionItem getSelectedSuggestion() const {
-        if (suggestions_.empty()) return CompletionItem();
+        if (suggestions_.empty())
+            return CompletionItem();
         return suggestions_[currentIndex_];
     }
 
@@ -47,7 +47,7 @@ public:
         }
     }
 
-private:
+ private:
     bool active_;
     std::vector<CompletionItem> suggestions_;
     size_t currentIndex_{0};
@@ -84,4 +84,4 @@ void CodeCompletion::selectPrevious() {
     impl_->selectPrevious();
 }
 
-} // namespace bolt
+}  // namespace bolt

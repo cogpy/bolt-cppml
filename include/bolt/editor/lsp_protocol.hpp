@@ -1,11 +1,11 @@
-#ifndef LSP_PROTOCOL_HPP
-#define LSP_PROTOCOL_HPP
+#ifndef BOLT_EDITOR_LSP_PROTOCOL_HPP_
+#define BOLT_EDITOR_LSP_PROTOCOL_HPP_
 
+#include <map>
+#include <memory>
+#include <optional>
 #include <string>
 #include <vector>
-#include <map>
-#include <optional>
-#include <memory>
 
 namespace bolt {
 namespace lsp {
@@ -14,15 +14,15 @@ namespace lsp {
 struct Position {
     size_t line;
     size_t character;
-    
-    Position(size_t l = 0, size_t c = 0) : line(l), character(c) {}
+
+    explicit Position(size_t l = 0, size_t c = 0) : line(l), character(c) {}
 };
 
 // LSP Range
 struct Range {
     Position start;
     Position end;
-    
+
     Range() = default;
     Range(const Position& s, const Position& e) : start(s), end(e) {}
 };
@@ -31,7 +31,7 @@ struct Range {
 struct Location {
     std::string uri;
     Range range;
-    
+
     Location() = default;
     Location(const std::string& u, const Range& r) : uri(u), range(r) {}
 };
@@ -40,7 +40,7 @@ struct Location {
 struct TextEdit {
     Range range;
     std::string newText;
-    
+
     TextEdit() = default;
     TextEdit(const Range& r, const std::string& text) : range(r), newText(text) {}
 };
@@ -75,9 +75,9 @@ struct CompletionItem {
     std::optional<std::string> documentation;
     std::optional<std::string> insertText;
     std::optional<TextEdit> textEdit;
-    
+
     CompletionItem() = default;
-    CompletionItem(const std::string& l) : label(l) {}
+    explicit CompletionItem(const std::string& l) : label(l) {}
 };
 
 // LSP Completion List
@@ -87,12 +87,7 @@ struct CompletionList {
 };
 
 // LSP Diagnostic Severity
-enum class DiagnosticSeverity {
-    Error = 1,
-    Warning = 2,
-    Information = 3,
-    Hint = 4
-};
+enum class DiagnosticSeverity { Error = 1, Warning = 2, Information = 3, Hint = 4 };
 
 // LSP Diagnostic
 struct Diagnostic {
@@ -101,7 +96,7 @@ struct Diagnostic {
     std::optional<std::string> code;
     std::optional<std::string> source;
     std::string message;
-    
+
     Diagnostic() = default;
     Diagnostic(const Range& r, const std::string& msg) : range(r), message(msg) {}
 };
@@ -110,9 +105,9 @@ struct Diagnostic {
 struct Hover {
     std::string contents;
     std::optional<Range> range;
-    
+
     Hover() = default;
-    Hover(const std::string& c) : contents(c) {}
+    explicit Hover(const std::string& c) : contents(c) {}
 };
 
 // LSP Document Symbol Kind
@@ -145,9 +140,9 @@ struct DocumentSymbol {
     Range range;
     Range selectionRange;
     std::vector<DocumentSymbol> children;
-    
+
     DocumentSymbol() = default;
-    DocumentSymbol(const std::string& n, SymbolKind k, const Range& r, const Range& sr) 
+    DocumentSymbol(const std::string& n, SymbolKind k, const Range& r, const Range& sr)
         : name(n), kind(k), range(r), selectionRange(sr) {}
 };
 
@@ -161,15 +156,15 @@ struct FormattingOptions {
 // LSP Text Document Identifier
 struct TextDocumentIdentifier {
     std::string uri;
-    
+
     TextDocumentIdentifier() = default;
-    TextDocumentIdentifier(const std::string& u) : uri(u) {}
+    explicit TextDocumentIdentifier(const std::string& u) : uri(u) {}
 };
 
 // LSP Versioned Text Document Identifier
 struct VersionedTextDocumentIdentifier : public TextDocumentIdentifier {
     int version;
-    
+
     VersionedTextDocumentIdentifier() : version(0) {}
     VersionedTextDocumentIdentifier(const std::string& u, int v) : TextDocumentIdentifier(u), version(v) {}
 };
@@ -180,7 +175,7 @@ struct TextDocumentItem {
     std::string languageId;
     int version;
     std::string text;
-    
+
     TextDocumentItem() : version(0) {}
     TextDocumentItem(const std::string& u, const std::string& lang, int v, const std::string& t)
         : uri(u), languageId(lang), version(v), text(t) {}
@@ -191,22 +186,22 @@ struct TextDocumentContentChangeEvent {
     std::optional<Range> range;
     std::optional<size_t> rangeLength;
     std::string text;
-    
+
     TextDocumentContentChangeEvent() = default;
-    TextDocumentContentChangeEvent(const std::string& t) : text(t) {}
+    explicit TextDocumentContentChangeEvent(const std::string& t) : text(t) {}
 };
 
 // LSP Text Document Position Params
 struct TextDocumentPositionParams {
     TextDocumentIdentifier textDocument;
     Position position;
-    
+
     TextDocumentPositionParams() = default;
     TextDocumentPositionParams(const TextDocumentIdentifier& doc, const Position& pos)
         : textDocument(doc), position(pos) {}
 };
 
-} // namespace lsp
-} // namespace bolt
+}  // namespace lsp
+}  // namespace bolt
 
-#endif
+#endif  // BOLT_EDITOR_LSP_PROTOCOL_HPP_

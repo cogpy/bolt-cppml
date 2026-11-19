@@ -1,12 +1,12 @@
 
-#ifndef STRING_UTILS_HPP
-#define STRING_UTILS_HPP
+#ifndef BOLT_UTILS_STRING_UTILS_HPP_
+#define BOLT_UTILS_STRING_UTILS_HPP_
 
-#include <string>
 #include <algorithm>
+#include <string>
 
 class StringUtils {
-public:
+ public:
     static std::string reverseString(const std::string& input) {
         std::string result = input;
         std::reverse(result.begin(), result.end());
@@ -24,8 +24,8 @@ public:
     static int countVowels(const std::string& input) {
         const std::string vowels = "aeiouAEIOU";
         return std::count_if(input.begin(), input.end(),
-            [&vowels](char c) { return vowels.find(c) != std::string::npos; });
+                             [&vowels](char c) { return vowels.find(c) != std::string::npos; });
     }
 };
 
-#endif
+#endif  // BOLT_UTILS_STRING_UTILS_HPP_

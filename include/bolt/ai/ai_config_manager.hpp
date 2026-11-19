@@ -1,8 +1,8 @@
-#ifndef BOLT_AI_CONFIG_MANAGER_HPP
-#define BOLT_AI_CONFIG_MANAGER_HPP
+#ifndef BOLT_AI_AI_CONFIG_MANAGER_HPP_
+#define BOLT_AI_AI_CONFIG_MANAGER_HPP_
 
-#include <string>
 #include <map>
+#include <string>
 
 namespace bolt {
 namespace ai {
@@ -12,14 +12,8 @@ namespace ai {
  * Manages configuration settings for AI providers and models.
  */
 class AIConfigManager {
-public:
-    AIConfigManager()
-        : apiKey_("")
-        , maxTokens_(4096)
-        , temperature_(0.7)
-        , provider_("local")
-        , modelName_("default")
-    {}
+ public:
+    AIConfigManager() : apiKey_(""), maxTokens_(4096), temperature_(0.7), provider_("local"), modelName_("default") {}
 
     // API Key management
     void setApiKey(const std::string& key) { apiKey_ = key; }
@@ -42,9 +36,7 @@ public:
     std::string getModelName() const { return modelName_; }
 
     // Custom options
-    void setOption(const std::string& key, const std::string& value) {
-        options_[key] = value;
-    }
+    void setOption(const std::string& key, const std::string& value) { options_[key] = value; }
 
     std::string getOption(const std::string& key, const std::string& defaultValue = "") const {
         auto it = options_.find(key);
@@ -52,11 +44,9 @@ public:
     }
 
     // Validation
-    bool isValid() const {
-        return maxTokens_ > 0 && temperature_ >= 0.0 && temperature_ <= 2.0;
-    }
+    bool isValid() const { return maxTokens_ > 0 && temperature_ >= 0.0 && temperature_ <= 2.0; }
 
-private:
+ private:
     std::string apiKey_;
     int maxTokens_;
     double temperature_;
@@ -65,7 +55,7 @@ private:
     std::map<std::string, std::string> options_;
 };
 
-} // namespace ai
-} // namespace bolt
+}  // namespace ai
+}  // namespace bolt
 
-#endif // BOLT_AI_CONFIG_MANAGER_HPP
+#endif  // BOLT_AI_AI_CONFIG_MANAGER_HPP_

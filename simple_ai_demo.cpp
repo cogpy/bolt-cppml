@@ -1,7 +1,7 @@
 #include <iostream>
+#include <memory>
 #include <string>
 #include <vector>
-#include <memory>
 
 // Simple standalone includes - avoiding dependencies that cause build issues
 struct CodeGenerationContext {
@@ -19,36 +19,34 @@ struct GeneratedCode {
 };
 
 class SimpleAICodeGenerator {
-public:
+ public:
     GeneratedCode generateFunction(const std::string& description, const CodeGenerationContext& context = {}) {
         GeneratedCode result;
         result.generatorType = "simple_template";
         result.confidence = 0.8;
         result.description = "Generated function from simple template";
-        
+
         std::string functionName = extractFunctionName(description);
-        
+
         result.code = "/**\n * " + description + "\n */\n";
         result.code += "void " + functionName + "() {\n";
         result.code += "    // TODO: Implement function logic\n";
         result.code += "    // Description: " + description + "\n";
         result.code += "}";
-        
-        result.suggestions = {
-            "Consider adding parameter validation",
-            "Add proper return type",
-            "Include error handling"
-        };
-        
+
+        result.suggestions = {"Consider adding parameter validation", "Add proper return type",
+                              "Include error handling"};
+
         return result;
     }
-    
-    GeneratedCode generateClass(const std::string& className, const std::string& description, const CodeGenerationContext& context = {}) {
+
+    GeneratedCode generateClass(const std::string& className, const std::string& description,
+                                const CodeGenerationContext& context = {}) {
         GeneratedCode result;
         result.generatorType = "simple_template";
         result.confidence = 0.8;
         result.description = "Generated class from simple template";
-        
+
         result.code = "/**\n * " + description + "\n */\n";
         result.code += "class " + className + " {\n";
         result.code += "private:\n";
@@ -60,19 +58,16 @@ public:
         result.code += "    ~" + className + "();\n\n";
         result.code += "    // TODO: Add public methods\n";
         result.code += "};";
-        
-        result.suggestions = {
-            "Consider using RAII principles",
-            "Add copy/move constructors if needed",
-            "Make destructor virtual if inheritance expected"
-        };
-        
+
+        result.suggestions = {"Consider using RAII principles", "Add copy/move constructors if needed",
+                              "Make destructor virtual if inheritance expected"};
+
         return result;
     }
-    
+
     std::string generateDocumentation(const std::string& code) {
         std::string doc = "/**\n * Auto-generated documentation\n *\n";
-        
+
         if (code.find("class ") != std::string::npos) {
             doc += " * This class provides functionality for code management.\n";
             doc += " * @note This is auto-generated documentation\n";
@@ -83,12 +78,12 @@ public:
         } else {
             doc += " * Code documentation\n";
         }
-        
+
         doc += " */";
         return doc;
     }
-    
-private:
+
+ private:
     std::string extractFunctionName(const std::string& description) {
         // Simple extraction - look for common patterns
         if (description.find("calculate") != std::string::npos) {
@@ -112,10 +107,10 @@ struct SimpleRefactoringSuggestion {
 };
 
 class SimpleRefactoringEngine {
-public:
+ public:
     std::vector<SimpleRefactoringSuggestion> analyzeCode(const std::string& code) {
         std::vector<SimpleRefactoringSuggestion> suggestions;
-        
+
         // Check for long functions
         if (code.length() > 300) {
             SimpleRefactoringSuggestion suggestion;
@@ -123,30 +118,21 @@ public:
             suggestion.description = "This function appears to be quite long and could benefit from being broken down.";
             suggestion.refactoringType = "extract_method";
             suggestion.confidenceScore = 0.8;
-            suggestion.benefits = {
-                "Improved readability",
-                "Better testability",
-                "Reduced complexity"
-            };
+            suggestion.benefits = {"Improved readability", "Better testability", "Reduced complexity"};
             suggestions.push_back(suggestion);
         }
-        
+
         // Check for nested conditionals
-        if (code.find("if") != std::string::npos && 
-            code.find("if", code.find("if") + 2) != std::string::npos) {
+        if (code.find("if") != std::string::npos && code.find("if", code.find("if") + 2) != std::string::npos) {
             SimpleRefactoringSuggestion suggestion;
             suggestion.title = "Reduce conditional complexity";
             suggestion.description = "Nested conditional statements detected that could be simplified.";
             suggestion.refactoringType = "reduce_complexity";
             suggestion.confidenceScore = 0.7;
-            suggestion.benefits = {
-                "Improved readability",
-                "Reduced cognitive complexity",
-                "Better error handling"
-            };
+            suggestion.benefits = {"Improved readability", "Reduced cognitive complexity", "Better error handling"};
             suggestions.push_back(suggestion);
         }
-        
+
         // Check for potential duplication
         size_t assignmentCount = 0;
         size_t pos = 0;
@@ -154,21 +140,17 @@ public:
             assignmentCount++;
             pos++;
         }
-        
+
         if (assignmentCount > 5) {
             SimpleRefactoringSuggestion suggestion;
             suggestion.title = "Consider extracting common patterns";
             suggestion.description = "Multiple similar operations detected that could be consolidated.";
             suggestion.refactoringType = "remove_duplication";
             suggestion.confidenceScore = 0.6;
-            suggestion.benefits = {
-                "Reduced code duplication",
-                "Easier maintenance",
-                "Improved consistency"
-            };
+            suggestion.benefits = {"Reduced code duplication", "Easier maintenance", "Improved consistency"};
             suggestions.push_back(suggestion);
         }
-        
+
         return suggestions;
     }
 };
@@ -176,13 +158,13 @@ public:
 int main() {
     std::cout << "🤖 Advanced AI Features - Simple Demo\n";
     std::cout << "======================================\n\n";
-    
+
     // Test code generation
     std::cout << "🏗️ Testing Code Generation:\n";
     std::cout << "----------------------------\n";
-    
+
     SimpleAICodeGenerator codeGen;
-    
+
     auto functionResult = codeGen.generateFunction("Calculate the factorial of a number");
     std::cout << "Generated Function:\n";
     std::cout << functionResult.code << "\n\n";
@@ -191,17 +173,17 @@ int main() {
     for (const auto& suggestion : functionResult.suggestions) {
         std::cout << "• " << suggestion << "\n";
     }
-    
+
     std::cout << "\n";
-    
+
     auto classResult = codeGen.generateClass("FileManager", "A class to manage file operations");
     std::cout << "Generated Class:\n";
     std::cout << classResult.code << "\n\n";
-    
+
     // Test documentation generation
     std::cout << "📝 Testing Documentation Generation:\n";
     std::cout << "------------------------------------\n";
-    
+
     const std::string sampleCode = R"(
 int binarySearch(const vector<int>& arr, int target) {
     int left = 0, right = arr.size() - 1;
@@ -214,17 +196,17 @@ int binarySearch(const vector<int>& arr, int target) {
     return -1;
 }
 )";
-    
+
     auto documentation = codeGen.generateDocumentation(sampleCode);
     std::cout << "Generated Documentation:\n";
     std::cout << documentation << "\n\n";
-    
+
     // Test refactoring suggestions
     std::cout << "🔧 Testing Refactoring Analysis:\n";
     std::cout << "--------------------------------\n";
-    
+
     SimpleRefactoringEngine refactoringEngine;
-    
+
     const std::string complexCode = R"(
 void processUserData(const string& userData) {
     if (userData.empty()) {
@@ -275,10 +257,10 @@ void processUserData(const string& userData) {
     cout << "User processed successfully" << endl;
 }
 )";
-    
+
     auto suggestions = refactoringEngine.analyzeCode(complexCode);
     std::cout << "Found " << suggestions.size() << " refactoring suggestions:\n\n";
-    
+
     for (size_t i = 0; i < suggestions.size(); ++i) {
         const auto& suggestion = suggestions[i];
         std::cout << (i + 1) << ". " << suggestion.title << "\n";
@@ -291,9 +273,9 @@ void processUserData(const string& userData) {
         }
         std::cout << "\n";
     }
-    
+
     std::cout << "✅ Advanced AI Features Demo completed successfully!\n\n";
-    
+
     std::cout << "🎯 Features Demonstrated:\n";
     std::cout << "• Function generation from descriptions\n";
     std::cout << "• Class generation with boilerplate code\n";
@@ -301,9 +283,9 @@ void processUserData(const string& userData) {
     std::cout << "• Refactoring suggestions with multiple analysis types\n";
     std::cout << "• Pattern-based code analysis\n";
     std::cout << "• Template-driven code generation\n\n";
-    
+
     std::cout << "🚀 Ready for integration with real AI models (GGML/RWKV)\n";
     std::cout << "📋 Template-based fallback ensures functionality without AI\n";
-    
+
     return 0;
 }

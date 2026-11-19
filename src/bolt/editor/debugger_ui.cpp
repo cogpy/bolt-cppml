@@ -1,22 +1,22 @@
 #include "bolt/editor/debugger_ui.hpp"
+
+#include <chrono>
+#include <iomanip>
 #include <iostream>
 #include <sstream>
-#include <iomanip>
-#include <chrono>
 
 namespace bolt {
 
 DebuggerUI::DebuggerUI()
-    : debugger_(nullptr)
-    , visible_(false)
-    , initialized_(false)
-    , auto_refresh_enabled_(true)
-    , refresh_interval_ms_(100.0f)
-    , last_refresh_time_(0.0f)
-    , controls_panel_height_(60.0f)
-    , variables_panel_width_(300.0f)
-    , output_panel_height_(200.0f) {
-}
+    : debugger_(nullptr),
+      visible_(false),
+      initialized_(false),
+      auto_refresh_enabled_(true),
+      refresh_interval_ms_(100.0f),
+      last_refresh_time_(0.0f),
+      controls_panel_height_(60.0f),
+      variables_panel_width_(300.0f),
+      output_panel_height_(200.0f) {}
 
 DebuggerUI::~DebuggerUI() {
     shutdown();
@@ -26,10 +26,10 @@ void DebuggerUI::initialize() {
     if (initialized_) {
         return;
     }
-    
+
     initialized_ = true;
     status_message_ = "Debugger UI initialized";
-    
+
     std::cout << "🔧 Debugger UI initialized" << std::endl;
 }
 
@@ -37,10 +37,10 @@ void DebuggerUI::shutdown() {
     if (!initialized_) {
         return;
     }
-    
+
     initialized_ = false;
     visible_ = false;
-    
+
     std::cout << "🔧 Debugger UI shutdown" << std::endl;
 }
 
@@ -52,9 +52,9 @@ void DebuggerUI::set_visible(bool visible) {
     if (visible && !initialized_) {
         initialize();
     }
-    
+
     visible_ = visible;
-    
+
     if (visible) {
         std::cout << "🔧 Debugger UI shown" << std::endl;
     } else {
@@ -66,14 +66,15 @@ void DebuggerUI::render() {
     if (!visible_ || !initialized_) {
         return;
     }
-    
+
     // Check if we should refresh the UI
     if (should_refresh()) {
         update_status_message();
-        last_refresh_time_ = std::chrono::duration_cast<std::chrono::milliseconds>(
-            std::chrono::steady_clock::now().time_since_epoch()).count();
+        last_refresh_time_ =
+            std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch())
+                .count();
     }
-    
+
     // Render all panels
     render_controls();
     render_breakpoints();
@@ -85,54 +86,54 @@ void DebuggerUI::render() {
 
 void DebuggerUI::render_controls() {
     std::cout << "=== Debug Controls ===" << std::endl;
-    
+
     if (!debugger_) {
         std::cout << "No debugger attached" << std::endl;
         return;
     }
-    
+
     DebugState state = debugger_->get_debug_state();
     std::cout << "State: " << format_debug_state(state) << std::endl;
     std::cout << "PC: " << format_pc_address(debugger_->get_current_pc()) << std::endl;
-    
+
     // Show available controls based on state
     switch (state) {
         case DebugState::STOPPED:
             std::cout << "Controls: [Start Debug Session]" << std::endl;
             break;
-            
+
         case DebugState::PAUSED:
             std::cout << "Controls: [Continue] [Step Over] [Step Into] [Step Out] [Stop]" << std::endl;
             break;
-            
+
         case DebugState::RUNNING:
             std::cout << "Controls: [Pause] [Stop]" << std::endl;
             break;
-            
+
         case DebugState::FINISHED:
             std::cout << "Controls: [Stop]" << std::endl;
             break;
-            
+
         case DebugState::ERROR:
             std::cout << "Controls: [Stop] (Error occurred)" << std::endl;
             break;
     }
-    
+
     if (!status_message_.empty()) {
         std::cout << "Status: " << status_message_ << std::endl;
     }
-    
+
     std::cout << std::endl;
 }
 
 void DebuggerUI::render_breakpoints() {
     std::cout << "=== Breakpoints ===" << std::endl;
-    
+
     if (!debugger_) {
         std::cout << "No debugger attached" << std::endl;
         return;
     }
-    
+
     auto breakpoints = debugger_->get_all_breakpoints();
     if (breakpoints.empty()) {
         std::cout << "No breakpoints set" << std::endl;
@@ -141,18 +142,18 @@ void DebuggerUI::render_breakpoints() {
             render_breakpoint_item(bp);
         }
     }
-    
+
     std::cout << std::endl;
 }
 
 void DebuggerUI::render_call_stack() {
     std::cout << "=== Call Stack ===" << std::endl;
-    
+
     if (!debugger_) {
         std::cout << "No debugger attached" << std::endl;
         return;
     }
-    
+
     auto call_stack = debugger_->get_call_stack();
     if (call_stack.empty()) {
         std::cout << "No active calls" << std::endl;
@@ -161,18 +162,18 @@ void DebuggerUI::render_call_stack() {
             render_call_stack_item(call_stack[i], i);
         }
     }
-    
+
     std::cout << std::endl;
 }
 
 void DebuggerUI::render_variables() {
     std::cout << "=== Variables ===" << std::endl;
-    
+
     if (!debugger_) {
         std::cout << "No debugger attached" << std::endl;
         return;
     }
-    
+
     auto globals = debugger_->get_global_variables();
     if (globals.empty()) {
         std::cout << "No global variables" << std::endl;
@@ -181,7 +182,7 @@ void DebuggerUI::render_variables() {
             std::cout << "  " << name << " = " << value << std::endl;
         }
     }
-    
+
     auto stack_contents = debugger_->get_stack_contents();
     if (!stack_contents.empty()) {
         std::cout << "Stack:" << std::endl;
@@ -189,18 +190,18 @@ void DebuggerUI::render_variables() {
             std::cout << "  " << item << std::endl;
         }
     }
-    
+
     std::cout << std::endl;
 }
 
 void DebuggerUI::render_watch_expressions() {
     std::cout << "=== Watch Expressions ===" << std::endl;
-    
+
     if (!debugger_) {
         std::cout << "No debugger attached" << std::endl;
         return;
     }
-    
+
     auto watches = debugger_->get_watch_expressions();
     if (watches.empty()) {
         std::cout << "No watch expressions" << std::endl;
@@ -209,19 +210,19 @@ void DebuggerUI::render_watch_expressions() {
             render_watch_item(watch);
         }
     }
-    
+
     std::cout << "Add new watch: [expression]" << std::endl;
     std::cout << std::endl;
 }
 
 void DebuggerUI::render_debug_output() {
     std::cout << "=== Debug Output ===" << std::endl;
-    
+
     if (!debugger_) {
         std::cout << "No debugger attached" << std::endl;
         return;
     }
-    
+
     auto log = debugger_->get_debug_log();
     if (log.empty()) {
         std::cout << "No debug output" << std::endl;
@@ -231,24 +232,23 @@ void DebuggerUI::render_debug_output() {
         for (size_t i = start; i < log.size(); ++i) {
             std::cout << "  " << log[i] << std::endl;
         }
-        
+
         if (log.size() > 5) {
             std::cout << "  (" << (log.size() - 5) << " more entries...)" << std::endl;
         }
     }
-    
+
     std::cout << std::endl;
 }
 
 void DebuggerUI::set_debugger(std::shared_ptr<DebuggerInterface> debugger) {
     debugger_ = debugger;
-    
+
     if (debugger_) {
         // Set up event callback
-        debugger_->set_event_callback([this](DebugEvent event, const std::string& message) {
-            on_debug_event(event, message);
-        });
-        
+        debugger_->set_event_callback(
+            [this](DebugEvent event, const std::string& message) { on_debug_event(event, message); });
+
         std::cout << "🔧 Debugger attached to UI" << std::endl;
     } else {
         std::cout << "🔧 Debugger detached from UI" << std::endl;
@@ -260,28 +260,28 @@ void DebuggerUI::on_debug_event(DebugEvent event, const std::string& message) {
         case DebugEvent::SESSION_STARTED:
             status_message_ = "Debug session started";
             break;
-            
+
         case DebugEvent::SESSION_STOPPED:
             status_message_ = "Debug session stopped";
             break;
-            
+
         case DebugEvent::BREAKPOINT_HIT:
             status_message_ = "Breakpoint hit: " + message;
             break;
-            
+
         case DebugEvent::STEP_COMPLETED:
             status_message_ = "Step completed";
             break;
-            
+
         case DebugEvent::EXECUTION_FINISHED:
             status_message_ = "Execution finished";
             break;
-            
+
         case DebugEvent::ERROR_OCCURRED:
             status_message_ = "Error: " + message;
             break;
     }
-    
+
     std::cout << "🔧 Debug event: " << status_message_ << std::endl;
 }
 
@@ -333,7 +333,7 @@ void DebuggerUI::handle_breakpoint_condition_edit(size_t pc, const std::string& 
         std::cout << "❌ No debugger attached" << std::endl;
         return;
     }
-    
+
     // Set or update the breakpoint condition
     if (condition.empty()) {
         // Remove condition (make it unconditional)
@@ -344,7 +344,7 @@ void DebuggerUI::handle_breakpoint_condition_edit(size_t pc, const std::string& 
         debugger_->set_breakpoint_condition(pc, condition);
         std::cout << "✅ Set breakpoint condition at PC " << pc << ": " << condition << std::endl;
     }
-    
+
     status_message_ = "Breakpoint condition updated";
 }
 
@@ -390,40 +390,40 @@ void DebuggerUI::render_breakpoint_item(const BreakpointInfo& bp) {
     std::cout << "  ";
     std::cout << (bp.enabled ? "🔴" : "⚪") << " ";
     std::cout << "PC " << format_pc_address(bp.pc);
-    
+
     if (!bp.file_path.empty()) {
         std::cout << " (" << bp.file_path << ":" << bp.line_number << ")";
     }
-    
+
     if (!bp.condition.empty()) {
         std::cout << " [" << bp.condition << "]";
     }
-    
+
     std::cout << std::endl;
 }
 
 void DebuggerUI::render_watch_item(const WatchExpression& watch) {
     std::cout << "  " << watch.expression << " = ";
-    
+
     if (watch.valid) {
         std::cout << watch.value << " (" << watch.type << ")";
     } else {
         std::cout << "<invalid>";
     }
-    
+
     std::cout << std::endl;
 }
 
 void DebuggerUI::render_call_stack_item(size_t pc, size_t index) {
     std::cout << "  #" << index << " " << format_pc_address(pc);
-    
+
     if (debugger_) {
         std::string instruction = debugger_->get_instruction_at(pc);
         if (!instruction.empty()) {
             std::cout << " - " << instruction;
         }
     }
-    
+
     std::cout << std::endl;
 }
 
@@ -432,7 +432,7 @@ void DebuggerUI::update_status_message() {
         status_message_ = "No debugger attached";
         return;
     }
-    
+
     DebugState state = debugger_->get_debug_state();
     if (state == DebugState::RUNNING) {
         status_message_ = "Running...";
@@ -445,21 +445,28 @@ bool DebuggerUI::should_refresh() const {
     if (!auto_refresh_enabled_) {
         return false;
     }
-    
-    float current_time = std::chrono::duration_cast<std::chrono::milliseconds>(
-        std::chrono::steady_clock::now().time_since_epoch()).count();
-        
+
+    float current_time =
+        std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch())
+            .count();
+
     return (current_time - last_refresh_time_) >= refresh_interval_ms_;
 }
 
 std::string DebuggerUI::format_debug_state(DebugState state) const {
     switch (state) {
-        case DebugState::STOPPED: return "STOPPED";
-        case DebugState::RUNNING: return "RUNNING";
-        case DebugState::PAUSED: return "PAUSED";
-        case DebugState::FINISHED: return "FINISHED";
-        case DebugState::ERROR: return "ERROR";
-        default: return "UNKNOWN";
+        case DebugState::STOPPED:
+            return "STOPPED";
+        case DebugState::RUNNING:
+            return "RUNNING";
+        case DebugState::PAUSED:
+            return "PAUSED";
+        case DebugState::FINISHED:
+            return "FINISHED";
+        case DebugState::ERROR:
+            return "ERROR";
+        default:
+            return "UNKNOWN";
     }
 }
 
@@ -469,4 +476,4 @@ std::string DebuggerUI::format_pc_address(size_t pc) const {
     return ss.str();
 }
 
-} // namespace bolt
+}  // namespace bolt

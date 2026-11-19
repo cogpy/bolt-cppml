@@ -1,5 +1,5 @@
-#ifndef BOLT_THEME_SYSTEM_HPP
-#define BOLT_THEME_SYSTEM_HPP
+#ifndef BOLT_EDITOR_THEME_SYSTEM_HPP_
+#define BOLT_EDITOR_THEME_SYSTEM_HPP_
 
 #include <map>
 #include <string>
@@ -32,7 +32,7 @@ struct Theme {
 };
 
 class ThemeSystem {
-public:
+ public:
     static ThemeSystem& getInstance();
 
     void setTheme(const std::string& themeName);
@@ -40,17 +40,15 @@ public:
     ColorScheme getCurrentColors() const;
     FontSettings getCurrentFontSettings() const;
     void loadDefaultThemes();
-    
+
     // Additional functionality
     std::vector<std::string> getAvailableThemes() const;
     std::string getCurrentThemeName() const;
     bool hasTheme(const std::string& themeName) const;
 
-private:
-    ThemeSystem() {
-        initializeDefaults();
-    }
-    
+ private:
+    ThemeSystem() { initializeDefaults(); }
+
     void initializeDefaults();
     std::map<std::string, Theme> themes_;
     std::string currentTheme_;
@@ -58,6 +56,6 @@ private:
     FontSettings defaultFontSettings_;
 };
 
-} // namespace bolt
+}  // namespace bolt
 
-#endif // BOLT_THEME_SYSTEM_HPP
+#endif  // BOLT_EDITOR_THEME_SYSTEM_HPP_

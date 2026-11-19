@@ -1,21 +1,20 @@
-#ifndef FILESYSTEM_UTILS_HPP
-#define FILESYSTEM_UTILS_HPP
+#ifndef BOLT_UTILS_FILESYSTEM_UTILS_HPP_
+#define BOLT_UTILS_FILESYSTEM_UTILS_HPP_
 
 #include <fstream>
+#include <stdexcept>
 #include <string>
 #include <vector>
-#include <stdexcept>
 
 class FileSystemUtils {
-public:
+ public:
     static std::string readFile(const std::string& filename) {
         std::ifstream file(filename);
         if (!file.is_open()) {
             throw std::runtime_error("Could not open file: " + filename);
         }
 
-        std::string content((std::istreambuf_iterator<char>(file)),
-                           std::istreambuf_iterator<char>());
+        std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
         return content;
     }
 
@@ -36,4 +35,4 @@ public:
     }
 };
 
-#endif
+#endif  // BOLT_UTILS_FILESYSTEM_UTILS_HPP_

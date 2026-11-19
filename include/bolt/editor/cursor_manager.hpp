@@ -1,9 +1,11 @@
 
-#ifndef CURSOR_MANAGER_HPP
-#define CURSOR_MANAGER_HPP
+#ifndef BOLT_EDITOR_CURSOR_MANAGER_HPP_
+#define BOLT_EDITOR_CURSOR_MANAGER_HPP_
 
-#include <vector>
 #include <algorithm>
+#include <string>
+#include <vector>
+
 #include "bolt/core/thread_safety.hpp"
 
 namespace bolt {
@@ -13,14 +15,12 @@ struct Selection {
     size_t startColumn;
     size_t endLine;
     size_t endColumn;
-    
-    bool hasSelection() const {
-        return !(startLine == endLine && startColumn == endColumn);
-    }
-    
+
+    bool hasSelection() const { return !(startLine == endLine && startColumn == endColumn); }
+
     bool operator==(const Selection& other) const {
-        return startLine == other.startLine && startColumn == other.startColumn &&
-               endLine == other.endLine && endColumn == other.endColumn;
+        return startLine == other.startLine && startColumn == other.startColumn && endLine == other.endLine &&
+               endColumn == other.endColumn;
     }
 };
 
@@ -29,21 +29,19 @@ struct Cursor {
     size_t column;
     bool isActive;
     Selection selection;  // Selection range for this cursor
-    
+
     Cursor() : line(0), column(0), isActive(true), selection{0, 0, 0, 0} {}
     Cursor(size_t l, size_t c) : line(l), column(c), isActive(true), selection{l, c, l, c} {}
-    
-    bool operator==(const Cursor& other) const {
-        return line == other.line && column == other.column;
-    }
+
+    bool operator==(const Cursor& other) const { return line == other.line && column == other.column; }
 };
 
 class CursorManager {
-private:
+ private:
     ThreadSafe<std::vector<Cursor>> cursors_;
     ThreadSafe<size_t> primaryCursorIndex_{0};
 
-public:
+ public:
     static CursorManager& getInstance();
 
     void addCursor(size_t line, size_t column);
@@ -67,24 +65,24 @@ public:
     void deleteAtCursors();
     void deleteSelectionAtCursors();
     std::vector<std::string> getSelectedText() const;
-    
+
     // Selection operations
     void updateCursorSelection(size_t cursorIndex, const Selection& selection);
     void clearAllSelections();
     void selectWordAtCursors();
     void selectLineAtCursors();
-    
+
     // Find and multi-cursor operations
     void findNextOccurrence(const std::string& text, const std::string& documentContent);
     void addCursorAtNextOccurrence(const std::string& text, const std::string& documentContent);
     void selectAllOccurrences(const std::string& text, const std::string& documentContent);
-    
+
     // Utility methods
     size_t getCursorCount() const;
     bool hasCursors() const;
     void sortCursorsByPosition();
 };
 
-} // namespace bolt
+}  // namespace bolt
 
-#endif
+#endif  // BOLT_EDITOR_CURSOR_MANAGER_HPP_

@@ -1,16 +1,16 @@
 #include "bolt/drawkern/drawkern.hpp"
+
+#include <chrono>
 #include <iostream>
 #include <sstream>
 #include <thread>
-#include <chrono>
 
 namespace bolt {
 namespace drawkern {
 
 // Base class implementations
-DrawKernClient::DrawKernClient(const std::string& server_address) 
-    : server_address_(server_address), connected_(false) {
-}
+DrawKernClient::DrawKernClient(const std::string& server_address)
+    : server_address_(server_address), connected_(false) {}
 
 DrawKernClient::~DrawKernClient() {
     if (connected_) {
@@ -47,12 +47,12 @@ AIWorkbenchGlyph create_bolt_ai_glyph() {
     glyph.workbench_id = "bolt-ai-ide-v1";
     glyph.ai_model = "ggml-rwkv";
     glyph.tools = {"code-completion", "chat-assistant", "error-analysis", "refactoring"};
-    
+
     // Define the VM to host this workbench
-    glyph.host_vm.vm_type = "dis";  // Inferno DIS VM
+    glyph.host_vm.vm_type = "dis";       // Inferno DIS VM
     glyph.host_vm.architecture = "any";  // DIS is portable!
     glyph.host_vm.capabilities = {"ai-inference", "code-parsing", "file-io"};
-    
+
     // Limbo code for the AI workbench (simplified example)
     glyph.host_vm.limbo_code = R"(
         implement BoltAI;
@@ -77,29 +77,30 @@ AIWorkbenchGlyph create_bolt_ai_glyph() {
             }
         }
     )";
-    
+
     // Rendering properties - how this workbench looks when "drawn"
     glyph.host_vm.render.width = 1200;
-    glyph.host_vm.render.height = 800; 
+    glyph.host_vm.render.height = 800;
     glyph.host_vm.render.background_color = 0x1e1e1e;  // Dark theme
     glyph.host_vm.render.font_family = "Fira Code";
     glyph.host_vm.render.interactive = true;
     glyph.host_vm.render.ai_enabled = true;
-    
+
     // Network deployment
     glyph.styx_address = "tcp!*!9999";  // Serve on port 9999
-    glyph.allowed_clients = {"*"};  // Allow any client
-    
+    glyph.allowed_clients = {"*"};      // Allow any client
+
     return glyph;
 }
 
 // Terminal implementation - renders the workbench as ASCII art
 void TerminalDrawKernClient::render_ai_interface(const AIWorkbenchGlyph& workbench) {
     std::cout << "┌────────────────────────────────────────────────────────┐\n";
-    std::cout << "│ 🚀 " << workbench.workbench_id << " (DrawKern)          │\n"; 
+    std::cout << "│ 🚀 " << workbench.workbench_id << " (DrawKern)          │\n";
     std::cout << "├────────────────────────────────────────────────────────┤\n";
     std::cout << "│ 🤖 AI Model: " << workbench.ai_model << "                     │\n";
-    std::cout << "│ 🖥️  VM Type: " << workbench.host_vm.vm_type << " (" << workbench.host_vm.architecture << ")             │\n";
+    std::cout << "│ 🖥️  VM Type: " << workbench.host_vm.vm_type << " (" << workbench.host_vm.architecture
+              << ")             │\n";
     std::cout << "│ 🌐 Address: " << workbench.styx_address << "                   │\n";
     std::cout << "├────────────────────────────────────────────────────────┤\n";
     std::cout << "│ 💻 Available Tools:                                   │\n";
@@ -114,7 +115,7 @@ void TerminalDrawKernClient::render_ai_interface(const AIWorkbenchGlyph& workben
     std::cout << "└────────────────────────────────────────────────────────┘\n";
     std::cout << "\n🎯 This workbench is now 'rendered' and can be deployed to:\n";
     std::cout << "   • IoT devices running Inferno\n";
-    std::cout << "   • Web browsers via WebAssembly\n"; 
+    std::cout << "   • Web browsers via WebAssembly\n";
     std::cout << "   • Mobile devices with DIS VM\n";
     std::cout << "   • Embedded systems with minimal resources\n";
     std::cout << "   • Any device with a Styx client!\n\n";
@@ -126,7 +127,8 @@ void TerminalDrawKernClient::render_text(int32_t x, int32_t y, const std::string
 }
 
 void TerminalDrawKernClient::render_rect(int32_t x, int32_t y, int32_t w, int32_t h, uint32_t color) {
-    std::cout << "[RECT] " << x << "," << y << " " << w << "x" << h << " color=0x" << std::hex << color << std::dec << std::endl;
+    std::cout << "[RECT] " << x << "," << y << " " << w << "x" << h << " color=0x" << std::hex << color << std::dec
+              << std::endl;
 }
 
 // Web implementation - generates HTML/JS for browser rendering
@@ -202,8 +204,9 @@ void WebDrawKernClient::render_text(int32_t x, int32_t y, const std::string& tex
 }
 
 void WebDrawKernClient::render_rect(int32_t x, int32_t y, int32_t w, int32_t h, uint32_t color) {
-    std::cout << "[Web] Rect " << x << "," << y << " " << w << "x" << h << " #" << std::hex << color << std::dec << std::endl;
+    std::cout << "[Web] Rect " << x << "," << y << " " << w << "x" << h << " #" << std::hex << color << std::dec
+              << std::endl;
 }
 
-} // namespace drawkern
-} // namespace bolt
+}  // namespace drawkern
+}  // namespace bolt

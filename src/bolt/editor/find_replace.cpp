@@ -1,5 +1,6 @@
 
 #include "bolt/editor/find_replace.hpp"
+
 #include <algorithm>
 #include <regex>
 
@@ -9,26 +10,22 @@ FindReplace::FindReplace() : case_sensitive_(false), use_regex_(false) {}
 
 std::vector<TextRange> FindReplace::find(const std::string& text, const std::string& search_term) {
     std::vector<TextRange> results;
-    
+
     if (search_term.empty() || text.empty()) {
         return results;
     }
 
     if (use_regex_) {
         try {
-            std::regex pattern(search_term, 
-                case_sensitive_ ? std::regex::ECMAScript : 
-                                std::regex::ECMAScript | std::regex::icase);
-            
+            std::regex pattern(search_term,
+                               case_sensitive_ ? std::regex::ECMAScript : std::regex::ECMAScript | std::regex::icase);
+
             auto words_begin = std::sregex_iterator(text.begin(), text.end(), pattern);
             auto words_end = std::sregex_iterator();
 
             for (std::sregex_iterator i = words_begin; i != words_end; ++i) {
                 std::smatch match = *i;
-                results.push_back({
-                    static_cast<size_t>(match.position()), 
-                    static_cast<size_t>(match.length())
-                });
+                results.push_back({static_cast<size_t>(match.position()), static_cast<size_t>(match.length())});
             }
         } catch (const std::regex_error&) {
             // Invalid regex pattern, return empty results
@@ -38,7 +35,7 @@ std::vector<TextRange> FindReplace::find(const std::string& text, const std::str
         size_t pos = 0;
         std::string text_copy = text;
         std::string term_copy = search_term;
-        
+
         if (!case_sensitive_) {
             std::transform(text_copy.begin(), text_copy.end(), text_copy.begin(), ::tolower);
             std::transform(term_copy.begin(), term_copy.end(), term_copy.begin(), ::tolower);
@@ -53,20 +50,18 @@ std::vector<TextRange> FindReplace::find(const std::string& text, const std::str
     return results;
 }
 
-std::string FindReplace::replace(const std::string& text, 
-                               const std::string& search_term,
-                               const std::string& replace_term) {
+std::string FindReplace::replace(const std::string& text, const std::string& search_term,
+                                 const std::string& replace_term) {
     if (search_term.empty() || text.empty()) {
         return text;
     }
 
     std::string result = text;
-    
+
     if (use_regex_) {
         try {
             std::regex pattern(search_term,
-                case_sensitive_ ? std::regex::ECMAScript :
-                                std::regex::ECMAScript | std::regex::icase);
+                               case_sensitive_ ? std::regex::ECMAScript : std::regex::ECMAScript | std::regex::icase);
             result = std::regex_replace(text, pattern, replace_term);
         } catch (const std::regex_error&) {
             return text;
@@ -98,4 +93,4 @@ bool FindReplace::isUsingRegex() const {
     return use_regex_;
 }
 
-} // namespace bolt
+}  // namespace bolt

@@ -1,10 +1,12 @@
-#ifndef MINIMAP_UI_HPP
-#define MINIMAP_UI_HPP
+#ifndef BOLT_EDITOR_MINIMAP_UI_HPP_
+#define BOLT_EDITOR_MINIMAP_UI_HPP_
 
-#include "minimap.hpp"
-#include <string>
-#include <vector>
 #include <functional>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "bolt/editor/minimap.hpp"
 
 namespace bolt {
 
@@ -13,7 +15,7 @@ namespace bolt {
  * Handles user interaction and display integration
  */
 class MinimapUI {
-public:
+ public:
     using NavigationCallback = std::function<void(size_t line)>;
     using ClickHandler = std::function<void(size_t x, size_t y)>;
 
@@ -34,14 +36,14 @@ public:
         size_t height = 0;
     };
 
-private:
+ private:
     Minimap& minimap_;
     UIConfig config_;
     Position position_;
     NavigationCallback navigationCallback_;
     bool visible_ = true;
 
-public:
+ public:
     explicit MinimapUI(Minimap& minimap);
     MinimapUI(Minimap& minimap, const UIConfig& config);
 
@@ -75,13 +77,13 @@ public:
     size_t getRequiredHeight() const;
     bool fitsInArea(size_t width, size_t height) const;
 
-private:
+ private:
     void navigateToLine(size_t line);
     bool isInsideMinimap(size_t x, size_t y) const;
     std::pair<size_t, size_t> translateCoordinates(size_t x, size_t y) const;
     std::string addBorder(const std::string& content) const;
 };
 
-} // namespace bolt
+}  // namespace bolt
 
-#endif
+#endif  // BOLT_EDITOR_MINIMAP_UI_HPP_

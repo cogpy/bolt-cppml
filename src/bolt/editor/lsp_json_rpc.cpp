@@ -1,7 +1,8 @@
 #include "bolt/editor/lsp_json_rpc.hpp"
-#include <sstream>
-#include <iostream>
+
 #include <cctype>
+#include <iostream>
+#include <sstream>
 
 namespace bolt {
 namespace lsp {
@@ -21,12 +22,24 @@ std::string JsonValue::toString() const {
             // Basic string escaping
             for (char c : stringValue_) {
                 switch (c) {
-                    case '"': oss << "\\\""; break;
-                    case '\\': oss << "\\\\"; break;
-                    case '\n': oss << "\\n"; break;
-                    case '\r': oss << "\\r"; break;
-                    case '\t': oss << "\\t"; break;
-                    default: oss << c; break;
+                    case '"':
+                        oss << "\\\"";
+                        break;
+                    case '\\':
+                        oss << "\\\\";
+                        break;
+                    case '\n':
+                        oss << "\\n";
+                        break;
+                    case '\r':
+                        oss << "\\r";
+                        break;
+                    case '\t':
+                        oss << "\\t";
+                        break;
+                    default:
+                        oss << c;
+                        break;
                 }
             }
             oss << "\"";
@@ -36,7 +49,8 @@ std::string JsonValue::toString() const {
             std::ostringstream oss;
             oss << "[";
             for (size_t i = 0; i < arrayValue_.size(); ++i) {
-                if (i > 0) oss << ",";
+                if (i > 0)
+                    oss << ",";
                 oss << arrayValue_[i]->toString();
             }
             oss << "]";
@@ -47,7 +61,8 @@ std::string JsonValue::toString() const {
             oss << "{";
             bool first = true;
             for (const auto& pair : objectValue_) {
-                if (!first) oss << ",";
+                if (!first)
+                    oss << ",";
                 first = false;
                 oss << "\"" << pair.first << "\":" << pair.second->toString();
             }
@@ -60,7 +75,7 @@ std::string JsonValue::toString() const {
 
 // Simple built-in JSON parser (no external dependencies)
 class SimpleJsonParser {
-private:
+ private:
     const std::string& json_;
     size_t pos_ = 0;
 
@@ -70,13 +85,9 @@ private:
         }
     }
 
-    char peek() const {
-        return pos_ < json_.size() ? json_[pos_] : '\0';
-    }
+    char peek() const { return pos_ < json_.size() ? json_[pos_] : '\0'; }
 
-    char consume() {
-        return pos_ < json_.size() ? json_[pos_++] : '\0';
-    }
+    char consume() { return pos_ < json_.size() ? json_[pos_++] : '\0'; }
 
     bool match(char c) {
         if (peek() == c) {
@@ -96,22 +107,40 @@ private:
 
     std::string parseString() {
         std::string result;
-        if (!match('"')) return result;
+        if (!match('"'))
+            return result;
 
         while (pos_ < json_.size()) {
             char c = consume();
-            if (c == '"') break;
+            if (c == '"')
+                break;
             if (c == '\\') {
                 c = consume();
                 switch (c) {
-                    case '"': result += '"'; break;
-                    case '\\': result += '\\'; break;
-                    case '/': result += '/'; break;
-                    case 'b': result += '\b'; break;
-                    case 'f': result += '\f'; break;
-                    case 'n': result += '\n'; break;
-                    case 'r': result += '\r'; break;
-                    case 't': result += '\t'; break;
+                    case '"':
+                        result += '"';
+                        break;
+                    case '\\':
+                        result += '\\';
+                        break;
+                    case '/':
+                        result += '/';
+                        break;
+                    case 'b':
+                        result += '\b';
+                        break;
+                    case 'f':
+                        result += '\f';
+                        break;
+                    case 'n':
+                        result += '\n';
+                        break;
+                    case 'r':
+                        result += '\r';
+                        break;
+                    case 't':
+                        result += '\t';
+                        break;
                     case 'u': {
                         // Unicode escape - simplified handling
                         std::string hex;
@@ -122,7 +151,9 @@ private:
                         result += '?';
                         break;
                     }
-                    default: result += c; break;
+                    default:
+                        result += c;
+                        break;
                 }
             } else {
                 result += c;
@@ -133,8 +164,10 @@ private:
 
     double parseNumber() {
         std::string numStr;
-        if (peek() == '-') numStr += consume();
-        while (pos_ < json_.size() && (std::isdigit(peek()) || peek() == '.' || peek() == 'e' || peek() == 'E' || peek() == '+' || peek() == '-')) {
+        if (peek() == '-')
+            numStr += consume();
+        while (pos_ < json_.size() && (std::isdigit(peek()) || peek() == '.' || peek() == 'e' || peek() == 'E' ||
+                                       peek() == '+' || peek() == '-')) {
             char c = consume();
             // Don't add sign if it's not at start or after e/E
             if ((c == '+' || c == '-') && !numStr.empty() && numStr.back() != 'e' && numStr.back() != 'E') {
@@ -150,7 +183,7 @@ private:
         }
     }
 
-public:
+ public:
     explicit SimpleJsonParser(const std::string& json) : json_(json) {}
 
     std::shared_ptr<JsonValue> parse() {
@@ -210,7 +243,8 @@ public:
         auto arr = std::make_shared<JsonValue>();
         arr->setArray();
 
-        if (!match('[')) return arr;
+        if (!match('['))
+            return arr;
         skipWhitespace();
 
         if (peek() == ']') {
@@ -228,7 +262,8 @@ public:
                 consume();
                 break;
             }
-            if (!match(',')) break;
+            if (!match(','))
+                break;
         }
 
         return arr;
@@ -238,7 +273,8 @@ public:
         auto obj = std::make_shared<JsonValue>();
         obj->setObject();
 
-        if (!match('{')) return obj;
+        if (!match('{'))
+            return obj;
         skipWhitespace();
 
         if (peek() == '}') {
@@ -248,12 +284,14 @@ public:
 
         while (true) {
             skipWhitespace();
-            if (peek() != '"') break;
+            if (peek() != '"')
+                break;
 
             std::string key = parseString();
             skipWhitespace();
 
-            if (!match(':')) break;
+            if (!match(':'))
+                break;
 
             skipWhitespace();
             auto value = parseValue();
@@ -264,7 +302,8 @@ public:
                 consume();
                 break;
             }
-            if (!match(',')) break;
+            if (!match(','))
+                break;
         }
 
         return obj;
@@ -313,7 +352,7 @@ std::string JsonRpcHandler::processMessage(const std::string& message) {
             if (it != notificationHandlers_.end()) {
                 it->second(method, paramsProperty);
             }
-            return ""; // No response for notifications
+            return "";  // No response for notifications
         } else {
             // Request
             std::string id = idProperty->asString();
@@ -330,7 +369,8 @@ std::string JsonRpcHandler::processMessage(const std::string& message) {
     }
 }
 
-std::string JsonRpcHandler::createRequest(const std::string& method, std::shared_ptr<JsonValue> params, const std::string& id) {
+std::string JsonRpcHandler::createRequest(const std::string& method, std::shared_ptr<JsonValue> params,
+                                          const std::string& id) {
     auto request = std::make_shared<JsonValue>();
     request->setObject();
     request->setProperty("jsonrpc", std::make_shared<JsonValue>("2.0"));
@@ -345,7 +385,7 @@ std::string JsonRpcHandler::createRequest(const std::string& method, std::shared
 }
 
 std::string JsonRpcHandler::createNotification(const std::string& method, std::shared_ptr<JsonValue> params) {
-    return createRequest(method, params, ""); // No id for notifications
+    return createRequest(method, params, "");  // No id for notifications
 }
 
 std::string JsonRpcHandler::createResponse(const std::string& id, std::shared_ptr<JsonValue> result) {
@@ -356,7 +396,7 @@ std::string JsonRpcHandler::createResponse(const std::string& id, std::shared_pt
     if (result) {
         response->setProperty("result", result);
     } else {
-        response->setProperty("result", std::make_shared<JsonValue>()); // null
+        response->setProperty("result", std::make_shared<JsonValue>());  // null
     }
     return response->toString();
 }
@@ -376,5 +416,5 @@ std::string JsonRpcHandler::createErrorResponse(const std::string& id, int code,
     return response->toString();
 }
 
-} // namespace lsp
-} // namespace bolt
+}  // namespace lsp
+}  // namespace bolt

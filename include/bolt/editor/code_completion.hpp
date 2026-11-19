@@ -1,12 +1,14 @@
 
-#ifndef CODE_COMPLETION_HPP
-#define CODE_COMPLETION_HPP
+#ifndef BOLT_EDITOR_CODE_COMPLETION_HPP_
+#define BOLT_EDITOR_CODE_COMPLETION_HPP_
 
-#include <string>
-#include <vector>
-#include <memory>
 #include <algorithm>
 #include <iterator>
+#include <memory>
+#include <string>
+#include <utility>
+#include <vector>
+
 #include "bolt/core/thread_safety.hpp"
 
 namespace bolt {
@@ -19,10 +21,10 @@ struct CompletionItem {
 };
 
 class CodeCompletionEngine {
-private:
+ private:
     ThreadSafe<std::vector<CompletionItem>> completionCache_;
-    
-public:
+
+ public:
     static CodeCompletionEngine& getInstance() {
         static CodeCompletionEngine instance;
         return instance;
@@ -31,17 +33,11 @@ public:
     std::vector<CompletionItem> getCompletions(const std::string& prefix, size_t limit = 10) {
         return completionCache_.read([&](const auto& cache) {
             std::vector<CompletionItem> results;
-            std::copy_if(cache.begin(), cache.end(), 
-                std::back_inserter(results),
-                [&](const auto& item) {
-                    return item.label.find(prefix) == 0;
-                });
-            
-            std::sort(results.begin(), results.end(),
-                [](const auto& a, const auto& b) {
-                    return a.score > b.score;
-                });
-                
+            std::copy_if(cache.begin(), cache.end(), std::back_inserter(results),
+                         [&](const auto& item) { return item.label.find(prefix) == 0; });
+
+            std::sort(results.begin(), results.end(), [](const auto& a, const auto& b) { return a.score > b.score; });
+
             if (results.size() > limit) {
                 results.resize(limit);
             }
@@ -50,9 +46,7 @@ public:
     }
 
     void addCompletion(CompletionItem item) {
-        completionCache_.write([&](auto& cache) {
-            cache.push_back(std::move(item));
-        });
+        completionCache_.write([&](auto& cache) { cache.push_back(std::move(item)); });
     }
 };
 
@@ -60,24 +54,24 @@ public:
 class CodeCompletionImpl;
 
 class CodeCompletion {
-private:
+ private:
     std::unique_ptr<CodeCompletionImpl> impl_;
-    
-public:
+
+ public:
     CodeCompletion();
     ~CodeCompletion();
-    
+
     void activate();
     void deactivate();
     bool isActive() const;
-    
+
     void setSuggestions(const std::vector<CompletionItem>& suggestions);
     CompletionItem getSelectedSuggestion() const;
-    
+
     void selectNext();
     void selectPrevious();
 };
 
-} // namespace bolt
+}  // namespace bolt
 
-#endif
+#endif  // BOLT_EDITOR_CODE_COMPLETION_HPP_

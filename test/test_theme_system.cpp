@@ -1,12 +1,13 @@
-#include <iostream>
-#include <cassert>
 #include <algorithm>
+#include <cassert>
+#include <iostream>
+
 #include "bolt/editor/theme_system.hpp"
 
 namespace {
 
 // Test framework utilities
-void runTest(const std::string& testName, void(*testFunc)()) {
+void runTest(const std::string& testName, void (*testFunc)()) {
     try {
         testFunc();
         std::cout << "[PASS] " << testName << std::endl;
@@ -24,21 +25,22 @@ void testSingleton() {
     auto& inst1 = bolt::ThemeSystem::getInstance();
     auto& inst2 = bolt::ThemeSystem::getInstance();
     assert(&inst1 == &inst2);
-    (void)inst1; (void)inst2;
+    (void)inst1;
+    (void)inst2;
 }
 
 // Test default themes loading
 void testDefaultThemesLoading() {
     auto& themeSystem = bolt::ThemeSystem::getInstance();
     themeSystem.loadDefaultThemes();
-    
+
     // Test that default themes are loaded
     themeSystem.setTheme("dark");
     auto darkColors = themeSystem.getCurrentColors();
     assert(darkColors.background == "#1E1E1E");
     assert(darkColors.foreground == "#D4D4D4");
     assert(darkColors.keyword == "#569CD6");
-    
+
     themeSystem.setTheme("light");
     auto lightColors = themeSystem.getCurrentColors();
     assert(lightColors.background == "#FFFFFF");
@@ -50,7 +52,7 @@ void testDefaultThemesLoading() {
 void testFontSettings() {
     auto& themeSystem = bolt::ThemeSystem::getInstance();
     themeSystem.loadDefaultThemes();
-    
+
     themeSystem.setTheme("dark");
     auto fontSettings = themeSystem.getCurrentFontSettings();
     assert(fontSettings.family == "Consolas, 'Courier New', monospace");
@@ -61,7 +63,7 @@ void testFontSettings() {
 // Test custom theme addition
 void testCustomTheme() {
     auto& themeSystem = bolt::ThemeSystem::getInstance();
-    
+
     bolt::Theme customTheme;
     customTheme.colors.background = "#222222";
     customTheme.colors.foreground = "#EEEEEE";
@@ -69,15 +71,15 @@ void testCustomTheme() {
     customTheme.fontSettings.family = "Monaco";
     customTheme.fontSettings.size = 16;
     customTheme.fontSettings.lineHeight = 1.6f;
-    
+
     themeSystem.addTheme("custom", customTheme);
     themeSystem.setTheme("custom");
-    
+
     auto colors = themeSystem.getCurrentColors();
     assert(colors.background == "#222222");
     assert(colors.foreground == "#EEEEEE");
     assert(colors.keyword == "#FF6B6B");
-    
+
     auto fontSettings = themeSystem.getCurrentFontSettings();
     assert(fontSettings.family == "Monaco");
     assert(fontSettings.size == 16);
@@ -88,15 +90,15 @@ void testCustomTheme() {
 void testInvalidTheme() {
     auto& themeSystem = bolt::ThemeSystem::getInstance();
     themeSystem.loadDefaultThemes();
-    
+
     // Set to a valid theme first
     themeSystem.setTheme("dark");
     auto validColors = themeSystem.getCurrentColors();
-    
+
     // Try to set invalid theme - should remain on previous theme
     themeSystem.setTheme("nonexistent");
     auto currentColors = themeSystem.getCurrentColors();
-    
+
     // Should still be using the dark theme
     assert(currentColors.background == validColors.background);
     assert(currentColors.foreground == validColors.foreground);
@@ -106,17 +108,17 @@ void testInvalidTheme() {
 void testThemeSwitching() {
     auto& themeSystem = bolt::ThemeSystem::getInstance();
     themeSystem.loadDefaultThemes();
-    
+
     // Switch to light theme
     themeSystem.setTheme("light");
     auto lightColors = themeSystem.getCurrentColors();
     assert(lightColors.background == "#FFFFFF");
-    
+
     // Switch to dark theme
     themeSystem.setTheme("dark");
     auto darkColors = themeSystem.getCurrentColors();
     assert(darkColors.background == "#1E1E1E");
-    
+
     // Switch back to light
     themeSystem.setTheme("light");
     auto lightColors2 = themeSystem.getCurrentColors();
@@ -127,10 +129,10 @@ void testThemeSwitching() {
 void testThemeEnumeration() {
     auto& themeSystem = bolt::ThemeSystem::getInstance();
     themeSystem.loadDefaultThemes();
-    
+
     auto themes = themeSystem.getAvailableThemes();
-    assert(themes.size() >= 2); // At least dark and light
-    
+    assert(themes.size() >= 2);  // At least dark and light
+
     // Check that dark and light are present
     assert(std::find(themes.begin(), themes.end(), "dark") != themes.end());
     assert(std::find(themes.begin(), themes.end(), "light") != themes.end());
@@ -140,10 +142,10 @@ void testThemeEnumeration() {
 void testCurrentThemeName() {
     auto& themeSystem = bolt::ThemeSystem::getInstance();
     themeSystem.loadDefaultThemes();
-    
+
     themeSystem.setTheme("light");
     assert(themeSystem.getCurrentThemeName() == "light");
-    
+
     themeSystem.setTheme("dark");
     assert(themeSystem.getCurrentThemeName() == "dark");
 }
@@ -152,7 +154,7 @@ void testCurrentThemeName() {
 void testThemeExistence() {
     auto& themeSystem = bolt::ThemeSystem::getInstance();
     themeSystem.loadDefaultThemes();
-    
+
     assert(themeSystem.hasTheme("dark"));
     assert(themeSystem.hasTheme("light"));
     assert(!themeSystem.hasTheme("nonexistent"));
@@ -160,10 +162,10 @@ void testThemeExistence() {
 void testColorSchemeCompleteness() {
     auto& themeSystem = bolt::ThemeSystem::getInstance();
     themeSystem.loadDefaultThemes();
-    
+
     themeSystem.setTheme("dark");
     auto colors = themeSystem.getCurrentColors();
-    
+
     // Ensure all color fields are set
     assert(!colors.background.empty());
     assert(!colors.foreground.empty());
@@ -177,11 +179,11 @@ void testColorSchemeCompleteness() {
     assert(!colors.function.empty());
 }
 
-} // anonymous namespace
+}  // anonymous namespace
 
 int main() {
     std::cout << "Running Theme System Tests..." << std::endl;
-    
+
     try {
         runTest("Singleton Pattern", testSingleton);
         runTest("Default Themes Loading", testDefaultThemesLoading);
@@ -193,7 +195,7 @@ int main() {
         runTest("Theme Enumeration", testThemeEnumeration);
         runTest("Current Theme Name", testCurrentThemeName);
         runTest("Theme Existence Check", testThemeExistence);
-        
+
         std::cout << "\n✅ All Theme System tests passed!" << std::endl;
         return 0;
     } catch (...) {

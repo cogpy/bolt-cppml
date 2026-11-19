@@ -1,12 +1,13 @@
-#ifndef LSP_CLIENT_HPP
-#define LSP_CLIENT_HPP
+#ifndef BOLT_LSP_LSP_CLIENT_HPP_
+#define BOLT_LSP_LSP_CLIENT_HPP_
 
-#include <string>
-#include <vector>
-#include <optional>
-#include <unordered_map>
-#include <mutex>
 #include <memory>
+#include <mutex>
+#include <optional>
+#include <string>
+#include <unordered_map>
+#include <vector>
+
 #include "bolt/editor/lsp_json_rpc.hpp"
 
 namespace bolt {
@@ -57,7 +58,7 @@ struct Hover {
 // LSP Client implementation
 
 class LSPClient {
-public:
+ public:
     explicit LSPClient(const std::string& server_command);
     ~LSPClient();
 
@@ -74,13 +75,14 @@ public:
     // Language features
     std::vector<CompletionItem> completion(const std::string& uri, int line, int character);
     std::optional<Location> gotoDefinition(const std::string& uri, int line, int character);
-    std::vector<Location> findReferences(const std::string& uri, int line, int character, bool include_declaration = false);
+    std::vector<Location> findReferences(const std::string& uri, int line, int character,
+                                         bool include_declaration = false);
     std::optional<Hover> hover(const std::string& uri, int line, int character);
 
     // Diagnostics
     std::vector<Diagnostic> getDiagnostics(const std::string& uri);
 
-private:
+ private:
     std::string server_command_;
     bool initialized_;
     int next_request_id_;
@@ -110,7 +112,7 @@ private:
 // LSP Manager - manages multiple LSP clients for different languages
 
 class LSPManager {
-public:
+ public:
     static LSPManager& getInstance() {
         static LSPManager instance;
         return instance;
@@ -128,7 +130,7 @@ public:
     // Shutdown all servers
     void shutdownAll();
 
-private:
+ private:
     LSPManager() = default;
 
     std::unordered_map<std::string, std::unique_ptr<LSPClient>> clients_;
@@ -136,7 +138,7 @@ private:
     std::mutex mutex_;
 };
 
-} // namespace lsp
-} // namespace bolt
+}  // namespace lsp
+}  // namespace bolt
 
-#endif // LSP_CLIENT_HPP
+#endif  // BOLT_LSP_LSP_CLIENT_HPP_

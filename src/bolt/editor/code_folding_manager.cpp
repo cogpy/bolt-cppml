@@ -4,8 +4,9 @@ namespace bolt {
 
 void CodeFoldingManager::updateFoldingRanges(const std::string& filePath, const std::string& content) {
     bool enabled = foldingEnabled_.read([](const bool& value) { return value; });
-    if (!enabled) return;
-    
+    if (!enabled)
+        return;
+
     auto ranges = CodeFoldingDetector::detectFoldableRanges(content);
     foldingRanges_[filePath] = ranges;
 }
@@ -45,7 +46,8 @@ bool CodeFoldingManager::isFoldingEnabled() const {
 
 void CodeFoldingManager::handleClick(const std::string& filePath, size_t lineNumber) {
     bool enabled = foldingEnabled_.read([](const bool& value) { return value; });
-    if (!enabled) return;
+    if (!enabled)
+        return;
 
     toggleFold(filePath, lineNumber);
 }
@@ -64,4 +66,4 @@ void CodeFoldingManager::refreshFoldingRanges() {
     }
 }
 
-} // namespace bolt
+}  // namespace bolt

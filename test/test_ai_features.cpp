@@ -3,24 +3,24 @@
  * @brief Comprehensive unit tests for AI features
  */
 
-#include <bolt/test_framework.hpp>
-#include <bolt/ai/ai_completion_provider.hpp>
-#include <bolt/ai/ai_config_manager.hpp>
-#include <bolt/ai/ai_code_generator.hpp>
-#include <bolt/ai/ai_refactoring_engine.hpp>
-#include <bolt/ai/enhanced_ai_manager.hpp>
+#include "bolt/ai/ai_code_generator.hpp"
+#include "bolt/ai/ai_completion_provider.hpp"
+#include "bolt/ai/ai_config_manager.hpp"
+#include "bolt/ai/ai_refactoring_engine.hpp"
+#include "bolt/ai/enhanced_ai_manager.hpp"
+#include "bolt/test_framework.hpp"
 
 #ifdef BOLT_HAVE_GGML
-#include <bolt/ai/ggml_loader.hpp>
-#include <bolt/ai/gguf_loader.hpp>
-#include <bolt/ai/bpe_tokenizer.hpp>
-#include <bolt/ai/direct_gguf_inference.hpp>
-#include <bolt/ai/gpu_acceleration.hpp>
+#include "bolt/ai/bpe_tokenizer.hpp"
+#include "bolt/ai/direct_gguf_inference.hpp"
+#include "bolt/ai/ggml_loader.hpp"
+#include "bolt/ai/gguf_loader.hpp"
+#include "bolt/ai/gpu_acceleration.hpp"
 #endif
 
+#include <memory>
 #include <string>
 #include <vector>
-#include <memory>
 
 using namespace bolt::test;
 
@@ -32,7 +32,7 @@ BOLT_TEST(AIConfig, DefaultConfiguration) {
     bolt::ai::AIConfigManager config;
 
     // Check default values
-    BOLT_ASSERT(!config.getApiKey().empty() || config.getApiKey().empty()); // May or may not be set
+    BOLT_ASSERT(!config.getApiKey().empty() || config.getApiKey().empty());  // May or may not be set
     BOLT_ASSERT(config.getMaxTokens() > 0);
     BOLT_ASSERT(config.getTemperature() >= 0.0 && config.getTemperature() <= 2.0);
 }
@@ -95,7 +95,7 @@ BOLT_TEST(AIConfig, ConfigSerialization) {
 BOLT_TEST(AICompletion, ProviderInitialization) {
     bolt::ai::AICompletionProvider provider;
 
-    BOLT_ASSERT(!provider.isInitialized()); // Not initialized until configured
+    BOLT_ASSERT(!provider.isInitialized());  // Not initialized until configured
 }
 
 BOLT_TEST(AICompletion, CompletionContext) {
@@ -125,12 +125,10 @@ BOLT_TEST(AICompletion, CompletionRequest) {
 BOLT_TEST(AICompletion, CompletionFiltering) {
     bolt::ai::AICompletionProvider provider;
 
-    std::vector<bolt::ai::CompletionItem> items = {
-        {"printf", "Function", 1.0},
-        {"print", "Function", 0.8},
-        {"println", "Function", 0.6},
-        {"sprintf", "Function", 0.4}
-    };
+    std::vector<bolt::ai::CompletionItem> items = {{"printf", "Function", 1.0},
+                                                   {"print", "Function", 0.8},
+                                                   {"println", "Function", 0.6},
+                                                   {"sprintf", "Function", 0.4}};
 
     auto filtered = provider.filterCompletions(items, "pri", 3);
 
@@ -182,8 +180,7 @@ BOLT_TEST(AICodeGenerator, PromptGeneration) {
     auto prompt = generator.generatePrompt(request);
 
     BOLT_ASSERT(!prompt.empty());
-    BOLT_ASSERT(prompt.find("function") != std::string::npos ||
-                prompt.find("add") != std::string::npos);
+    BOLT_ASSERT(prompt.find("function") != std::string::npos || prompt.find("add") != std::string::npos);
 }
 
 BOLT_TEST(AICodeGenerator, TemplateGeneration) {
@@ -455,7 +452,7 @@ BOLT_TEST(GPUAcceleration, BackendSelection) {
     BOLT_ASSERT(!backends.empty());
 }
 
-#endif // BOLT_HAVE_GGML
+#endif  // BOLT_HAVE_GGML
 
 // ============================================
 // AI Prompt Engineering Tests
@@ -466,8 +463,7 @@ BOLT_TEST(AIPrompt, SystemPromptGeneration) {
 
     auto systemPrompt = provider.getSystemPrompt("cpp");
     BOLT_ASSERT(!systemPrompt.empty());
-    BOLT_ASSERT(systemPrompt.find("C++") != std::string::npos ||
-                systemPrompt.find("code") != std::string::npos);
+    BOLT_ASSERT(systemPrompt.find("C++") != std::string::npos || systemPrompt.find("code") != std::string::npos);
 }
 
 BOLT_TEST(AIPrompt, ContextFormatting) {
