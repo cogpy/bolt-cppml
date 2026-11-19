@@ -20,6 +20,89 @@
 namespace bolt {
 namespace gui {
 
+namespace {
+
+// Height reserved for the status bar drawn along the bottom edge.
+constexpr float kStatusBarHeight = 25.0f;
+
+// Appends the UTF-8 encoding of a Latin-1 code point (U+0000..U+00FF).
+void AppendLatin1(std::string* out, unsigned int code_point) {
+    if (code_point < 0x80) {
+        out->push_back(static_cast<char>(code_point));
+    } else {
+        out->push_back(static_cast<char>(0xC0 | (code_point >> 6)));
+        out->push_back(static_cast<char>(0x80 | (code_point & 0x3F)));
+    }
+}
+
+// The GUI draws text with ImGui's built-in font, which only has Latin-1
+// glyphs; every other character comes out as '?'. Text that reaches the GUI
+// from elsewhere (AI replies, logged messages) is passed through here first:
+// common typographic characters become their ASCII look-alikes and anything
+// else the font cannot draw, such as emoji, is dropped.
+std::string ToDisplayText(const std::string& text) {
+    std::string out;
+    out.reserve(text.size());
+    size_t i = 0;
+    while (i < text.size()) {
+        const unsigned char lead = static_cast<unsigned char>(text[i]);
+        size_t length = 1;
+        unsigned int code_point = lead;
+        if (lead >= 0xF0) {
+            length = 4;
+            code_point = lead & 0x07;
+        } else if (lead >= 0xE0) {
+            length = 3;
+            code_point = lead & 0x0F;
+        } else if (lead >= 0xC0) {
+            length = 2;
+            code_point = lead & 0x1F;
+        }
+        if (i + length > text.size()) {
+            break;  // truncated sequence at the end of the text
+        }
+        for (size_t k = 1; k < length; ++k) {
+            code_point = (code_point << 6) | (static_cast<unsigned char>(text[i + k]) & 0x3F);
+        }
+        i += length;
+
+        if (code_point <= 0xFF) {
+            AppendLatin1(&out, code_point);
+        } else if (code_point == 0x2022 || code_point == 0x2013 || code_point == 0x2014) {
+            out.push_back('-');  // bullet, en dash, em dash
+        } else if (code_point == 0x2018 || code_point == 0x2019) {
+            out.push_back('\'');
+        } else if (code_point == 0x201C || code_point == 0x201D) {
+            out.push_back('"');
+        } else if (code_point == 0x2026) {
+            out += "...";
+        } else {
+            // Dropped. If it stood at the start of a line or after a space,
+            // also drop the space that followed it ("<emoji> Saved" -> "Saved").
+            const bool at_word_start = out.empty() || out.back() == ' ' || out.back() == '\n';
+            if (at_word_start && i < text.size() && text[i] == ' ') {
+                ++i;
+            }
+        }
+    }
+    return out;
+}
+
+// Gives the next window a default position and size the first time it is ever
+// shown, as fractions of the area between the menu bar and the status bar.
+// Without this every panel opens at the same spot, on top of the others.
+// Positions the user has since chosen (saved in imgui.ini) take precedence.
+void PlaceWindowOnFirstUse(float x, float y, float width, float height) {
+    const ImGuiViewport* viewport = ImGui::GetMainViewport();
+    const float top = ImGui::GetFrameHeight();  // menu bar
+    const ImVec2 origin(viewport->Pos.x, viewport->Pos.y + top);
+    const ImVec2 area(viewport->Size.x, viewport->Size.y - top - kStatusBarHeight);
+    ImGui::SetNextWindowPos(ImVec2(origin.x + area.x * x, origin.y + area.y * y), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(area.x * width, area.y * height), ImGuiCond_FirstUseEver);
+}
+
+}  // namespace
+
 BoltGuiApp::BoltGuiApp() : window_(nullptr) {
     // Initialize enhanced AI manager
     try {
@@ -43,13 +126,13 @@ BoltGuiApp::BoltGuiApp() : window_(nullptr) {
     // Add welcome message based on AI availability
     if (ai_ready_) {
         const std::string provider = ai_manager_ ? ai_manager_->get_current_provider() : "unknown";
-        std::string welcome = "🤖 Welcome to Bolt AI IDE! I'm ready to help you code. ";
+        std::string welcome = "Welcome to Bolt AI IDE! I'm ready to help you code. ";
         welcome += "Try asking me about C++, algorithms, or request code completion! ";
         welcome += "Current AI provider: " + provider;
         AddChatMessage("Assistant", welcome, false);
     } else {
         AddChatMessage("System",
-                       "⚠️ Welcome to Bolt AI IDE! AI features are not currently available. Please configure an AI "
+                       "Welcome to Bolt AI IDE! AI features are not currently available. Please configure an AI "
                        "provider in the settings or check the console for setup instructions.",
                        false);
 
@@ -489,7 +572,7 @@ void BoltGuiApp::RenderMainMenuBar() {
                 AddChatMessage("Assistant", "Chat history cleared. How can I help you?", false);
             }
             ImGui::Separator();
-            std::string status_text = ai_ready_ ? "✅ AI Ready" : "❌ AI Not Ready";
+            std::string status_text = ai_ready_ ? "AI Ready" : "AI Not Ready";
             ImGui::MenuItem(status_text.c_str(), nullptr, false, false);
             if (ai_manager_) {
                 std::string provider_text = "Provider: " + ai_manager_->get_current_provider();
@@ -500,13 +583,13 @@ void BoltGuiApp::RenderMainMenuBar() {
         if (ImGui::BeginMenu("Help")) {
             if (ImGui::MenuItem("Keyboard Shortcuts", "F1")) {
                 AddChatMessage("Assistant",
-                               "🔥 Bolt AI IDE Shortcuts:\n"
-                               "• Ctrl+N - New file\n"
-                               "• Ctrl+O - Open file\n"
-                               "• Ctrl+S - Save file\n"
-                               "• Ctrl+Space - AI completion\n"
-                               "• F1 - Show help\n"
-                               "• Alt+F4 - Exit\n"
+                               "Bolt AI IDE Shortcuts:\n"
+                               "- Ctrl+N - New file\n"
+                               "- Ctrl+O - Open file\n"
+                               "- Ctrl+S - Save file\n"
+                               "- Ctrl+Space - AI completion\n"
+                               "- F1 - Show help\n"
+                               "- Alt+F4 - Exit\n"
                                "\nJust type in the chat to ask me anything!",
                                false);
             }
@@ -520,28 +603,16 @@ void BoltGuiApp::RenderMainMenuBar() {
 }
 
 void BoltGuiApp::RenderFileTree() {
-    ImGui::Begin("📁 Project Files", &show_file_tree_);
+    PlaceWindowOnFirstUse(0.0f, 0.0f, 0.22f, 1.0f);
+    ImGui::Begin("Project Files", &show_file_tree_);
 
-    ImGui::Text("📂 /workspaces/bolt-cppml");
+    ImGui::Text("/workspaces/bolt-cppml");
     ImGui::Separator();
 
     for (size_t i = 0; i < file_tree_.size(); ++i) {
         bool is_selected = (selected_file_index_ == static_cast<int>(i));
 
-        // Add appropriate icon based on file extension
-        std::string icon = "📄";
-        if (file_tree_[i].find(".cpp") != std::string::npos || file_tree_[i].find(".hpp") != std::string::npos ||
-            file_tree_[i].find(".h") != std::string::npos) {
-            icon = "💻";
-        } else if (file_tree_[i].find(".md") != std::string::npos) {
-            icon = "📝";
-        } else if (file_tree_[i].find("CMakeLists.txt") != std::string::npos) {
-            icon = "🔧";
-        }
-
-        std::string display_name = icon + " " + file_tree_[i];
-
-        if (ImGui::Selectable(display_name.c_str(), is_selected)) {
+        if (ImGui::Selectable(file_tree_[i].c_str(), is_selected)) {
             OnFileSelected(static_cast<int>(i));
         }
     }
@@ -550,7 +621,8 @@ void BoltGuiApp::RenderFileTree() {
 }
 
 void BoltGuiApp::RenderChatPanel() {
-    ImGui::Begin("💬 AI Assistant", &show_chat_panel_);
+    PlaceWindowOnFirstUse(0.70f, 0.0f, 0.30f, 1.0f);
+    ImGui::Begin("AI Assistant", &show_chat_panel_);
 
     // Chat history area
     ImGui::BeginChild("ChatHistory", ImVec2(0, -ImGui::GetFrameHeightWithSpacing() * 2), true);
@@ -559,11 +631,11 @@ void BoltGuiApp::RenderChatPanel() {
         // Different styling for user vs assistant messages
         if (message.is_user) {
             ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.7f, 0.9f, 1.0f, 1.0f));
-            ImGui::TextWrapped("👤 You: %s", message.content.c_str());
+            ImGui::TextWrapped("You: %s", message.content.c_str());
             ImGui::PopStyleColor();
         } else {
             ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.9f, 1.0f, 0.7f, 1.0f));
-            ImGui::TextWrapped("🤖 Assistant: %s", message.content.c_str());
+            ImGui::TextWrapped("Assistant: %s", message.content.c_str());
             ImGui::PopStyleColor();
         }
         ImGui::Spacing();
@@ -599,19 +671,20 @@ void BoltGuiApp::RenderChatPanel() {
 }
 
 void BoltGuiApp::RenderCodeEditor() {
-    ImGui::Begin("💻 Code Editor", &show_code_editor_);
+    PlaceWindowOnFirstUse(0.22f, 0.0f, 0.48f, 0.65f);
+    ImGui::Begin("Code Editor", &show_code_editor_);
 
     // Editor toolbar
-    if (ImGui::Button("🔄 AI Completion")) {
+    if (ImGui::Button("AI Completion")) {
         show_ai_completion_ = true;
         AddChatMessage("Assistant", "AI Completion activated! I can help complete your code.", false);
     }
     ImGui::SameLine();
-    if (ImGui::Button("💾 Save")) {
+    if (ImGui::Button("Save")) {
         AddChatMessage("Assistant", "File saved! (In a real implementation, this would save to disk)", false);
     }
     ImGui::SameLine();
-    if (ImGui::Button("▶️ Run")) {
+    if (ImGui::Button("Run")) {
         AddChatMessage("Assistant", "Code execution requested! (Would compile and run in a real implementation)",
                        false);
     }
@@ -631,25 +704,25 @@ void BoltGuiApp::RenderAiCompletionOverlay() {
 
     ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x * 0.5f, ImGui::GetIO().DisplaySize.y * 0.5f),
                             ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
-    ImGui::Begin("🚀 AI Code Completion", &show_ai_completion_, ImGuiWindowFlags_AlwaysAutoResize);
+    ImGui::Begin("AI Code Completion", &show_ai_completion_, ImGuiWindowFlags_AlwaysAutoResize);
 
-    ImGui::Text("🤖 AI is analyzing your code...");
+    ImGui::Text("AI is analyzing your code...");
     ImGui::Separator();
 
     // Simulate AI suggestions
-    ImGui::Text("💡 Suggestions:");
+    ImGui::Text("Suggestions:");
     ImGui::BulletText("Add error handling with try-catch blocks");
     ImGui::BulletText("Consider using smart pointers for memory management");
     ImGui::BulletText("Add const correctness to your functions");
     ImGui::BulletText("Use modern C++17 features like auto and range-based loops");
 
     ImGui::Separator();
-    if (ImGui::Button("✨ Apply Suggestions")) {
+    if (ImGui::Button("Apply Suggestions")) {
         AddChatMessage("Assistant", "AI suggestions applied to your code! Check the editor for improvements.", false);
         show_ai_completion_ = false;
     }
     ImGui::SameLine();
-    if (ImGui::Button("❌ Cancel")) {
+    if (ImGui::Button("Cancel")) {
         show_ai_completion_ = false;
     }
 
@@ -658,23 +731,28 @@ void BoltGuiApp::RenderAiCompletionOverlay() {
 
 void BoltGuiApp::RenderStatusBar() {
     ImGuiViewport* viewport = ImGui::GetMainViewport();
-    ImGui::SetNextWindowPos(ImVec2(viewport->Pos.x, viewport->Pos.y + viewport->Size.y - 25));
-    ImGui::SetNextWindowSize(ImVec2(viewport->Size.x, 25));
+    ImGui::SetNextWindowPos(ImVec2(viewport->Pos.x, viewport->Pos.y + viewport->Size.y - kStatusBarHeight));
+    ImGui::SetNextWindowSize(ImVec2(viewport->Size.x, kStatusBarHeight));
+    // The theme's window padding is taller than the bar; use a slim one so the
+    // text is not pushed below the bottom edge.
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(12.0f, 4.0f));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowMinSize, ImVec2(1.0f, 1.0f));
     ImGui::Begin("StatusBar", nullptr,
                  ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
                      ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings);
+    ImGui::PopStyleVar(2);
 
-    ImGui::Text("🔥 Bolt AI IDE");
+    ImGui::Text("Bolt AI IDE");
     ImGui::SameLine(200);
-    ImGui::Text("📁 Files: %zu", file_tree_.size());
+    ImGui::Text("Files: %zu", file_tree_.size());
     ImGui::SameLine(300);
-    ImGui::Text("💬 Messages: %zu", chat_history_.size());
+    ImGui::Text("Messages: %zu", chat_history_.size());
     ImGui::SameLine();
 
     // Right-aligned status
     float window_width = ImGui::GetWindowSize().x;
     ImGui::SameLine(window_width - 200);
-    ImGui::Text("🚀 Ready for AI assistance!");
+    ImGui::Text("Ready for AI assistance!");
 
     ImGui::End();
 }
@@ -701,14 +779,14 @@ void BoltGuiApp::ProcessChatInput() {
 }
 
 void BoltGuiApp::AddChatMessage(const std::string& author, const std::string& message, bool is_user) {
-    chat_history_.emplace_back(author, message, is_user);
+    chat_history_.emplace_back(author, ToDisplayText(message), is_user);
 
     // Log to console as well
     AddConsoleLog("[" + author + "] " + message);
 }
 
 void BoltGuiApp::AddConsoleLog(const std::string& message) {
-    console_log_.push_back(message);
+    console_log_.push_back(ToDisplayText(message));
 
     // Keep only last 1000 messages
     if (console_log_.size() > 1000) {
@@ -729,25 +807,25 @@ std::string BoltGuiApp::GenerateAiResponse(const std::string& input) {
         if (response.success) {
             return response.response;
         } else {
-            std::string error_msg = "❌ AI Error: " + response.error;
+            std::string error_msg = "AI Error: " + response.error;
             std::cerr << error_msg << std::endl;
 
             // Try to reconnect or switch provider
             if (!ai_manager_->test_connection()) {
-                error_msg += "\n\n💡 Trying to reconnect...";
+                error_msg += "\n\nTrying to reconnect...";
                 ai_ready_ = ai_manager_->test_all_providers();
 
                 if (ai_ready_) {
-                    error_msg += "\n✅ Reconnected! Please try your request again.";
+                    error_msg += "\nReconnected! Please try your request again.";
                 } else {
-                    error_msg += "\n❌ No AI providers available. Please check your configuration.";
+                    error_msg += "\nNo AI providers available. Please check your configuration.";
                 }
             }
 
             return error_msg;
         }
     } catch (const std::exception& e) {
-        std::string error_msg = "❌ Exception in AI processing: " + std::string(e.what());
+        std::string error_msg = "Exception in AI processing: " + std::string(e.what());
         std::cerr << error_msg << std::endl;
         return error_msg + "\n\nFalling back to built-in responses...";
     }
@@ -760,61 +838,61 @@ std::string BoltGuiApp::GenerateFallbackResponse(const std::string& input) {
 
     if (lower_input.find("help") != std::string::npos) {
         return "I'm here to help! I can assist with:\n"
-               "• C++ coding questions and best practices\n"
-               "• Code completion and suggestions\n"
-               "• Debugging and error analysis\n"
-               "• Algorithm implementations\n"
-               "• Modern C++ features\n\n"
-               "⚠️ Note: Using fallback responses. Please configure an AI provider for full functionality.";
+               "- C++ coding questions and best practices\n"
+               "- Code completion and suggestions\n"
+               "- Debugging and error analysis\n"
+               "- Algorithm implementations\n"
+               "- Modern C++ features\n\n"
+               "Note: Using fallback responses. Please configure an AI provider for full functionality.";
     } else if (lower_input.find("cpp") != std::string::npos || lower_input.find("c++") != std::string::npos) {
         return "Great! C++ is an awesome language. Here are some modern C++ tips:\n"
-               "• Use 'auto' for type deduction\n"
-               "• Prefer smart pointers (unique_ptr, shared_ptr)\n"
-               "• Use range-based for loops\n"
-               "• Consider std::optional for nullable values\n"
-               "• Use constexpr for compile-time constants\n\n"
-               "⚠️ For detailed code help, please configure an AI provider.";
+               "- Use 'auto' for type deduction\n"
+               "- Prefer smart pointers (unique_ptr, shared_ptr)\n"
+               "- Use range-based for loops\n"
+               "- Consider std::optional for nullable values\n"
+               "- Use constexpr for compile-time constants\n\n"
+               "For detailed code help, please configure an AI provider.";
     } else if (lower_input.find("gui") != std::string::npos || lower_input.find("imgui") != std::string::npos) {
         return "Excellent choice! ImGui is perfect for development tools. Key features:\n"
-               "• Immediate mode GUI (no state management)\n"
-               "• Perfect for debug tools and editors\n"
-               "• Easy integration with OpenGL/DirectX\n"
-               "• Docking and multi-viewport support\n"
-               "• Highly customizable styling\n\n"
+               "- Immediate mode GUI (no state management)\n"
+               "- Perfect for debug tools and editors\n"
+               "- Easy integration with OpenGL/DirectX\n"
+               "- Docking and multi-viewport support\n"
+               "- Highly customizable styling\n\n"
                "This Bolt IDE is built with ImGui!";
     } else if (lower_input.find("complete") != std::string::npos ||
                lower_input.find("completion") != std::string::npos) {
-        return "🚀 AI Code Completion is available when an AI provider is configured!\n"
-               "• Auto-complete function signatures\n"
-               "• Suggest variable names and types\n"
-               "• Generate boilerplate code\n"
-               "• Recommend best practices\n"
-               "• Fix common coding errors\n\n"
+        return "AI Code Completion is available when an AI provider is configured!\n"
+               "- Auto-complete function signatures\n"
+               "- Suggest variable names and types\n"
+               "- Generate boilerplate code\n"
+               "- Recommend best practices\n"
+               "- Fix common coding errors\n\n"
                "Please set up an AI provider for full completion features.";
     } else if (lower_input.find("algorithm") != std::string::npos) {
         return "Algorithms are the heart of programming! I can help with:\n"
-               "• Sorting and searching algorithms\n"
-               "• Data structures (trees, graphs, etc.)\n"
-               "• Dynamic programming solutions\n"
-               "• Time and space complexity analysis\n"
-               "• Implementation examples\n\n"
-               "⚠️ For detailed algorithm help, please configure an AI provider.";
+               "- Sorting and searching algorithms\n"
+               "- Data structures (trees, graphs, etc.)\n"
+               "- Dynamic programming solutions\n"
+               "- Time and space complexity analysis\n"
+               "- Implementation examples\n\n"
+               "For detailed algorithm help, please configure an AI provider.";
     } else if (lower_input.find("configuration") != std::string::npos ||
                lower_input.find("config") != std::string::npos || lower_input.find("setup") != std::string::npos) {
-        return "🔧 AI Configuration Help:\n\n"
+        return "AI Configuration Help:\n\n"
                "Quick setup options:\n"
-               "1. 🏠 Local llama.cpp: ./server -m model.gguf --port 8080\n"
-               "2. 🐋 Ollama: ollama run llama2\n"
-               "3. ☁️ OpenAI API: Get key from platform.openai.com\n\n"
+               "1. Local llama.cpp: ./server -m model.gguf --port 8080\n"
+               "2. Ollama: ollama run llama2\n"
+               "3. OpenAI API: Get key from platform.openai.com\n\n"
                "Edit bolt_ai_config.json to configure providers.\n"
                "Use the AI Settings panel for GUI configuration.";
     } else {
         return "I understand you're asking about: \"" + input +
                "\"\n\n"
-               "⚠️ I'm currently using fallback responses. For intelligent AI assistance, please:\n"
-               "• Configure an AI provider (OpenAI API, local llama.cpp, etc.)\n"
-               "• Check the console for setup instructions\n"
-               "• Use the AI Settings panel to test providers\n\n"
+               "I'm currently using fallback responses. For intelligent AI assistance, please:\n"
+               "- Configure an AI provider (OpenAI API, local llama.cpp, etc.)\n"
+               "- Check the console for setup instructions\n"
+               "- Use the AI Settings panel to test providers\n\n"
                "Ask me about 'configuration' for setup help!";
     }
 }
@@ -853,7 +931,7 @@ void BoltGuiApp::OnFileSelected(int index) {
         code_buffer_[sizeof(code_buffer_) - 1] = '\0';
 
         AddChatMessage("Assistant",
-                       "📁 Opened file: " + filename + " (" + std::to_string(file_content.length()) + " bytes)", false);
+                       "Opened file: " + filename + " (" + std::to_string(file_content.length()) + " bytes)", false);
     } else {
         // If file doesn't exist, create sample content based on extension
         std::string sample_content = "// File: " + filename + "\n// New file - content will be saved on write\n\n";
@@ -868,7 +946,7 @@ void BoltGuiApp::OnFileSelected(int index) {
         strncpy(code_buffer_, sample_content.c_str(), sizeof(code_buffer_) - 1);
         code_buffer_[sizeof(code_buffer_) - 1] = '\0';
 
-        AddChatMessage("Assistant", "📝 Created new file: " + filename, false);
+        AddChatMessage("Assistant", "Created new file: " + filename, false);
     }
 }
 
@@ -879,21 +957,21 @@ void BoltGuiApp::HandleKeyboardShortcuts() {
     if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_Space)) {
         show_ai_completion_ = !show_ai_completion_;
         if (show_ai_completion_) {
-            AddChatMessage("Assistant", "🚀 AI Completion activated! Analyzing your code...", false);
+            AddChatMessage("Assistant", "AI Completion activated! Analyzing your code...", false);
         }
     }
 
     // F1 for help
     if (ImGui::IsKeyPressed(ImGuiKey_F1)) {
         AddChatMessage("Assistant",
-                       "🔥 Bolt AI IDE Help:\n"
+                       "Bolt AI IDE Help:\n"
                        "This is a modern C++ development environment with AI assistance!\n\n"
                        "Features:\n"
-                       "• 💬 AI Chat Assistant\n"
-                       "• 💻 Code Editor with syntax highlighting\n"
-                       "• 📁 Project file tree\n"
-                       "• 🚀 AI-powered code completion\n"
-                       "• 🎨 Modern ImGui interface\n\n"
+                       "- AI Chat Assistant\n"
+                       "- Code Editor with syntax highlighting\n"
+                       "- Project file tree\n"
+                       "- AI-powered code completion\n"
+                       "- Modern ImGui interface\n\n"
                        "Try asking me about C++, algorithms, or coding best practices!",
                        false);
     }
@@ -920,10 +998,11 @@ void BoltGuiApp::ProcessPendingMessages() {
 }
 
 void BoltGuiApp::RenderAiSettingsWindow() {
-    ImGui::Begin("🤖 AI Settings", &show_ai_settings_);
+    PlaceWindowOnFirstUse(0.25f, 0.10f, 0.50f, 0.80f);
+    ImGui::Begin("AI Settings", &show_ai_settings_);
 
     if (!ai_manager_) {
-        ImGui::Text("❌ AI Manager not initialized");
+        ImGui::Text("AI Manager not initialized");
         ImGui::End();
         return;
     }
@@ -932,7 +1011,7 @@ void BoltGuiApp::RenderAiSettingsWindow() {
     ImGui::Text("Current Provider: %s", ai_manager_->get_current_provider().c_str());
     ImGui::SameLine();
     ImGui::TextColored(ai_ready_ ? ImVec4(0.0f, 1.0f, 0.0f, 1.0f) : ImVec4(1.0f, 0.0f, 0.0f, 1.0f),
-                       ai_ready_ ? "✅ Ready" : "❌ Not Ready");
+                       ai_ready_ ? "Ready" : "Not Ready");
 
     ImGui::Separator();
 
@@ -947,11 +1026,11 @@ void BoltGuiApp::RenderAiSettingsWindow() {
                 ai_manager_->switch_provider(provider.name);
                 ai_ready_ = ai_manager_->is_ready();
 
-                AddChatMessage("System", "🔄 Switched to AI provider: " + provider.name, false);
+                AddChatMessage("System", "Switched to AI provider: " + provider.name, false);
                 if (ai_ready_) {
-                    AddChatMessage("System", "✅ AI provider is ready!", false);
+                    AddChatMessage("System", "AI provider is ready!", false);
                 } else {
-                    AddChatMessage("System", "❌ AI provider connection failed", false);
+                    AddChatMessage("System", "AI provider connection failed", false);
                 }
             }
         }
@@ -981,7 +1060,7 @@ void BoltGuiApp::RenderAiSettingsWindow() {
         if (!path.empty()) {
             bool ok = ai_manager_->load_gguf_model(path);
             ai_ready_ = ai_manager_->has_direct_model();
-            const std::string outcome = ok ? "✅ Loaded GGUF model: " : "❌ Failed to load GGUF model: ";
+            const std::string outcome = ok ? "Loaded GGUF model: " : "Failed to load GGUF model: ";
             AddChatMessage("System", outcome + path, false);
             if (ok) {
                 AddChatMessage("Assistant", ai_manager_->get_model_info(), false);
@@ -992,7 +1071,7 @@ void BoltGuiApp::RenderAiSettingsWindow() {
     if (ImGui::Button("Auto-Detect GGUF")) {
         bool ok = ai_manager_->auto_detect_models();
         ai_ready_ = ai_manager_->has_direct_model();
-        AddChatMessage("System", ok ? "✅ Auto-detected GGUF model" : "⚠️ No GGUF models found", false);
+        AddChatMessage("System", ok ? "Auto-detected GGUF model" : "No GGUF models found", false);
         if (ok) {
             AddChatMessage("Assistant", ai_manager_->get_model_info(), false);
         }
@@ -1009,10 +1088,9 @@ void BoltGuiApp::RenderAiSettingsWindow() {
         if (!path.empty()) {
             bool ok = ai_manager_->load_rwkv_model(path);
             ai_ready_ = ai_manager_->has_rwkv_model() || ai_ready_;
-            AddChatMessage(
-                "System",
-                ok ? std::string("✅ RWKV path set: ") + path : std::string("❌ Failed to set RWKV path: ") + path,
-                false);
+            AddChatMessage("System",
+                           ok ? std::string("RWKV path set: ") + path : std::string("Failed to set RWKV path: ") + path,
+                           false);
             AddChatMessage("Assistant", ai_manager_->get_model_info(), false);
         }
     }
@@ -1020,16 +1098,16 @@ void BoltGuiApp::RenderAiSettingsWindow() {
     ImGui::Separator();
 
     // Test connections
-    if (ImGui::Button("🔍 Test Current Provider")) {
+    if (ImGui::Button("Test Current Provider")) {
         bool success = ai_manager_->test_connection();
-        AddChatMessage("System", success ? "✅ Connection test successful!" : "❌ Connection test failed", false);
+        AddChatMessage("System", success ? "Connection test successful!" : "Connection test failed", false);
     }
 
     ImGui::SameLine();
-    if (ImGui::Button("🔍 Test All Providers")) {
+    if (ImGui::Button("Test All Providers")) {
         ai_manager_->test_all_providers();
         ai_ready_ = ai_manager_->is_ready();
-        AddChatMessage("System", "🔍 Tested all providers. Check console for details.", false);
+        AddChatMessage("System", "Tested all providers. Check console for details.", false);
     }
 
     ImGui::Separator();
@@ -1043,40 +1121,41 @@ void BoltGuiApp::RenderAiSettingsWindow() {
     ImGui::BulletText("Avg Response Time: %.1f ms", stats.average_inference_time_ms);
     ImGui::BulletText("Tokens Generated: %zu", stats.total_tokens_generated);
 
-    if (ImGui::Button("🔄 Reset Statistics")) {
+    if (ImGui::Button("Reset Statistics")) {
         ai_manager_->reset_statistics();
-        AddChatMessage("System", "🔄 Statistics reset", false);
+        AddChatMessage("System", "Statistics reset", false);
     }
 
     ImGui::Separator();
 
     // Quick setup
     ImGui::Text("Quick Setup:");
-    if (ImGui::Button("🧙 Run Setup Wizard")) {
+    if (ImGui::Button("Run Setup Wizard")) {
         std::thread([this]() {
             bolt::ai::AutoSetup::quick_setup_wizard();
             ai_ready_ = ai_manager_->is_ready();
         }).detach();
 
-        AddChatMessage("System", "🧙 Running AI setup wizard... Check console for details.", false);
+        AddChatMessage("System", "Running AI setup wizard... Check console for details.", false);
     }
 
-    if (ImGui::Button("📋 Show Setup Instructions")) {
+    if (ImGui::Button("Show Setup Instructions")) {
         bolt::ai::AutoSetup::print_setup_instructions();
-        AddChatMessage("System", "📋 Setup instructions printed to console", false);
+        AddChatMessage("System", "Setup instructions printed to console", false);
     }
 
     ImGui::End();
 }
 
 void BoltGuiApp::RenderThemeSettingsWindow() {
-    ImGui::Begin("🎨 Theme Settings", &show_theme_settings_);
+    PlaceWindowOnFirstUse(0.30f, 0.15f, 0.40f, 0.70f);
+    ImGui::Begin("Theme Settings", &show_theme_settings_);
 
     ImGui::Text("Choose a theme for the IDE:");
     ImGui::Separator();
 
     // Theme selection
-    const char* theme_names[] = {"🌙 Dark Mode", "☀️ Light Mode", "⚡ High Contrast"};
+    const char* theme_names[] = {"Dark Mode", "Light Mode", "High Contrast"};
     static int selected_theme = static_cast<int>(current_theme_);
 
     for (int i = 0; i < 3; i++) {
@@ -1097,31 +1176,31 @@ void BoltGuiApp::RenderThemeSettingsWindow() {
                     theme_name = "Unknown";
                     break;
             }
-            AddChatMessage("System", "🎨 Theme changed to " + theme_name + "!", false);
+            AddChatMessage("System", "Theme changed to " + theme_name + "!", false);
         }
     }
 
     ImGui::Separator();
 
     // Theme preview/info
-    ImGui::Text("📝 Theme Information:");
+    ImGui::Text("Theme Information:");
     ImGui::Indent();
 
     switch (current_theme_) {
         case ThemeMode::Dark:
-            ImGui::Text("🌙 Dark Mode - Modern dark theme with blue accents");
+            ImGui::Text("Dark Mode - Modern dark theme with blue accents");
             ImGui::Text("Perfect for coding sessions and reduces eye strain");
             break;
         case ThemeMode::Light:
-            ImGui::Text("☀️ Light Mode - Clean light theme with good contrast");
+            ImGui::Text("Light Mode - Clean light theme with good contrast");
             ImGui::Text("Great for daytime use and presentations");
             break;
         case ThemeMode::HighContrast:
-            ImGui::Text("⚡ High Contrast - Accessibility-focused theme");
+            ImGui::Text("High Contrast - Accessibility-focused theme");
             ImGui::Text("Maximum contrast for better visibility");
             break;
         case ThemeMode::Custom:
-            ImGui::Text("🎨 Custom Theme - User-defined colors");
+            ImGui::Text("Custom Theme - User-defined colors");
             break;
     }
 
@@ -1129,42 +1208,43 @@ void BoltGuiApp::RenderThemeSettingsWindow() {
     ImGui::Separator();
 
     // Quick theme preview buttons
-    ImGui::Text("🎯 Quick Preview:");
-    if (ImGui::Button("🌙 Dark")) {
+    ImGui::Text("Quick Preview:");
+    if (ImGui::Button("Dark")) {
         SetTheme(ThemeMode::Dark);
-        AddChatMessage("System", "🌙 Switched to Dark Mode!", false);
+        AddChatMessage("System", "Switched to Dark Mode!", false);
     }
     ImGui::SameLine();
-    if (ImGui::Button("☀️ Light")) {
+    if (ImGui::Button("Light")) {
         SetTheme(ThemeMode::Light);
-        AddChatMessage("System", "☀️ Switched to Light Mode!", false);
+        AddChatMessage("System", "Switched to Light Mode!", false);
     }
     ImGui::SameLine();
-    if (ImGui::Button("⚡ High Contrast")) {
+    if (ImGui::Button("High Contrast")) {
         SetTheme(ThemeMode::HighContrast);
-        AddChatMessage("System", "⚡ Switched to High Contrast Mode!", false);
+        AddChatMessage("System", "Switched to High Contrast Mode!", false);
     }
 
     ImGui::Separator();
 
     // Additional styling options
-    ImGui::Text("🔧 Style Options:");
+    ImGui::Text("Style Options:");
     ImGuiStyle& style = ImGui::GetStyle();
 
     ImGui::SliderFloat("Window Rounding", &style.WindowRounding, 0.0f, 12.0f, "%.0f");
     ImGui::SliderFloat("Frame Rounding", &style.FrameRounding, 0.0f, 12.0f, "%.0f");
     ImGui::SliderFloat("Scrollbar Size", &style.ScrollbarSize, 10.0f, 25.0f, "%.0f");
 
-    if (ImGui::Button("🔄 Reset to Default")) {
+    if (ImGui::Button("Reset to Default")) {
         SetTheme(current_theme_);  // Reapply current theme to reset custom changes
-        AddChatMessage("System", "🔄 Style reset to defaults!", false);
+        AddChatMessage("System", "Style reset to defaults!", false);
     }
 
     ImGui::End();
 }
 
 void BoltGuiApp::RenderConsoleWindow() {
-    ImGui::Begin("📺 Console Log", &show_console_window_);
+    PlaceWindowOnFirstUse(0.22f, 0.65f, 0.48f, 0.35f);
+    ImGui::Begin("Console Log", &show_console_window_);
 
     // Console output area
     ImGui::BeginChild("ConsoleOutput", ImVec2(0, -ImGui::GetFrameHeightWithSpacing()), true);
@@ -1175,9 +1255,10 @@ void BoltGuiApp::RenderConsoleWindow() {
             ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.8f, 0.4f, 1.0f));
         } else if (log_message.find("[Assistant]") != std::string::npos) {
             ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.7f, 1.0f, 0.7f, 1.0f));
-        } else if (log_message.find("❌") != std::string::npos || log_message.find("ERROR") != std::string::npos) {
+        } else if (log_message.find("ERROR") != std::string::npos || log_message.find("Error") != std::string::npos ||
+                   log_message.find("Failed") != std::string::npos) {
             ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.4f, 0.4f, 1.0f));
-        } else if (log_message.find("✅") != std::string::npos || log_message.find("SUCCESS") != std::string::npos) {
+        } else if (log_message.find("SUCCESS") != std::string::npos) {
             ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.4f, 1.0f, 0.4f, 1.0f));
         } else {
             ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.9f, 0.9f, 0.9f, 1.0f));
@@ -1194,12 +1275,12 @@ void BoltGuiApp::RenderConsoleWindow() {
     ImGui::EndChild();
 
     // Console controls
-    if (ImGui::Button("🗑️ Clear Console")) {
+    if (ImGui::Button("Clear Console")) {
         console_log_.clear();
         AddConsoleLog("[System] Console cleared");
     }
     ImGui::SameLine();
-    if (ImGui::Button("💾 Save Log")) {
+    if (ImGui::Button("Save Log")) {
         AddConsoleLog("[System] Console log saved (would save to file in real implementation)");
     }
 
@@ -1208,12 +1289,12 @@ void BoltGuiApp::RenderConsoleWindow() {
 
 void BoltGuiApp::RenderAboutWindow() {
     ImGui::SetNextWindowSize(ImVec2(450, 350), ImGuiCond_FirstUseEver);
-    ImGui::Begin("ℹ️ About Bolt AI IDE", &show_about_window_);
+    ImGui::Begin("About Bolt AI IDE", &show_about_window_);
 
     // Logo/Title area
     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.26f, 0.59f, 0.98f, 1.00f));
     ImGui::SetWindowFontScale(1.5f);
-    ImGui::Text("🔥 Bolt AI IDE");
+    ImGui::Text("Bolt AI IDE");
     ImGui::SetWindowFontScale(1.0f);
     ImGui::PopStyleColor();
 
@@ -1221,7 +1302,7 @@ void BoltGuiApp::RenderAboutWindow() {
     ImGui::Separator();
 
     // Features
-    ImGui::Text("🚀 Features:");
+    ImGui::Text("Features:");
     ImGui::BulletText("Modern ImGui interface with dark mode");
     ImGui::BulletText("AI-powered code completion and assistance");
     ImGui::BulletText("Real-time chat with AI assistant");
@@ -1234,7 +1315,7 @@ void BoltGuiApp::RenderAboutWindow() {
     ImGui::Separator();
 
     // Technology stack
-    ImGui::Text("🔧 Built with:");
+    ImGui::Text("Built with:");
     ImGui::BulletText("Dear ImGui - Immediate mode GUI");
     ImGui::BulletText("OpenGL 3.3 - Graphics rendering");
     ImGui::BulletText("GLFW - Window management");
@@ -1247,11 +1328,11 @@ void BoltGuiApp::RenderAboutWindow() {
     ImGui::Text("© 2024 Bolt C++ Project");
     ImGui::Text("Licensed under MIT License");
 
-    if (ImGui::Button("🌐 Visit Website")) {
+    if (ImGui::Button("Visit Website")) {
         AddChatMessage("System", "Opening project website... (would open browser in real implementation)", false);
     }
     ImGui::SameLine();
-    if (ImGui::Button("📖 Documentation")) {
+    if (ImGui::Button("Documentation")) {
         AddChatMessage("System", "Opening documentation... (would open docs in real implementation)", false);
     }
 
@@ -1280,18 +1361,18 @@ void BoltGuiApp::OpenFileDialog() {
                 code_buffer_[copy_size] = '\0';
 
                 current_file_path_ = selected_file;
-                AddChatMessage("System", "✅ Opened file: " + selected_file, false);
+                AddChatMessage("System", "Opened file: " + selected_file, false);
 
                 file.close();
             } else {
-                AddChatMessage("System", "❌ Failed to open file: " + selected_file, false);
+                AddChatMessage("System", "Failed to open file: " + selected_file, false);
             }
         } catch (const std::exception& e) {
-            AddChatMessage("System", "❌ Error opening file: " + std::string(e.what()), false);
+            AddChatMessage("System", "Error opening file: " + std::string(e.what()), false);
         }
     } else {
         AddChatMessage("System",
-                       "ℹ️ Please select a file from the file tree first, "
+                       "Please select a file from the file tree first, "
                        "or use 'Save As' to create a new file.",
                        false);
     }
@@ -1300,7 +1381,7 @@ void BoltGuiApp::OpenFileDialog() {
 void BoltGuiApp::SaveCurrentFile() {
     if (current_file_path_.empty()) {
         // No file path set, prompt for save as
-        AddChatMessage("System", "ℹ️ No file path set. Please use 'Save As' to specify a file name.", false);
+        AddChatMessage("System", "No file path set. Please use 'Save As' to specify a file name.", false);
         SaveFileAsDialog();
         return;
     }
@@ -1311,12 +1392,12 @@ void BoltGuiApp::SaveCurrentFile() {
         if (file.is_open()) {
             file << code_buffer_;
             file.close();
-            AddChatMessage("System", "✅ Saved file: " + current_file_path_, false);
+            AddChatMessage("System", "Saved file: " + current_file_path_, false);
         } else {
-            AddChatMessage("System", "❌ Failed to save file: " + current_file_path_, false);
+            AddChatMessage("System", "Failed to save file: " + current_file_path_, false);
         }
     } catch (const std::exception& e) {
-        AddChatMessage("System", "❌ Error saving file: " + std::string(e.what()), false);
+        AddChatMessage("System", "Error saving file: " + std::string(e.what()), false);
     }
 }
 
@@ -1349,17 +1430,17 @@ void BoltGuiApp::SaveFileAsDialog() {
                     file << code_buffer_;
                     file.close();
                     current_file_path_ = filepath;
-                    AddChatMessage("System", "✅ Saved file as: " + filepath, false);
+                    AddChatMessage("System", "Saved file as: " + filepath, false);
 
                     // Refresh file tree
                     InitializeFileTree();
 
                     ImGui::CloseCurrentPopup();
                 } else {
-                    AddChatMessage("System", "❌ Failed to create file: " + filepath, false);
+                    AddChatMessage("System", "Failed to create file: " + filepath, false);
                 }
             } catch (const std::exception& e) {
-                AddChatMessage("System", "❌ Error saving file: " + std::string(e.what()), false);
+                AddChatMessage("System", "Error saving file: " + std::string(e.what()), false);
             }
         }
 

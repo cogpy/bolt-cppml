@@ -175,7 +175,7 @@ class WidgetFrameworkDemo {
 
         // Icon button
         auto button2 = std::make_shared<Button>("btn2", "Save");
-        button2->setIcon("💾");
+        button2->setIcon("");
         button2->setOnClick([this]() { outputText_ += "Save button clicked!\n"; });
 
         // Disabled button
@@ -222,7 +222,7 @@ class WidgetFrameworkDemo {
         container->addChild(labelPanel);
         container->addChild(progressPanel);
 
-        tabContainer_->addTab("Basic Widgets", container, "🎛️");
+        tabContainer_->addTab("Basic Widgets", container, "");
     }
 
     void createInputWidgetsTab() {
@@ -306,7 +306,7 @@ class WidgetFrameworkDemo {
         container->addChild(textPanel);
         container->addChild(selectionPanel);
 
-        tabContainer_->addTab("Input Widgets", container, "✏️");
+        tabContainer_->addTab("Input Widgets", container, "");
     }
 
     void createContainerWidgetsTab() {
@@ -366,13 +366,13 @@ class WidgetFrameworkDemo {
         tab2Content->addChild(tab2Checkbox);
         tab2Content->addChild(tab2Slider);
 
-        nestedTabs->addTab("First", tab1Content, "1️⃣");
-        nestedTabs->addTab("Second", tab2Content, "2️⃣");
+        nestedTabs->addTab("First", tab1Content, "1");
+        nestedTabs->addTab("Second", tab2Content, "2");
 
         container->addChild(splitter);
         container->addChild(nestedTabs);
 
-        tabContainer_->addTab("Containers", container, "📦");
+        tabContainer_->addTab("Containers", container, "");
     }
 
     void createThemeDemo() {
@@ -427,7 +427,7 @@ class WidgetFrameworkDemo {
         container->addChild(themePanel);
         container->addChild(previewPanel);
 
-        tabContainer_->addTab("Themes", container, "🎨");
+        tabContainer_->addTab("Themes", container, "");
     }
 
     void applyCurrentThemeRecursively(Widget* widget) {

@@ -148,38 +148,40 @@ bool LspCompletionPopup::handleInput(lsp::CompletionPopupState& state) {
     return false;
 }
 
+// One-letter tags rather than symbols: the built-in ImGui font only has
+// Latin-1 glyphs, so anything else would be drawn as '?'.
 const char* LspCompletionPopup::getKindIcon(const std::string& kind) {
     if (kind == "function" || kind == "method")
-        return "ƒ";
+        return "f";
     if (kind == "variable" || kind == "field")
-        return "𝑥";
+        return "x";
     if (kind == "class" || kind == "struct")
-        return "◆";
+        return "C";
     if (kind == "interface")
-        return "◇";
+        return "I";
     if (kind == "module")
-        return "□";
+        return "M";
     if (kind == "property")
-        return "●";
+        return "p";
     if (kind == "enum")
-        return "∈";
+        return "E";
     if (kind == "enum_member")
-        return "∋";
+        return "e";
     if (kind == "constant")
-        return "π";
+        return "c";
     if (kind == "keyword")
-        return "⌘";
+        return "k";
     if (kind == "snippet")
-        return "✂";
+        return "s";
     if (kind == "text")
         return "T";
     if (kind == "file")
-        return "📄";
+        return "F";
     if (kind == "folder")
-        return "📁";
+        return "D";
     if (kind == "type_parameter")
-        return "τ";
-    return "•";
+        return "t";
+    return "-";
 }
 
 void LspCompletionPopup::getKindColor(const std::string& kind, float& r, float& g, float& b) {
@@ -403,15 +405,15 @@ void LspDiagnosticsGutter::renderDiagnosticTooltip(const lsp::EditorDiagnostic& 
 const char* LspDiagnosticsGutter::getSeverityIcon(lsp::DiagnosticSeverity severity) {
     switch (severity) {
         case lsp::DiagnosticSeverity::Error:
-            return "❌";
+            return "E";
         case lsp::DiagnosticSeverity::Warning:
-            return "⚠️";
+            return "W";
         case lsp::DiagnosticSeverity::Information:
-            return "ℹ️";
+            return "i";
         case lsp::DiagnosticSeverity::Hint:
-            return "💡";
+            return "h";
         default:
-            return "•";
+            return "-";
     }
 }
 
@@ -520,7 +522,7 @@ void LspStatusBar::render(const lsp::LspEditorBridge& bridge, const std::string&
     // Error count
     if (errorCount > 0) {
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.9f, 0.3f, 0.3f, 1.0f));
-        ImGui::Text("❌ %zu", errorCount);
+        ImGui::Text("Errors: %zu", errorCount);
         ImGui::PopStyleColor();
         ImGui::SameLine();
     }
@@ -528,7 +530,7 @@ void LspStatusBar::render(const lsp::LspEditorBridge& bridge, const std::string&
     // Warning count
     if (warningCount > 0) {
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.9f, 0.7f, 0.2f, 1.0f));
-        ImGui::Text("⚠️ %zu", warningCount);
+        ImGui::Text("Warnings: %zu", warningCount);
         ImGui::PopStyleColor();
         ImGui::SameLine();
     }
@@ -537,10 +539,10 @@ void LspStatusBar::render(const lsp::LspEditorBridge& bridge, const std::string&
     std::string langId = lsp::LspEditorBridge::detectLanguageId(currentFile);
     if (bridge.isLanguageSupported(langId)) {
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.3f, 0.8f, 0.3f, 1.0f));
-        ImGui::Text("● LSP");
+        ImGui::Text("LSP: on");
         ImGui::PopStyleColor();
     } else {
-        ImGui::TextDisabled("○ LSP");
+        ImGui::TextDisabled("LSP: off");
     }
 }
 
