@@ -17,6 +17,11 @@
 #include <algorithm>
 #include <filesystem>
 
+// Set by the build from the CMake project version.
+#ifndef BOLT_VERSION
+#define BOLT_VERSION "unknown"
+#endif
+
 namespace bolt {
 namespace gui {
 
@@ -1298,7 +1303,7 @@ void BoltGuiApp::RenderAboutWindow() {
     ImGui::SetWindowFontScale(1.0f);
     ImGui::PopStyleColor();
 
-    ImGui::Text("Version 1.0.0");
+    ImGui::Text("Version %s", BOLT_VERSION);
     ImGui::Separator();
 
     // Features

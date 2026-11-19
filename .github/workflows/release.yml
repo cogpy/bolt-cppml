@@ -734,6 +734,7 @@ jobs:
           ### Linux
           - \`bolt-${VERSION}-linux-x64.tar.gz\` - Linux x64 binary
           - \`bolt_${VERSION}_amd64.deb\` - Debian/Ubuntu package
+          - \`bolt-${VERSION}-1.x86_64.rpm\` - Fedora/RHEL package
 
           ### Windows
           - \`bolt-${VERSION}-windows-x64.zip\` - Windows x64 binary
@@ -752,9 +753,10 @@ jobs:
           sudo dpkg -i bolt_${VERSION}_amd64.deb
           \`\`\`
 
-          ### macOS
-          1. Download the DMG file
-          2. Open the DMG and drag Bolt to Applications
+          ### Linux (RPM)
+          \`\`\`bash
+          sudo rpm -i bolt-${VERSION}-1.x86_64.rpm
+          \`\`\`
 
           ### Windows
           Run the MSI installer or extract the ZIP to your preferred location.

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.15)
-project(bolt VERSION 1.0.0 LANGUAGES CXX)
+project(bolt VERSION 1.1.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -274,8 +274,8 @@ add_library(bolt_lib
 # Set library type based on BUILD_SHARED_LIBS option
 if(BUILD_SHARED_LIBS)
     set_target_properties(bolt_lib PROPERTIES
-        VERSION 1.0.0
-        SOVERSION 1
+        VERSION ${PROJECT_VERSION}
+        SOVERSION ${PROJECT_VERSION_MAJOR}
     )
 endif()
 
@@ -398,6 +398,8 @@ endif()
 add_executable(bolt src/bolt/main.cpp)
 target_link_libraries(bolt PRIVATE bolt_lib)
 target_compile_definitions(bolt PRIVATE BOLT_VERSION="${PROJECT_VERSION}")
+# The GUI's About window shows the same version.
+target_compile_definitions(bolt_lib PRIVATE BOLT_VERSION="${PROJECT_VERSION}")
 if(WIN32)
     target_sources(bolt PRIVATE ${BOLT_WIN32_RESOURCES})
 endif()
