@@ -1,0 +1,10 @@
+---
+# Configuration for actionlint as run by the Lint Code Base workflow.
+#
+# The actionlint bundled with the linter image predates these GitHub-hosted
+# runner images and reports them as unknown labels. Listing them here only
+# teaches it the names; every actionlint check stays enabled.
+self-hosted-runner:
+  labels:
+    - macos-15
+    - macos-15-intel
