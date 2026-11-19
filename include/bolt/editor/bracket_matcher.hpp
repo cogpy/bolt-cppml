@@ -1,18 +1,20 @@
 
-#ifndef BRACKET_MATCHER_HPP
-#define BRACKET_MATCHER_HPP
+#ifndef BOLT_EDITOR_BRACKET_MATCHER_HPP_
+#define BOLT_EDITOR_BRACKET_MATCHER_HPP_
 
-#include <string>
-#include <stack>
 #include <optional>
+#include <stack>
+#include <string>
+
 #include "bolt/gui_components.hpp"
 
 namespace bolt {
 
 class BracketMatcher {
-public:
+ public:
     static std::optional<BracketMatch> findMatchingBracket(const std::string& text, size_t cursorPos) {
-        if (cursorPos >= text.length()) return std::nullopt;
+        if (cursorPos >= text.length())
+            return std::nullopt;
 
         char current = text[cursorPos];
         if (isOpenBracket(current)) {
@@ -20,28 +22,31 @@ public:
         } else if (isCloseBracket(current)) {
             return findOpeningBracket(text, cursorPos);
         }
-        
+
         return std::nullopt;
     }
 
-private:
-    static bool isOpenBracket(char c) {
-        return c == '(' || c == '{' || c == '[';
-    }
+ private:
+    static bool isOpenBracket(char c) { return c == '(' || c == '{' || c == '['; }
 
-    static bool isCloseBracket(char c) {
-        return c == ')' || c == '}' || c == ']';
-    }
+    static bool isCloseBracket(char c) { return c == ')' || c == '}' || c == ']'; }
 
     static char getMatchingBracket(char c) {
         switch (c) {
-            case '(': return ')';
-            case '{': return '}';
-            case '[': return ']';
-            case ')': return '(';
-            case '}': return '{';
-            case ']': return '[';
-            default: return '\0';
+            case '(':
+                return ')';
+            case '{':
+                return '}';
+            case '[':
+                return ']';
+            case ')':
+                return '(';
+            case '}':
+                return '{';
+            case ']':
+                return '[';
+            default:
+                return '\0';
         }
     }
 
@@ -49,7 +54,7 @@ private:
         char openBracket = text[openPos];
         char closeBracket = getMatchingBracket(openBracket);
         std::stack<char> brackets;
-        
+
         for (size_t i = openPos; i < text.length(); ++i) {
             if (text[i] == openBracket) {
                 brackets.push(openBracket);
@@ -60,7 +65,7 @@ private:
                 }
             }
         }
-        
+
         return std::nullopt;
     }
 
@@ -68,7 +73,7 @@ private:
         char closeBracket = text[closePos];
         char openBracket = getMatchingBracket(closeBracket);
         std::stack<char> brackets;
-        
+
         // Start at closePos itself so the closing bracket is counted;
         // otherwise the first opening bracket pops an empty stack.
         for (size_t i = closePos + 1; i-- > 0;) {
@@ -81,11 +86,11 @@ private:
                 }
             }
         }
-        
+
         return std::nullopt;
     }
 };
 
-} // namespace bolt
+}  // namespace bolt
 
-#endif
+#endif  // BOLT_EDITOR_BRACKET_MATCHER_HPP_

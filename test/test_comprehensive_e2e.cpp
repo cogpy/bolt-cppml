@@ -49,76 +49,76 @@
  *   - E2E_CrossModule       : full workflow integration tests
  */
 
-#include <bolt/test_framework.hpp>
+// Standard library
+#include <atomic>
+#include <chrono>
+#include <cmath>
+#include <filesystem>
+#include <fstream>
+#include <memory>
+#include <numeric>
+#include <sstream>
+#include <string>
+#include <thread>
+#include <vector>
+
+#include "bolt/test_framework.hpp"
 
 // Core includes
-#include <bolt/bolt.hpp>
-#include <bolt/core/memory_manager.hpp>
-#include <bolt/core/memory_pool.hpp>
-#include <bolt/core/memory_leak_detector.hpp>
-#include <bolt/core/chat_store.hpp>
-#include <bolt/core/editor_store.hpp>
-#include <bolt/core/workbench_store.hpp>
-#include <bolt/core/message_handler.hpp>
-#include <bolt/core/logging.hpp>
-#include <bolt/core/performance_profiler.hpp>
-#include <bolt/core/benchmark_suite.hpp>
-#include <bolt/core/code_analyzer.hpp>
-#include <bolt/core/plugin_system.hpp>
-#include <bolt/core/error_handling.hpp>
-#include <bolt/core/thread_safety.hpp>
+#include "bolt/bolt.hpp"
+#include "bolt/core/benchmark_suite.hpp"
+#include "bolt/core/chat_store.hpp"
+#include "bolt/core/code_analyzer.hpp"
+#include "bolt/core/editor_store.hpp"
+#include "bolt/core/error_handling.hpp"
+#include "bolt/core/logging.hpp"
+#include "bolt/core/memory_leak_detector.hpp"
+#include "bolt/core/memory_manager.hpp"
+#include "bolt/core/memory_pool.hpp"
+#include "bolt/core/message_handler.hpp"
+#include "bolt/core/performance_profiler.hpp"
+#include "bolt/core/plugin_system.hpp"
+#include "bolt/core/thread_safety.hpp"
+#include "bolt/core/workbench_store.hpp"
 
 // Utils includes
-#include <bolt/utils/string_utils.hpp>
-#include <bolt/utils/math_utils.hpp>
-#include <bolt/utils/data_processor.hpp>
-#include <bolt/utils/filesystem_utils.hpp>
+#include "bolt/utils/data_processor.hpp"
+#include "bolt/utils/filesystem_utils.hpp"
+#include "bolt/utils/math_utils.hpp"
+#include "bolt/utils/string_utils.hpp"
 
 // Editor includes
-#include <bolt/editor/bracket_matcher.hpp>
-#include <bolt/editor/find_replace.hpp>
-#include <bolt/editor/syntax_highlighter.hpp>
-#include <bolt/editor/cursor_manager.hpp>
-#include <bolt/editor/code_folding.hpp>
-#include <bolt/editor/tab_bar.hpp>
-#include <bolt/editor/theme_system.hpp>
-#include <bolt/editor/split_view_manager.hpp>
-#include <bolt/editor/keyboard_shortcuts.hpp>
-#include <bolt/editor/minimap.hpp>
+#include "bolt/editor/bracket_matcher.hpp"
+#include "bolt/editor/code_folding.hpp"
+#include "bolt/editor/cursor_manager.hpp"
+#include "bolt/editor/find_replace.hpp"
+#include "bolt/editor/keyboard_shortcuts.hpp"
+#include "bolt/editor/minimap.hpp"
+#include "bolt/editor/split_view_manager.hpp"
+#include "bolt/editor/syntax_highlighter.hpp"
+#include "bolt/editor/tab_bar.hpp"
+#include "bolt/editor/theme_system.hpp"
 
 // Collaboration includes
-#include <bolt/collaboration/document_operation.hpp>
-#include <bolt/collaboration/operational_transform.hpp>
+#include "bolt/collaboration/document_operation.hpp"
+#include "bolt/collaboration/operational_transform.hpp"
 
 // Network includes
-#include <bolt/network/network_buffer.hpp>
-#include <bolt/network/message_compression.hpp>
-#include <bolt/network/network_metrics.hpp>
-#include <bolt/network/connection_pool.hpp>
+#include "bolt/network/connection_pool.hpp"
+#include "bolt/network/message_compression.hpp"
+#include "bolt/network/network_buffer.hpp"
+#include "bolt/network/network_metrics.hpp"
 
 // Git includes
-#include <bolt/git/git_repository.hpp>
+#include "bolt/git/git_repository.hpp"
 
 // LSP includes
-#include <bolt/editor/lsp_json_rpc.hpp>
+#include "bolt/editor/lsp_json_rpc.hpp"
 
 // DrawKern includes
-#include <bolt/drawkern/dis_vm.hpp>
-#include <bolt/drawkern/yacc_grammar.hpp>
-#include <bolt/drawkern/styx_protocol.hpp>
-
-// Standard library
-#include <chrono>
-#include <thread>
-#include <sstream>
-#include <memory>
-#include <vector>
-#include <string>
-#include <cmath>
-#include <fstream>
-#include <filesystem>
-#include <atomic>
-#include <numeric>
+#include "bolt/drawkern/dis_vm.hpp"
+#include "bolt/drawkern/styx_protocol.hpp"
+#include "bolt/drawkern/yacc_grammar.hpp"
 
 using namespace bolt::test;
 
@@ -127,7 +127,7 @@ using namespace bolt::test;
 #ifndef BOLT_TEST_REPO_PATH
 #define BOLT_TEST_REPO_PATH "."
 #endif
-static const std::string REPO_PATH = BOLT_TEST_REPO_PATH;
+static const char REPO_PATH[] = BOLT_TEST_REPO_PATH;
 
 // ============================================================================
 // E2E_StringUtils: Test all StringUtils functions
@@ -376,8 +376,7 @@ BOLT_TEST(E2E_FileSystemUtils, AppendToFile) {
 }
 
 BOLT_TEST(E2E_FileSystemUtils, ReadNonExistentFile_ThrowsException) {
-    BOLT_ASSERT_THROWS(std::runtime_error,
-        FileSystemUtils::readFile("/tmp/bolt_nonexistent_file_xyz.txt"));
+    BOLT_ASSERT_THROWS(std::runtime_error, FileSystemUtils::readFile("/tmp/bolt_nonexistent_file_xyz.txt"));
 }
 
 BOLT_TEST(E2E_FileSystemUtils, WriteEmptyFile) {
@@ -434,7 +433,7 @@ BOLT_TEST(E2E_MemoryManager, PeakUsageTracking) {
 
 BOLT_TEST(E2E_MemoryManager, NullDeallocateIsNoOp) {
     bolt::MemoryManager& mm = bolt::MemoryManager::getInstance();
-    mm.deallocate(nullptr); // Should not throw
+    mm.deallocate(nullptr);  // Should not throw
 }
 
 BOLT_TEST(E2E_MemoryManager, MaxUsageLimit) {
@@ -493,7 +492,8 @@ BOLT_TEST(E2E_MemoryManager, MultipleAllocations) {
     }
     BOLT_ASSERT_EQ(1000u, mm.getCurrentUsage());
     BOLT_ASSERT_EQ(10u, mm.getAllocationCount());
-    for (auto p : ptrs) mm.deallocate(p);
+    for (auto p : ptrs)
+        mm.deallocate(p);
     BOLT_ASSERT_EQ(0u, mm.getCurrentUsage());
 }
 
@@ -531,16 +531,15 @@ BOLT_TEST(E2E_MessageHandler, SetMaxQueueSize) {
         mh.pushMessage(msg);
     }
     // Exceeding should throw
-    BOLT_ASSERT_THROWS(bolt::MessageException,
-        mh.pushMessage(bolt::Message(bolt::MessageType::Chat, "overflow")));
+    BOLT_ASSERT_THROWS(bolt::MessageException, mh.pushMessage(bolt::Message(bolt::MessageType::Chat, "overflow")));
     mh.processMessages();
-    mh.setMaxQueueSize(10000); // Reset
+    mh.setMaxQueueSize(10000);  // Reset
 }
 
 BOLT_TEST(E2E_MessageHandler, EmptyQueueProcess) {
     bolt::MessageHandler& mh = bolt::MessageHandler::getInstance();
     mh.initialize();
-    mh.processMessages(); // Should not throw on empty queue
+    mh.processMessages();  // Should not throw on empty queue
 }
 
 // ============================================================================
@@ -588,7 +587,7 @@ BOLT_TEST(E2E_ChatStore, AddListener) {
     bolt::ChatStore& cs = bolt::ChatStore::getInstance();
     bool called = false;
     cs.addListener([&called]() { called = true; });
-    cs.setShowChat(true); // Should trigger listener
+    cs.setShowChat(true);  // Should trigger listener
     cs.setShowChat(false);
 }
 
@@ -679,8 +678,7 @@ BOLT_TEST(E2E_ErrorHandling, ValidateNotNull_Valid) {
 }
 
 BOLT_TEST(E2E_ErrorHandling, ValidateNotNull_Null_Throws) {
-    BOLT_ASSERT_THROWS(bolt::BoltException,
-        bolt::ErrorHandler::validateNotNull(nullptr, "null pointer"));
+    BOLT_ASSERT_THROWS(bolt::BoltException, bolt::ErrorHandler::validateNotNull(nullptr, "null pointer"));
 }
 
 BOLT_TEST(E2E_ErrorHandling, ValidateParameter_Valid) {
@@ -688,8 +686,7 @@ BOLT_TEST(E2E_ErrorHandling, ValidateParameter_Valid) {
 }
 
 BOLT_TEST(E2E_ErrorHandling, ValidateParameter_Invalid_Throws) {
-    BOLT_ASSERT_THROWS(bolt::BoltException,
-        bolt::ErrorHandler::validateParameter(false, "invalid param"));
+    BOLT_ASSERT_THROWS(bolt::BoltException, bolt::ErrorHandler::validateParameter(false, "invalid param"));
 }
 
 BOLT_TEST(E2E_ErrorHandling, ValidateMemorySize_Valid) {
@@ -697,8 +694,7 @@ BOLT_TEST(E2E_ErrorHandling, ValidateMemorySize_Valid) {
 }
 
 BOLT_TEST(E2E_ErrorHandling, ValidateMemorySize_Zero_Throws) {
-    BOLT_ASSERT_THROWS(bolt::BoltException,
-        bolt::ErrorHandler::validateMemorySize(0));
+    BOLT_ASSERT_THROWS(bolt::BoltException, bolt::ErrorHandler::validateMemorySize(0));
 }
 
 // ============================================================================
@@ -726,7 +722,7 @@ BOLT_TEST(E2E_ThreadSafety, ThreadSafe_Swap) {
 BOLT_TEST(E2E_ThreadSafety, SpinLock_LockUnlock) {
     bolt::SpinLock lock;
     lock.lock();
-    lock.unlock(); // Should not deadlock
+    lock.unlock();  // Should not deadlock
 }
 
 BOLT_TEST(E2E_ThreadSafety, LockFreeQueue_PushPop) {
@@ -756,7 +752,8 @@ BOLT_TEST(E2E_ThreadSafety, ThreadSafe_ConcurrentAccess) {
             }
         });
     }
-    for (auto& t : threads) t.join();
+    for (auto& t : threads)
+        t.join();
     auto result = counter.read([](const int& v) { return v; });
     BOLT_ASSERT_EQ(1000, result);
 }
@@ -895,10 +892,7 @@ BOLT_TEST(E2E_FindReplace, GetSetProperties) {
 BOLT_TEST(E2E_SyntaxHighlighter, AddLanguageRulesAndHighlight) {
     auto& sh = bolt::SyntaxHighlighter::getInstance();
     std::vector<std::pair<std::string, std::string>> rules = {
-        {"\\b(int|void|return)\\b", "keyword"},
-        {"\\d+", "number"},
-        {"\"[^\"]*\"", "string"}
-    };
+        {"\\b(int|void|return)\\b", "keyword"}, {"\\d+", "number"}, {"\"[^\"]*\"", "string"}};
     sh.addLanguageRules("cpp", rules);
     auto tokens = sh.highlight("int x = 42;", "cpp");
     BOLT_ASSERT(tokens.size() > 0);
@@ -922,9 +916,7 @@ BOLT_TEST(E2E_SyntaxHighlighter, HighlightEmptyCode) {
 
 BOLT_TEST(E2E_SyntaxHighlighter, TokenPositions) {
     auto& sh = bolt::SyntaxHighlighter::getInstance();
-    std::vector<std::pair<std::string, std::string>> rules = {
-        {"\\b(if|else)\\b", "keyword"}
-    };
+    std::vector<std::pair<std::string, std::string>> rules = {{"\\b(if|else)\\b", "keyword"}};
     sh.addLanguageRules("test_lang", rules);
     auto tokens = sh.highlight("if else", "test_lang");
     BOLT_ASSERT(tokens.size() > 0);
@@ -1125,7 +1117,8 @@ BOLT_TEST(E2E_TabBar, GetAllTabs) {
     tb.addTab("/path/all2.cpp");
     auto tabs = tb.getAllTabs();
     BOLT_ASSERT(tabs.size() >= 2);
-    for (auto& t : tabs) tb.closeTab(t.id);
+    for (auto& t : tabs)
+        tb.closeTab(t.id);
 }
 
 BOLT_TEST(E2E_TabBar, GetTabByPath) {
@@ -1179,7 +1172,7 @@ BOLT_TEST(E2E_ThemeSystem, GetInstance) {
     auto& ts = bolt::ThemeSystem::getInstance();
     // Should be accessible
     auto name = ts.getCurrentThemeName();
-    BOLT_ASSERT(!name.empty() || name.empty()); // Just verify no crash
+    BOLT_ASSERT(!name.empty() || name.empty());  // Just verify no crash
 }
 
 BOLT_TEST(E2E_ThemeSystem, AddAndSetTheme) {
@@ -1213,7 +1206,7 @@ BOLT_TEST(E2E_ThemeSystem, GetCurrentColors) {
 BOLT_TEST(E2E_ThemeSystem, GetCurrentFontSettings) {
     auto& ts = bolt::ThemeSystem::getInstance();
     auto fonts = ts.getCurrentFontSettings();
-    BOLT_ASSERT(fonts.size > 0 || fonts.size == 0); // Just verify no crash
+    BOLT_ASSERT(fonts.size > 0 || fonts.size == 0);  // Just verify no crash
 }
 
 BOLT_TEST(E2E_ThemeSystem, GetAvailableThemes) {
@@ -1374,7 +1367,8 @@ BOLT_TEST(E2E_Minimap, SetDocument) {
 BOLT_TEST(E2E_Minimap, UpdateViewport) {
     bolt::Minimap minimap;
     std::vector<std::string> lines;
-    for (int i = 0; i < 100; i++) lines.push_back("line " + std::to_string(i));
+    for (int i = 0; i < 100; i++)
+        lines.push_back("line " + std::to_string(i));
     minimap.setDocument("big.cpp", lines);
     bolt::Minimap::ViewportInfo vp;
     vp.startLine = 10;
@@ -1408,13 +1402,14 @@ BOLT_TEST(E2E_Minimap, Render) {
     minimap.setDocument("render.cpp", lines);
     auto rendered = minimap.render();
     // Should produce some output
-    BOLT_ASSERT(rendered.size() > 0 || rendered.empty()); // Verify no crash
+    BOLT_ASSERT(rendered.size() > 0 || rendered.empty());  // Verify no crash
 }
 
 BOLT_TEST(E2E_Minimap, ScrollPercentage) {
     bolt::Minimap minimap;
     std::vector<std::string> lines;
-    for (int i = 0; i < 100; i++) lines.push_back("line " + std::to_string(i));
+    for (int i = 0; i < 100; i++)
+        lines.push_back("line " + std::to_string(i));
     minimap.setDocument("scroll.cpp", lines);
     bolt::Minimap::ViewportInfo vp;
     vp.startLine = 50;
@@ -1526,10 +1521,8 @@ BOLT_TEST(E2E_OperationalTransform, TransformSameUser) {
 BOLT_TEST(E2E_OperationalTransform, TransformBatch) {
     using namespace bolt::collaboration;
     std::vector<std::unique_ptr<DocumentOperation>> ops;
-    ops.push_back(std::make_unique<DocumentOperation>(
-        OperationType::INSERT, "userA", Position(0, 0), "A"));
-    ops.push_back(std::make_unique<DocumentOperation>(
-        OperationType::INSERT, "userA", Position(0, 5), "B"));
+    ops.push_back(std::make_unique<DocumentOperation>(OperationType::INSERT, "userA", Position(0, 0), "A"));
+    ops.push_back(std::make_unique<DocumentOperation>(OperationType::INSERT, "userA", Position(0, 5), "B"));
     DocumentOperation against(OperationType::INSERT, "userB", Position(0, 0), "X");
     auto transformed = OperationalTransform::transformBatch(ops, against);
     BOLT_ASSERT_EQ(2u, transformed.size());
@@ -1538,10 +1531,8 @@ BOLT_TEST(E2E_OperationalTransform, TransformBatch) {
 BOLT_TEST(E2E_OperationalTransform, ResolveConflicts) {
     using namespace bolt::collaboration;
     std::vector<std::unique_ptr<DocumentOperation>> ops;
-    ops.push_back(std::make_unique<DocumentOperation>(
-        OperationType::INSERT, "userA", Position(0, 0), "A"));
-    ops.push_back(std::make_unique<DocumentOperation>(
-        OperationType::INSERT, "userB", Position(0, 0), "B"));
+    ops.push_back(std::make_unique<DocumentOperation>(OperationType::INSERT, "userA", Position(0, 0), "A"));
+    ops.push_back(std::make_unique<DocumentOperation>(OperationType::INSERT, "userB", Position(0, 0), "B"));
     auto resolved = OperationalTransform::resolveConflicts(ops);
     BOLT_ASSERT_EQ(2u, resolved.size());
 }
@@ -1792,7 +1783,8 @@ BOLT_TEST(E2E_NetworkMetrics, AtomicOperations) {
             }
         });
     }
-    for (auto& t : threads) t.join();
+    for (auto& t : threads)
+        t.join();
     BOLT_ASSERT_EQ(1000u, stats.messagesReceived.load());
 }
 
@@ -2116,11 +2108,10 @@ BOLT_TEST(E2E_LspJsonRpc, JsonRpcNotification) {
 
 BOLT_TEST(E2E_LspJsonRpc, JsonRpcHandler_RegisterAndProcess) {
     bolt::lsp::JsonRpcHandler handler;
-    handler.registerRequestHandler("test/method",
+    handler.registerRequestHandler(
+        "test/method",
         [](const std::string& method, std::shared_ptr<bolt::lsp::JsonValue> params)
-            -> std::shared_ptr<bolt::lsp::JsonValue> {
-            return std::make_shared<bolt::lsp::JsonValue>("result");
-        });
+            -> std::shared_ptr<bolt::lsp::JsonValue> { return std::make_shared<bolt::lsp::JsonValue>("result"); });
     // Handler should be registered
     auto request = handler.createRequest("test/method", nullptr, "1");
     BOLT_ASSERT(!request.empty());
@@ -2367,9 +2358,7 @@ BOLT_TEST(E2E_GitRepository, GetRepositoryRoot) {
 BOLT_TEST(E2E_GitRepository, SetStatusCallback) {
     bolt::git::GitRepository repo(REPO_PATH);
     bool callbackSet = false;
-    repo.setStatusCallback([&callbackSet](bool success, const std::string& msg) {
-        callbackSet = true;
-    });
+    repo.setStatusCallback([&callbackSet](bool success, const std::string& msg) { callbackSet = true; });
     // Callback should be set without crash
 }
 
@@ -2453,9 +2442,11 @@ BOLT_TEST(E2E_BenchmarkSuite, RegisterAndRunBenchmark) {
     config.warmupRuns = 1;
     suite.registerBenchmark(config, [](const bolt::BenchmarkConfig& cfg) {
         int sum = 0;
-        for (int i = 0; i < 1000; i++) sum += i;
+        for (int i = 0; i < 1000; i++)
+            sum += i;
         // Prevent optimization without volatile compound assignment
-        if (sum == -1) throw std::runtime_error("unreachable");
+        if (sum == -1)
+            throw std::runtime_error("unreachable");
     });
     auto result = suite.runBenchmark("e2e_bench");
     BOLT_ASSERT_EQ("e2e_bench", result.name);
@@ -2602,12 +2593,12 @@ BOLT_TEST(E2E_CrossModule, EditorWorkflow_CreateEditSave) {
     auto& editorStore = bolt::EditorStore::getInstance();
     auto& tabBar = bolt::TabBar::getInstance();
     auto& codeFolding = bolt::CodeFolding::getInstance();
-    
+
     // 1. Create a tab for a new file
     std::string filePath = "/tmp/e2e_workflow_test.cpp";
     auto tabId = tabBar.addTab(filePath);
     BOLT_ASSERT(tabId > 0);
-    
+
     // 2. Set document content
     bolt::EditorDocument doc;
     doc.filePath = filePath;
@@ -2616,18 +2607,18 @@ BOLT_TEST(E2E_CrossModule, EditorWorkflow_CreateEditSave) {
     doc.scroll.character = 0;
     doc.cursor.position = 0;
     editorStore.setDocument(filePath, doc);
-    
+
     // 3. Add code folding
     codeFolding.addFoldRange(filePath, 0, 2);
     auto ranges = codeFolding.getFoldingRanges(filePath);
     BOLT_ASSERT(ranges.size() > 0);
-    
+
     // 4. Mark as dirty
     tabBar.setTabDirty(tabId, true);
     auto tab = tabBar.getTab(tabId);
     BOLT_ASSERT(tab.has_value());
     BOLT_ASSERT_TRUE(tab->isDirty);
-    
+
     // 5. Clean up
     tabBar.closeTab(tabId);
 }
@@ -2636,21 +2627,21 @@ BOLT_TEST(E2E_CrossModule, MemoryAndLogging_Integration) {
     // Test memory management with logging
     bolt::MemoryManager& mm = bolt::MemoryManager::getInstance();
     mm.forceReset();
-    
+
     // Allocate memory
     void* p1 = mm.allocate(256);
     void* p2 = mm.allocate(512);
-    
+
     // Log the allocation
     bolt::LogEntry entry(bolt::LogLevel::INFO, bolt::LogCategory::MEMORY,
-        "Allocated " + std::to_string(mm.getCurrentUsage()) + " bytes");
+                         "Allocated " + std::to_string(mm.getCurrentUsage()) + " bytes");
     bolt::SimpleFormatter formatter;
     std::string logMsg = formatter.format(entry);
     BOLT_ASSERT(!logMsg.empty());
-    
+
     // Verify memory state
     BOLT_ASSERT_EQ(768u, mm.getCurrentUsage());
-    
+
     // Clean up
     mm.deallocate(p1);
     mm.deallocate(p2);
@@ -2659,20 +2650,20 @@ BOLT_TEST(E2E_CrossModule, MemoryAndLogging_Integration) {
 
 BOLT_TEST(E2E_CrossModule, CollaborationWorkflow) {
     using namespace bolt::collaboration;
-    
+
     // Simulate two users editing the same document
     std::vector<std::string> document = {"Hello World"};
-    
+
     // User A inserts at position 5
     DocumentOperation opA(OperationType::INSERT, "userA", Position(0, 5), " Beautiful");
-    
+
     // User B inserts at position 0
     DocumentOperation opB(OperationType::INSERT, "userB", Position(0, 0), "Dear ");
-    
+
     // Transform opA against opB
     auto transformedA = OperationalTransform::transform(opA, opB);
     BOLT_ASSERT_NOT_NULL(transformedA.get());
-    
+
     // Apply opB first, then transformedA
     opB.apply(document);
     BOLT_ASSERT_EQ("Dear Hello World", document[0]);
@@ -2687,7 +2678,7 @@ BOLT_TEST(E2E_CrossModule, NetworkBufferAndCompression) {
     std::string message = "This is a test message that should be compressed and decompressed correctly.";
     buf.append(message);
     BOLT_ASSERT_EQ(message.size(), buf.size());
-    
+
     // Consume and compress
     auto data = buf.consumeString(message.size());
     bolt::MessageCompressor mc(bolt::CompressionType::NONE);
@@ -2702,18 +2693,18 @@ BOLT_TEST(E2E_CrossModule, DrawKernFullWorkflow) {
     auto program = bolt::drawkern::DISProgramFactory::create_echo_server();
     auto vmId = manager.create_vm(program);
     BOLT_ASSERT(!vmId.empty());
-    
+
     // Start the VM (may halt immediately for simple programs)
     bool started = manager.start_vm(vmId);
     BOLT_ASSERT_TRUE(started);
-    
+
     // Allow VM thread to settle
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
-    
+
     // Check status
     auto status = manager.get_vm_status(vmId);
     BOLT_ASSERT(!status.empty());
-    
+
     // Stop and destroy
     manager.stop_vm(vmId);
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
@@ -2726,10 +2717,10 @@ BOLT_TEST(E2E_CrossModule, GitAndEditorIntegration) {
     // Test git status with editor file tracking
     bolt::git::GitRepository repo(REPO_PATH);
     BOLT_ASSERT_TRUE(repo.isGitRepository());
-    
+
     auto branch = repo.getCurrentBranch();
     BOLT_ASSERT(branch.has_value());
-    
+
     // Get file status and verify it integrates with editor concepts
     auto fileStatus = repo.getFileStatus();
     // File status should be parseable
@@ -2743,42 +2734,40 @@ BOLT_TEST(E2E_CrossModule, FullEditorSessionWorkflow) {
     // 4. Find and replace
     // 5. Code folding
     // 6. Close
-    
+
     auto& tabBar = bolt::TabBar::getInstance();
     auto& syntaxHighlighter = bolt::SyntaxHighlighter::getInstance();
     auto& cursorManager = bolt::CursorManager::getInstance();
     auto& codeFolding = bolt::CodeFolding::getInstance();
-    
+
     // Open file
     std::string path = "/tmp/e2e_full_session.cpp";
     auto tabId = tabBar.addTab(path);
     tabBar.activateTab(tabId);
-    
+
     // Set up syntax highlighting
-    std::vector<std::pair<std::string, std::string>> rules = {
-        {"\\b(int|void|return)\\b", "keyword"},
-        {"\\d+", "number"}
-    };
+    std::vector<std::pair<std::string, std::string>> rules = {{"\\b(int|void|return)\\b", "keyword"},
+                                                              {"\\d+", "number"}};
     syntaxHighlighter.addLanguageRules("cpp", rules);
     auto tokens = syntaxHighlighter.highlight("int x = 42;", "cpp");
     BOLT_ASSERT(tokens.size() > 0);
-    
+
     // Add cursor
     cursorManager.clearCursors();
     cursorManager.addCursor(0, 0);
     auto cursors = cursorManager.getCursors();
     BOLT_ASSERT_EQ(1u, cursors.size());
-    
+
     // Find and replace
     bolt::FindReplace fr;
     auto results = fr.find("int x = 42; int y = 10;", "int");
     BOLT_ASSERT_EQ(2u, results.size());
-    
+
     // Code folding
     codeFolding.addFoldRange(path, 0, 5);
     auto ranges = codeFolding.getFoldingRanges(path);
     BOLT_ASSERT(ranges.size() > 0);
-    
+
     // Clean up
     tabBar.closeTab(tabId);
     cursorManager.clearCursors();
@@ -2788,10 +2777,10 @@ BOLT_TEST(E2E_CrossModule, PerformanceProfilingWorkflow) {
     // Profile a series of operations
     auto& profiler = bolt::PerformanceProfiler::getInstance();
     profiler.enable();
-    
+
     bolt::ProfilerSession session("e2e_full_workflow");
     session.start();
-    
+
     // Profile memory allocation
     auto memMetric = std::make_shared<bolt::PerformanceMetric>("memory_alloc", "Memory");
     bolt::MemoryManager& mm = bolt::MemoryManager::getInstance();
@@ -2800,7 +2789,7 @@ BOLT_TEST(E2E_CrossModule, PerformanceProfilingWorkflow) {
     memMetric->finish();
     session.addMetric(memMetric);
     mm.deallocate(p);
-    
+
     // Profile string operations
     auto strMetric = std::make_shared<bolt::PerformanceMetric>("string_ops", "Utils");
     for (int i = 0; i < 100; i++) {
@@ -2808,7 +2797,7 @@ BOLT_TEST(E2E_CrossModule, PerformanceProfilingWorkflow) {
     }
     strMetric->finish();
     session.addMetric(strMetric);
-    
+
     // Profile data processing
     auto dataMetric = std::make_shared<bolt::PerformanceMetric>("data_proc", "Utils");
     std::vector<int> data(1000);
@@ -2819,7 +2808,7 @@ BOLT_TEST(E2E_CrossModule, PerformanceProfilingWorkflow) {
     DataProcessor<int>::findMin(data);
     dataMetric->finish();
     session.addMetric(dataMetric);
-    
+
     session.stop();
     BOLT_ASSERT_EQ(3u, session.getMetricsCount());
     BOLT_ASSERT(session.getTotalDurationMs() >= 0.0);
@@ -2828,11 +2817,12 @@ BOLT_TEST(E2E_CrossModule, PerformanceProfilingWorkflow) {
 BOLT_TEST(E2E_CrossModule, LspAndEditorIntegration) {
     // Test LSP JSON-RPC with editor operations
     bolt::lsp::JsonRpcHandler handler;
-    
+
     // Register a completion handler
-    handler.registerRequestHandler("textDocument/completion",
-        [](const std::string& method, std::shared_ptr<bolt::lsp::JsonValue> params)
-            -> std::shared_ptr<bolt::lsp::JsonValue> {
+    handler.registerRequestHandler(
+        "textDocument/completion",
+        [](const std::string& method,
+           std::shared_ptr<bolt::lsp::JsonValue> params) -> std::shared_ptr<bolt::lsp::JsonValue> {
             auto result = std::make_shared<bolt::lsp::JsonValue>();
             result->setArray();
             auto item = std::make_shared<bolt::lsp::JsonValue>();
@@ -2841,7 +2831,7 @@ BOLT_TEST(E2E_CrossModule, LspAndEditorIntegration) {
             result->addArrayElement(item);
             return result;
         });
-    
+
     // Create a request
     auto params = std::make_shared<bolt::lsp::JsonValue>();
     params->setObject();
@@ -2855,17 +2845,17 @@ BOLT_TEST(E2E_CrossModule, YaccGrammarAndVMIntegration) {
     bolt::drawkern::YaccGrammarSystem grammar;
     // Validate the template (may have non-fatal parse warnings)
     grammar.validate_description(bolt::drawkern::GlyphTemplates::ECHO_SERVER);
-    
+
     // Create a VM from the factory
     auto program = bolt::drawkern::DISProgramFactory::create_echo_server();
     bolt::drawkern::DISVMManager manager;
     auto vmId = manager.create_vm(program);
     BOLT_ASSERT(!vmId.empty());
-    
+
     // Verify VM was created
     auto vms = manager.list_vms();
     BOLT_ASSERT_EQ(1u, vms.size());
-    
+
     manager.destroy_vm(vmId);
 }
 
@@ -2873,7 +2863,7 @@ BOLT_TEST(E2E_CrossModule, ThemeAndSyntaxHighlightingIntegration) {
     // Set a theme and verify syntax highlighting uses it
     auto& ts = bolt::ThemeSystem::getInstance();
     auto& sh = bolt::SyntaxHighlighter::getInstance();
-    
+
     // Set a dark theme
     bolt::Theme darkTheme;
     darkTheme.colors.background = "#1e1e1e";
@@ -2892,11 +2882,11 @@ BOLT_TEST(E2E_CrossModule, ThemeAndSyntaxHighlightingIntegration) {
     ts.addTheme("e2e_dark", darkTheme);
     ts.setTheme("e2e_dark");
     BOLT_ASSERT_EQ("e2e_dark", ts.getCurrentThemeName());
-    
+
     // Highlight code with the theme active
     auto tokens = sh.highlight("int x = 42;", "cpp");
     BOLT_ASSERT(tokens.size() > 0);
-    
+
     // Verify theme colors are accessible
     auto colors = ts.getCurrentColors();
     BOLT_ASSERT_EQ("#1e1e1e", colors.background);

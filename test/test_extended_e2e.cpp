@@ -15,23 +15,24 @@
  *
  * Part of bolt-cpp-ml deep analysis iteration (2026-03-15).
  */
+#include <cmath>
+#include <filesystem>
+#include <fstream>
+#include <string>
+#include <vector>
+
+#include "bolt/editor/line_numbers.hpp"
 #include "bolt/test_framework.hpp"
 #include "bolt/utils/data_processor.hpp"
-#include "bolt/utils/math_utils.hpp"
 #include "bolt/utils/filesystem_utils.hpp"
-#include "bolt/editor/line_numbers.hpp"
+#include "bolt/utils/math_utils.hpp"
 // command_history.hpp has a ThreadSafe::read() call bug — excluded from tests
 // #include "bolt/editor/command_history.hpp"
-#include "bolt/ai/vector_database.hpp"
 #include "bolt/ai/ai_http_client.hpp"
+#include "bolt/ai/vector_database.hpp"
 #include "bolt/collaboration/collaboration_protocol.hpp"
 #include "bolt/collaboration/operational_transform.hpp"
 #include "bolt/core/editor_store.hpp"
-#include <string>
-#include <vector>
-#include <cmath>
-#include <fstream>
-#include <filesystem>
 
 // <winnt.h> (pulled in by some of the headers above on Windows) defines
 // DELETE as a macro, which breaks OperationType::DELETE.
@@ -59,9 +60,7 @@ BOLT_TEST(DataProcessor, AverageDoubles) {
 
 BOLT_TEST(DataProcessor, AverageEmptyThrows) {
     std::vector<int> empty;
-    BOLT_ASSERT_THROWS(std::runtime_error, {
-        DataProcessor<int>::calculateAverage(empty);
-    });
+    BOLT_ASSERT_THROWS(std::runtime_error, { DataProcessor<int>::calculateAverage(empty); });
 }
 
 BOLT_TEST(DataProcessor, FindMaxIntegers) {
@@ -76,16 +75,12 @@ BOLT_TEST(DataProcessor, FindMinIntegers) {
 
 BOLT_TEST(DataProcessor, FindMaxEmptyThrows) {
     std::vector<int> empty;
-    BOLT_ASSERT_THROWS(std::runtime_error, {
-        DataProcessor<int>::findMax(empty);
-    });
+    BOLT_ASSERT_THROWS(std::runtime_error, { DataProcessor<int>::findMax(empty); });
 }
 
 BOLT_TEST(DataProcessor, FindMinEmptyThrows) {
     std::vector<int> empty;
-    BOLT_ASSERT_THROWS(std::runtime_error, {
-        DataProcessor<int>::findMin(empty);
-    });
+    BOLT_ASSERT_THROWS(std::runtime_error, { DataProcessor<int>::findMin(empty); });
 }
 
 BOLT_TEST(DataProcessor, SortIntegers) {
@@ -179,9 +174,7 @@ BOLT_TEST(FileSystemUtils, AppendToFile) {
 }
 
 BOLT_TEST(FileSystemUtils, ReadNonExistentThrows) {
-    BOLT_ASSERT_THROWS(std::runtime_error, {
-        FileSystemUtils::readFile("/tmp/bolt_nonexistent_file_xyz.txt");
-    });
+    BOLT_ASSERT_THROWS(std::runtime_error, { FileSystemUtils::readFile("/tmp/bolt_nonexistent_file_xyz.txt"); });
 }
 
 BOLT_TEST(FileSystemUtils, WriteEmptyFile) {
@@ -206,7 +199,7 @@ BOLT_TEST(LineNumberManager, Toggle) {
     bool initial = mgr.areLineNumbersVisible();
     mgr.toggleLineNumbers();
     BOLT_ASSERT(mgr.areLineNumbersVisible() != initial);
-    mgr.toggleLineNumbers(); // restore
+    mgr.toggleLineNumbers();  // restore
 }
 
 BOLT_TEST(LineNumberManager, FormatLineNumber) {
@@ -228,7 +221,7 @@ BOLT_TEST(LineNumberManager, GutterWidth) {
     size_t original = mgr.getGutterWidth();
     mgr.setGutterWidth(6);
     BOLT_ASSERT_EQ(size_t(6), mgr.getGutterWidth());
-    mgr.setGutterWidth(original); // restore
+    mgr.setGutterWidth(original);  // restore
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -247,7 +240,7 @@ BOLT_TEST(VectorDatabase, RecordDefaults) {
     BOLT_ASSERT(record.id.empty());
     BOLT_ASSERT(record.embedding.empty());
     BOLT_ASSERT_EQ(size_t(0), record.file_size);
-    BOLT_ASSERT_EQ(long(0), record.last_modified);
+    BOLT_ASSERT_EQ(static_cast<decltype(record.last_modified)>(0), record.last_modified);
 }
 
 BOLT_TEST(VectorDatabase, RecordWithData) {
@@ -328,9 +321,7 @@ BOLT_TEST(EditorDocumentInit, NegativeScrollThrows) {
     bolt::EditorDocument::ScrollPosition scroll;
     scroll.line = -1;
     scroll.character = 0;
-    BOLT_ASSERT_THROWS(bolt::EditorException, {
-        scroll.validate();
-    });
+    BOLT_ASSERT_THROWS(bolt::EditorException, { scroll.validate(); });
 }
 
 BOLT_TEST(EditorDocumentInit, FullDocumentValidation) {

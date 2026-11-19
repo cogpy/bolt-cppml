@@ -1,40 +1,41 @@
-#include "bolt/test_framework.hpp"
+#include <chrono>
+#include <thread>
+
 #include "bolt/network/connection_pool.hpp"
 #include "bolt/network/message_compression.hpp"
 #include "bolt/network/network_buffer.hpp"
 #include "bolt/network/network_metrics.hpp"
-#include <thread>
-#include <chrono>
+#include "bolt/test_framework.hpp"
 
 namespace bolt {
 namespace test {
 
 // Helper assertion macros for numeric comparisons
-#define BOLT_ASSERT_GT(a, b) \
-    do { \
-        if (!((a) > (b))) { \
-            std::stringstream ss; \
-            ss << "Expected " << (a) << " > " << (b); \
+#define BOLT_ASSERT_GT(a, b)                                             \
+    do {                                                                 \
+        if (!((a) > (b))) {                                              \
+            std::stringstream ss;                                        \
+            ss << "Expected " << (a) << " > " << (b);                    \
             throw bolt::test::TestFailure(ss.str(), __FILE__, __LINE__); \
-        } \
+        }                                                                \
     } while (0)
 
-#define BOLT_ASSERT_LT(a, b) \
-    do { \
-        if (!((a) < (b))) { \
-            std::stringstream ss; \
-            ss << "Expected " << (a) << " < " << (b); \
+#define BOLT_ASSERT_LT(a, b)                                             \
+    do {                                                                 \
+        if (!((a) < (b))) {                                              \
+            std::stringstream ss;                                        \
+            ss << "Expected " << (a) << " < " << (b);                    \
             throw bolt::test::TestFailure(ss.str(), __FILE__, __LINE__); \
-        } \
+        }                                                                \
     } while (0)
 
-#define BOLT_ASSERT_GE(a, b) \
-    do { \
-        if (!((a) >= (b))) { \
-            std::stringstream ss; \
-            ss << "Expected " << (a) << " >= " << (b); \
+#define BOLT_ASSERT_GE(a, b)                                             \
+    do {                                                                 \
+        if (!((a) >= (b))) {                                             \
+            std::stringstream ss;                                        \
+            ss << "Expected " << (a) << " >= " << (b);                   \
             throw bolt::test::TestFailure(ss.str(), __FILE__, __LINE__); \
-        } \
+        }                                                                \
     } while (0)
 
 // Reset metrics before tests
@@ -71,7 +72,7 @@ BOLT_TEST(NetworkOptimizations, ConnectionPoolBasicOperations) {
     BOLT_ASSERT_FALSE(conn1->inUse);
 
     auto conn2 = pool.getConnection("127.0.0.1", 8080);
-    BOLT_ASSERT_EQ(conn1.get(), conn2.get()); // Should reuse the same connection
+    BOLT_ASSERT_EQ(conn1.get(), conn2.get());  // Should reuse the same connection
 
     pool.closeConnection(conn2);
 }
@@ -121,7 +122,7 @@ BOLT_TEST(NetworkOptimizations, MessageCompressionBasic) {
 
     auto compressed = compressor.compress(originalMessage);
 #ifdef BOLT_HAVE_ZLIB
-    BOLT_ASSERT_LT(compressed.size(), originalMessage.size()); // Should be smaller
+    BOLT_ASSERT_LT(compressed.size(), originalMessage.size());  // Should be smaller
 #else
     // Without zlib the compressor passes data through unchanged, so only the
     // round trip below can be checked.
@@ -139,11 +140,11 @@ BOLT_TEST(NetworkOptimizations, MessageCompressionThreshold) {
 
     std::string shortMessage = "Short";
     auto compressedShort = compressor.compress(shortMessage);
-    BOLT_ASSERT_EQ(compressedShort.size(), shortMessage.size()); // Should not compress
+    BOLT_ASSERT_EQ(compressedShort.size(), shortMessage.size());  // Should not compress
 
-    std::string longMessage(200, 'A'); // 200 'A' characters
+    std::string longMessage(200, 'A');  // 200 'A' characters
     auto compressedLong = compressor.compress(longMessage);
-    BOLT_ASSERT_LT(compressedLong.size(), longMessage.size()); // Should compress
+    BOLT_ASSERT_LT(compressedLong.size(), longMessage.size());  // Should compress
 }
 
 BOLT_TEST(NetworkOptimizations, MessageCompressionStats) {
@@ -159,7 +160,7 @@ BOLT_TEST(NetworkOptimizations, MessageCompressionStats) {
     std::string message(500, 'X');
     auto compressed = compressor.compress(message);
     auto decompressed = compressor.decompress(compressed);
-    (void)decompressed; // Suppress unused warning
+    (void)decompressed;  // Suppress unused warning
 
     auto finalStats = compressor.getStats();
     BOLT_ASSERT_EQ(static_cast<size_t>(1), finalStats.compressionCalls);
@@ -183,7 +184,7 @@ BOLT_TEST(NetworkOptimizations, NetworkBufferBasicOperations) {
     // Test consume operations
     auto consumed = buffer.consumeString(5);
     BOLT_ASSERT_EQ(std::string("Hello"), consumed);
-    BOLT_ASSERT_EQ(buffer.size(), testData.size()); // Size unchanged until compact
+    BOLT_ASSERT_EQ(buffer.size(), testData.size());  // Size unchanged until compact
 
     // Test compact
     buffer.compact();
@@ -197,7 +198,7 @@ BOLT_TEST(NetworkOptimizations, NetworkBufferBasicOperations) {
 BOLT_TEST(NetworkOptimizations, NetworkBufferGrowth) {
     setupNetworkTest();
 
-    NetworkBuffer buffer(10); // Small initial size
+    NetworkBuffer buffer(10);  // Small initial size
 
     std::string largeData(100, 'A');
     buffer.append(largeData);
@@ -273,7 +274,7 @@ BOLT_TEST(NetworkOptimizations, RingBufferWrapAround) {
     // Write more data that should wrap around
     std::string data2 = "ABCDEF";
     size_t written = ringBuf.write(data2.data(), data2.size());
-    BOLT_ASSERT_GT(written, static_cast<size_t>(0)); // Should write at least some data
+    BOLT_ASSERT_GT(written, static_cast<size_t>(0));  // Should write at least some data
 
     // Verify we can read the wrapped data
     size_t available = ringBuf.readAvailable();
@@ -294,7 +295,7 @@ BOLT_TEST(NetworkOptimizations, NetworkMetricsBasic) {
     metrics.recordConnection(endpoint, true);
     metrics.recordDataSent(endpoint, 1024);
     metrics.recordDataReceived(endpoint, 512);
-    metrics.recordLatency(endpoint, 1500); // 1.5ms
+    metrics.recordLatency(endpoint, 1500);  // 1.5ms
 
     auto stats = metrics.getEndpointStats(endpoint);
     BOLT_ASSERT_NOT_NULL(stats.get());
@@ -417,8 +418,8 @@ BOLT_TEST(NetworkOptimizations, ScatterGatherBuffer) {
     BOLT_ASSERT_EQ(std::string("FirstSecondThird"), result);
 }
 
-} // namespace test
-} // namespace bolt
+}  // namespace test
+}  // namespace bolt
 
 int main() {
     return bolt::test::TestSuite::getInstance().runAllTests();

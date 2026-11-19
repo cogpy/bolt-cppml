@@ -1,7 +1,8 @@
 
-#include "bolt/bolt.hpp"
 #include <iostream>
 #include <string>
+
+#include "bolt/bolt.hpp"
 
 #ifndef BOLT_VERSION
 #define BOLT_VERSION "unknown"
@@ -19,7 +20,7 @@ void printUsage(const char* program) {
               << "Type /help inside the session for commands and /exit to quit.\n";
 }
 
-} // namespace
+}  // namespace
 
 int main(int argc, char* argv[]) {
     for (int i = 1; i < argc; ++i) {
