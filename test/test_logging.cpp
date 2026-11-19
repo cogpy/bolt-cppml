@@ -2,8 +2,10 @@
 #include "bolt/core/logging.hpp"
 #include "bolt/core/error_handling.hpp"
 #include <fstream>
+#include <initializer_list>
 #include <filesystem>
 #include <sstream>
+#include <string>
 #include <thread>
 #include <chrono>
 #include <system_error>
@@ -14,6 +16,46 @@ namespace {
 void removeTestFile(const std::filesystem::path& file) {
     std::error_code ec;
     std::filesystem::remove(file, ec);
+}
+
+// Removes a rotating log file and its numbered backups (file, file.1, ...).
+void removeRotatedFiles(const std::string& baseFile) {
+    for (int i = 0; i <= 5; ++i) {
+        removeTestFile(baseFile + (i > 0 ? "." + std::to_string(i) : ""));
+    }
+}
+
+int countLines(const std::string& path) {
+    std::ifstream file(path);
+    std::string line;
+    int lineCount = 0;
+    while (std::getline(file, line)) {
+        lineCount++;
+    }
+    return lineCount;
+}
+
+bool fileContainsAll(const std::string& path, std::initializer_list<const char*> words) {
+    std::ifstream file(path);
+    std::string content((std::istreambuf_iterator<char>(file)),
+                        std::istreambuf_iterator<char>());
+    for (const char* word : words) {
+        if (content.find(word) == std::string::npos) {
+            return false;
+        }
+    }
+    return true;
+}
+
+// One message at every level, from TRACE to FATAL.
+void logAtEveryLevel(bolt::Logger& logger) {
+    logger.trace("Trace message");
+    logger.debug("Debug message");
+    logger.info("Info message");
+    logger.warn("Warning message");
+    logger.error("Error message");
+    logger.fatal("Fatal message");
+    logger.flush();
 }
 } // namespace
 
@@ -133,12 +175,7 @@ BOLT_TEST(Logging, RotatingFileSink) {
     std::string baseFile = "/tmp/bolt_rotating_test.log";
     
     // Clean up any existing files
-    for (int i = 0; i <= 5; ++i) {
-        std::string file = baseFile + (i > 0 ? "." + std::to_string(i) : "");
-        if (std::filesystem::exists(file)) {
-            removeTestFile(file);
-        }
-    }
+    removeRotatedFiles(baseFile);
     
     {
         // Create sink with small file size to trigger rotation
@@ -162,12 +199,7 @@ BOLT_TEST(Logging, RotatingFileSink) {
     BOLT_ASSERT_TRUE(std::filesystem::exists(baseFile));
     
     // Clean up
-    for (int i = 0; i <= 5; ++i) {
-        std::string file = baseFile + (i > 0 ? "." + std::to_string(i) : "");
-        if (std::filesystem::exists(file)) {
-            removeTestFile(file);
-        }
-    }
+    removeRotatedFiles(baseFile);
 }
 
 // ===== Filter Tests =====
@@ -270,26 +302,10 @@ BOLT_TEST(Logging, LoggerLevelFiltering) {
     
     logger.addSink(std::make_unique<bolt::FileSink>(testFile));
     
-    // These should be filtered out
-    logger.trace("Trace message");
-    logger.debug("Debug message");
-    logger.info("Info message");
+    // TRACE, DEBUG and INFO are below the logger's level and are dropped.
+    logAtEveryLevel(logger);
     
-    // These should be logged
-    logger.warn("Warning message");
-    logger.error("Error message");
-    logger.fatal("Fatal message");
-    
-    logger.flush();
-    
-    // Count lines in file
-    std::ifstream file(testFile);
-    std::string line;
-    int lineCount = 0;
-    while (std::getline(file, line)) {
-        lineCount++;
-    }
-    BOLT_ASSERT_TRUE(lineCount == 3); // Only WARN, ERROR, FATAL
+    BOLT_ASSERT_TRUE(countLines(testFile) == 3); // Only WARN, ERROR, FATAL
     
     // Clean up
     removeTestFile(testFile);
@@ -309,22 +325,9 @@ BOLT_TEST(Logging, LoggerWithFilters) {
     BOLT_ASSERT_TRUE(logger.getFilterCount() == 1);
     
     // Only ERROR and FATAL should pass through filter
-    logger.debug("Debug message");
-    logger.info("Info message");
-    logger.warn("Warning message");
-    logger.error("Error message");
-    logger.fatal("Fatal message");
+    logAtEveryLevel(logger);
     
-    logger.flush();
-    
-    // Count lines in file
-    std::ifstream file(testFile);
-    std::string line;
-    int lineCount = 0;
-    while (std::getline(file, line)) {
-        lineCount++;
-    }
-    BOLT_ASSERT_TRUE(lineCount == 2); // Only ERROR, FATAL
+    BOLT_ASSERT_TRUE(countLines(testFile) == 2); // Only ERROR, FATAL
     
     // Clean up
     removeTestFile(testFile);
@@ -348,15 +351,9 @@ BOLT_TEST(Logging, LoggerCategoryLogging) {
     
     logger.flush();
     
-    // Verify messages contain correct categories
-    std::ifstream file(testFile);
-    std::string content((std::istreambuf_iterator<char>(file)),
-                        std::istreambuf_iterator<char>());
-    
-    BOLT_ASSERT_TRUE(content.find("CORE") != std::string::npos);
-    BOLT_ASSERT_TRUE(content.find("MEMORY") != std::string::npos);
-    BOLT_ASSERT_TRUE(content.find("EDITOR") != std::string::npos);
-    // AI message might be filtered out due to DEBUG level
+    // Verify messages contain correct categories.
+    // The AI message might be filtered out due to DEBUG level.
+    BOLT_ASSERT_TRUE(fileContainsAll(testFile, {"CORE", "MEMORY", "EDITOR"}));
     
     // Clean up
     removeTestFile(testFile);
@@ -550,14 +547,7 @@ BOLT_TEST(Logging, CategoryMacros) {
     bolt::LogManager::getInstance().flush();
     
     // Verify messages contain correct categories
-    std::ifstream file(testFile);
-    std::string content((std::istreambuf_iterator<char>(file)),
-                        std::istreambuf_iterator<char>());
-    
-    BOLT_ASSERT_TRUE(content.find("CORE") != std::string::npos);
-    BOLT_ASSERT_TRUE(content.find("MEMORY") != std::string::npos);
-    BOLT_ASSERT_TRUE(content.find("EDITOR") != std::string::npos);
-    BOLT_ASSERT_TRUE(content.find("AI") != std::string::npos);
+    BOLT_ASSERT_TRUE(fileContainsAll(testFile, {"CORE", "MEMORY", "EDITOR", "AI"}));
     
     // Clean up
     removeTestFile(testFile);

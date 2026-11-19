@@ -80,14 +80,6 @@ jobs:
       if: runner.os == 'Windows'
       uses: microsoft/setup-msbuild@v2
         
-    - name: Setup specific GCC version (Linux)
-      if: matrix.compiler_version && runner.os == 'Linux'
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y gcc-${{ matrix.compiler_version }} g++-${{ matrix.compiler_version }}
-        sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-${{ matrix.compiler_version }} 100
-        sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-${{ matrix.compiler_version }} 100
-        
     - name: Install system dependencies (Linux)
       if: runner.os == 'Linux'
       run: |
@@ -151,6 +143,7 @@ jobs:
     - name: Run tests (Windows)
       if: runner.os == 'Windows'
       working-directory: build
+      shell: pwsh
       run: |
         $env:PATH = "$PWD\bin;$PWD\${{ env.BUILD_TYPE }};$env:PATH"
         ctest --build-config ${{ env.BUILD_TYPE }} --output-on-failure --timeout 120
@@ -236,7 +229,7 @@ jobs:
                  -DCMAKE_CXX_COMPILER=${{ matrix.target.gcc }}-g++ \
                  -DCMAKE_BUILD_TYPE=Release \
                  -DENABLE_LLAMA_CPP=OFF
-        make -j$(nproc) || true
+        make -j"$(nproc)" || true
         
   documentation:
     name: Build documentation

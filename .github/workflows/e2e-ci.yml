@@ -149,7 +149,7 @@ jobs:
             git clone https://github.com/microsoft/vcpkg.git ~/vcpkg
             ~/vcpkg/bootstrap-vcpkg.sh
           fi
-          echo "VCPKG_ROOT=$HOME/vcpkg" >> $GITHUB_ENV
+          echo "VCPKG_ROOT=$HOME/vcpkg" >> "$GITHUB_ENV"
 
       - name: Configure CMake
         run: |
@@ -157,12 +157,12 @@ jobs:
             -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
             -DCMAKE_C_COMPILER=${{ matrix.cc }} \
             -DCMAKE_CXX_COMPILER=${{ matrix.cxx }} \
-            -DCMAKE_TOOLCHAIN_FILE=$HOME/vcpkg/scripts/buildsystems/vcpkg.cmake \
+            "-DCMAKE_TOOLCHAIN_FILE=$HOME/vcpkg/scripts/buildsystems/vcpkg.cmake" \
             -DVCPKG_MANIFEST_MODE=ON \
             -DBOLT_ENABLE_TESTS=ON
 
       - name: Build
-        run: cmake --build build --config ${{ matrix.build_type }} -j $(nproc)
+        run: cmake --build build --config ${{ matrix.build_type }} -j "$(nproc)"
 
       - name: Run unit tests
         working-directory: build
@@ -176,7 +176,7 @@ jobs:
           echo "Checking for shared libraries..."
           find . -name "*.so*" -type f 2>/dev/null | head -20
           
-          ctest --build-config ${{ matrix.build_type }} --output-on-failure --timeout 120 -j $(nproc)
+          ctest --build-config ${{ matrix.build_type }} --output-on-failure --timeout 120 -j "$(nproc)"
 
       - name: Upload test results
         if: always()
@@ -290,7 +290,7 @@ jobs:
       - name: Build (MinGW)
         if: matrix.compiler == 'mingw'
         shell: msys2 {0}
-        run: cmake --build build --config ${{ matrix.build_type }} -j $(nproc)
+        run: cmake --build build --config ${{ matrix.build_type }} -j "$(nproc)"
 
       - name: Run tests (MSVC)
         if: matrix.compiler == 'msvc'
@@ -368,24 +368,24 @@ jobs:
             git clone https://github.com/microsoft/vcpkg.git ~/vcpkg
             ~/vcpkg/bootstrap-vcpkg.sh
           fi
-          echo "VCPKG_ROOT=$HOME/vcpkg" >> $GITHUB_ENV
+          echo "VCPKG_ROOT=$HOME/vcpkg" >> "$GITHUB_ENV"
 
       - name: Configure CMake
         run: |
           cmake -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
-            -DCMAKE_TOOLCHAIN_FILE=$HOME/vcpkg/scripts/buildsystems/vcpkg.cmake \
+            "-DCMAKE_TOOLCHAIN_FILE=$HOME/vcpkg/scripts/buildsystems/vcpkg.cmake" \
             -DVCPKG_TARGET_TRIPLET=${{ matrix.triplet }} \
             -DVCPKG_MANIFEST_MODE=ON \
             -DBOLT_ENABLE_TESTS=ON
 
       - name: Build
-        run: cmake --build build --config ${{ matrix.build_type }} -j $(sysctl -n hw.ncpu)
+        run: cmake --build build --config ${{ matrix.build_type }} -j "$(sysctl -n hw.ncpu)"
 
       - name: Run tests
         working-directory: build
         run: |
-          ctest --build-config ${{ matrix.build_type }} --output-on-failure --timeout 120 -j $(sysctl -n hw.ncpu)
+          ctest --build-config ${{ matrix.build_type }} --output-on-failure --timeout 120 -j "$(sysctl -n hw.ncpu)"
 
       - name: Upload build artifacts
         if: matrix.build_type == 'Release'
@@ -446,16 +446,16 @@ jobs:
             -DBOLT_ENABLE_TESTS=ON
 
       - name: Build
-        run: cmake --build build -j $(nproc)
+        run: cmake --build build -j "$(nproc)"
 
       - name: Run sanitizer tests
         working-directory: build
-        env:
-          ${{ matrix.env_var }}: ""
         run: |
           # Set LD_LIBRARY_PATH to include all directories with shared libraries
           export LD_LIBRARY_PATH="${PWD}/bin:${PWD}:${PWD}/ggml/llama.cpp/src:$LD_LIBRARY_PATH"
-          export ${{ matrix.env_var }}
+          # matrix.env_var is a full NAME=value assignment, e.g.
+          # ASAN_OPTIONS=detect_leaks=1
+          export "${{ matrix.env_var }}"
           ctest --output-on-failure --timeout 300 || true
 
       - name: Upload sanitizer report
@@ -555,7 +555,7 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release \
             -DBOLT_ENABLE_TESTS=ON \
             -DBOLT_ENABLE_E2E_TESTS=ON
-          cmake --build build -j $(nproc)
+          cmake --build build -j "$(nproc)"
 
       - name: Run E2E test suite
         working-directory: build
@@ -626,7 +626,7 @@ jobs:
             -DBOLT_ENABLE_TESTS=ON
 
       - name: Build
-        run: cmake --build build -j $(nproc)
+        run: cmake --build build -j "$(nproc)"
 
       - name: Run tests for coverage
         working-directory: build
@@ -677,16 +677,18 @@ jobs:
     steps:
       - name: Check job results
         run: |
-          echo "## CI Pipeline Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Job | Status |" >> $GITHUB_STEP_SUMMARY
-          echo "|-----|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Code Quality | ${{ needs.code-quality.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Linux Build | ${{ needs.linux-build.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Windows Build | ${{ needs.windows-build.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| macOS Build | ${{ needs.macos-build.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Integration Tests | ${{ needs.integration-tests.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| E2E Tests | ${{ needs.e2e-tests.result }} |" >> $GITHUB_STEP_SUMMARY
+          {
+            echo "## CI Pipeline Summary"
+            echo ""
+            echo "| Job | Status |"
+            echo "|-----|--------|"
+            echo "| Code Quality | ${{ needs.code-quality.result }} |"
+            echo "| Linux Build | ${{ needs.linux-build.result }} |"
+            echo "| Windows Build | ${{ needs.windows-build.result }} |"
+            echo "| macOS Build | ${{ needs.macos-build.result }} |"
+            echo "| Integration Tests | ${{ needs.integration-tests.result }} |"
+            echo "| E2E Tests | ${{ needs.e2e-tests.result }} |"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Fail if any job failed
         if: contains(needs.*.result, 'failure')

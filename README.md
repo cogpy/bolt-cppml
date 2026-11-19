@@ -16,7 +16,7 @@ A modern C++ implementation of the Bolt IDE core components with AI integration 
 ### Editor Features
 - Multi-cursor support
 - Line numbering system
-- Find/Replace functionality 
+- Find/Replace functionality
 - Bracket matching
 - Syntax highlighting
 - File tree navigation
@@ -39,7 +39,7 @@ A modern C++ implementation of the Bolt IDE core components with AI integration 
 
 ## Project Structure
 
-```
+```text
 bolt/
 ├── include/          # Header files
 │   └── bolt/

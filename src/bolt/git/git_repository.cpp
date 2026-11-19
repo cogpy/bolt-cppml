@@ -120,16 +120,25 @@ bool GitRepository::commit(const std::string& message) {
     return success;
 }
 
-bool GitRepository::push(const std::string& remote, const std::string& branch) {
-    std::vector<std::string> args = {"push"};
+namespace {
+// Arguments for "git push" / "git pull": the branch is only meaningful when a
+// remote is given.
+std::vector<std::string> remoteCommandArgs(const std::string& command,
+                                           const std::string& remote,
+                                           const std::string& branch) {
+    std::vector<std::string> args = {command};
     if (!remote.empty()) {
         args.push_back(remote);
         if (!branch.empty()) {
             args.push_back(branch);
         }
     }
-    
-    auto [success, output] = executeGitCommand(args);
+    return args;
+}
+} // namespace
+
+bool GitRepository::push(const std::string& remote, const std::string& branch) {
+    auto [success, output] = executeGitCommand(remoteCommandArgs("push", remote, branch));
     
     if (statusCallback_) {
         statusCallback_(success, success ? "Pushed to remote" : "Failed to push: " + output);
@@ -139,15 +148,7 @@ bool GitRepository::push(const std::string& remote, const std::string& branch) {
 }
 
 bool GitRepository::pull(const std::string& remote, const std::string& branch) {
-    std::vector<std::string> args = {"pull"};
-    if (!remote.empty()) {
-        args.push_back(remote);
-        if (!branch.empty()) {
-            args.push_back(branch);
-        }
-    }
-    
-    auto [success, output] = executeGitCommand(args);
+    auto [success, output] = executeGitCommand(remoteCommandArgs("pull", remote, branch));
     
     if (statusCallback_) {
         statusCallback_(success, success ? "Pulled from remote" : "Failed to pull: " + output);
