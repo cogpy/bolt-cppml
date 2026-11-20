@@ -204,6 +204,8 @@ class TabBar {
     // Helper to find tab index by ID
     std::optional<size_t> findTabIndexById(size_t tabId) const;
     std::optional<size_t> findTabIndexByPath(const std::string& filePath) const;
+    // Shared implementation of activateNextTab (forward) / activatePreviousTab (backward), wrapping around.
+    void activateAdjacentTab(bool forward);
 };
 
 }  // namespace bolt

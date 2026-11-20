@@ -483,6 +483,15 @@ class LspEditorBridge {
     void handleDiagnostics(const std::string& uri, std::shared_ptr<JsonValue> diagnostics);
     EditorCompletionItem convertCompletionItem(std::shared_ptr<JsonValue> item);
     EditorDiagnostic convertDiagnostic(std::shared_ptr<JsonValue> diagnostic);
+
+    using OpenDocumentIterator = std::map<std::string, DocumentState>::iterator;
+    // Takes documentsMutex_, looks up filePath in openDocuments_, stores its language id in languageId and then
+    // calls visit (if any) on the entry with the lock still held. Returns false if the document is not open.
+    bool lookupOpenDocument(const std::string& filePath, std::string& languageId,
+                            const std::function<void(OpenDocumentIterator)>& visit = nullptr);
+    // Returns the connected client for an open document, or nullptr if it is not open or has no connected client.
+    // Takes and releases documentsMutex_ before the client lookup.
+    LspClient* getConnectedClientForOpenDocument(const std::string& filePath);
 };
 
 }  // namespace lsp

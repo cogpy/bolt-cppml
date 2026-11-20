@@ -1,35 +1,21 @@
 
 #include "bolt/editor/syntax_highlighter.hpp"
+
 #include <algorithm>
+#include <map>
+#include <regex>
 #include <sstream>
+#include <string>
 
 namespace bolt {
 
-SyntaxHighlighter& SyntaxHighlighter::getInstance() {
-    static SyntaxHighlighter instance;
-    return instance;
-}
+namespace {
 
-void SyntaxHighlighter::addLanguageRules(const std::string& language, 
-                     const std::vector<std::pair<std::string, std::string>>& patterns) {
-    std::vector<std::pair<std::regex, std::string>> compiledRules;
-    for (const auto& pattern : patterns) {
-        compiledRules.emplace_back(std::regex(pattern.first), pattern.second);
-    }
-    
-    rules_.write([&](auto& rulesMap) {
-        rulesMap[language] = compiledRules;
-    });
-}
-
-std::vector<Token> SyntaxHighlighter::highlight(const std::string& code, const std::string& language) {
+// Splits code into tokens using the first rule that matches at each position; unmatched characters become
+// single-character "text" tokens.
+std::vector<Token> tokenizeWithRules(const std::string& code,
+                                     const std::vector<std::pair<std::regex, std::string>>& rules) {
     std::vector<Token> tokens;
-    
-    auto rules = rules_.read([&](const auto& rulesMap) {
-        auto it = rulesMap.find(language);
-        return it != rulesMap.end() ? it->second : std::vector<std::pair<std::regex, std::string>>();
-    });
-
     size_t pos = 0;
     std::string remaining = code;
 
@@ -65,22 +51,45 @@ std::vector<Token> SyntaxHighlighter::highlight(const std::string& code, const s
     return tokens;
 }
 
-} // namespace bolt
-#include "bolt/editor/syntax_highlighter.hpp"
-#include <map>
-#include <regex>
-#include <string>
+}  // namespace
+
+SyntaxHighlighter& SyntaxHighlighter::getInstance() {
+    static SyntaxHighlighter instance;
+    return instance;
+}
+
+void SyntaxHighlighter::addLanguageRules(const std::string& language,
+                                         const std::vector<std::pair<std::string, std::string>>& patterns) {
+    std::vector<std::pair<std::regex, std::string>> compiledRules;
+    for (const auto& pattern : patterns) {
+        compiledRules.emplace_back(std::regex(pattern.first), pattern.second);
+    }
+
+    rules_.write([&](auto& rulesMap) { rulesMap[language] = compiledRules; });
+}
+
+std::vector<Token> SyntaxHighlighter::highlight(const std::string& code, const std::string& language) {
+    auto rules = rules_.read([&](const auto& rulesMap) {
+        auto it = rulesMap.find(language);
+        return it != rulesMap.end() ? it->second : std::vector<std::pair<std::regex, std::string>>();
+    });
+
+    return tokenizeWithRules(code, rules);
+}
+
+}  // namespace bolt
 
 namespace bolt {
 
 class SyntaxHighlighter {
-private:
+ private:
     std::map<std::string, std::vector<std::pair<std::regex, std::string>>> languageRules;
     bool enabled = true;
 
-public:
+ public:
     void addLanguageRule(const std::string& language, const std::string& pattern, const std::string& tokenType) {
-        if (!enabled) return;
+        if (!enabled)
+            return;
         languageRules[language].emplace_back(std::regex(pattern), tokenType);
     }
 
@@ -91,58 +100,23 @@ public:
             return tokens;
         }
 
-        const auto& rules = languageRules[language];
-        size_t pos = 0;
-        std::string remaining = code;
-
-        while (!remaining.empty()) {
-            bool matched = false;
-            size_t bestMatch = remaining.length();
-            std::string bestType;
-            std::string matchedText;
-
-            for (const auto& rule : rules) {
-                std::smatch match;
-                if (std::regex_search(remaining, match, rule.first, std::regex_constants::match_continuous)) {
-                    if (match.position(0) < bestMatch) {
-                        bestMatch = match.position(0);
-                        bestType = rule.second;
-                        matchedText = match.str(0);
-                        matched = true;
-                    }
-                }
-            }
-
-            if (matched) {
-                tokens.push_back({matchedText, bestType, pos});
-                pos += matchedText.length();
-                remaining = remaining.substr(matchedText.length());
-            } else {
-                tokens.push_back({remaining.substr(0, 1), "text", pos});
-                pos += 1;
-                remaining = remaining.substr(1);
-            }
-        }
-
-        return tokens;
+        return tokenizeWithRules(code, languageRules[language]);
     }
 
-    void setEnabled(bool enable) {
-        enabled = enable;
-    }
+    void setEnabled(bool enable) { enabled = enable; }
 
-    bool isEnabled() const {
-        return enabled;
-    }
+    bool isEnabled() const { return enabled; }
 
-    void clearRules() {
-        languageRules.clear();
-    }
+    void clearRules() { languageRules.clear(); }
 
     void loadDefaultRules() {
         // C++ syntax rules
-        addLanguageRule("cpp", R"(\b(int|char|bool|float|double|void|auto|class|struct|enum|namespace|template|typename|const|static|virtual|override|public|private|protected)\b)", "keyword");
-        addLanguageRule("cpp", R"(\b(if|else|while|for|do|switch|case|break|continue|return|try|catch|throw)\b)", "control");
+        addLanguageRule(
+            "cpp",
+            R"(\b(int|char|bool|float|double|void|auto|class|struct|enum|namespace|template|typename|const|static|virtual|override|public|private|protected)\b)",
+            "keyword");
+        addLanguageRule("cpp", R"(\b(if|else|while|for|do|switch|case|break|continue|return|try|catch|throw)\b)",
+                        "control");
         addLanguageRule("cpp", R"(\b(new|delete|nullptr|true|false)\b)", "literal");
         addLanguageRule("cpp", R"(//[^\n]*)", "comment");
         addLanguageRule("cpp", R"(/\*(?:[^*]|\*[^/])*\*/)", "comment");
@@ -154,4 +128,4 @@ public:
     }
 };
 
-} // namespace bolt
+}  // namespace bolt
