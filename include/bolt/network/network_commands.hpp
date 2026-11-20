@@ -5,9 +5,13 @@
 #include <string>
 
 #ifdef _WIN32
-#include <windows.h>
+// winsock2.h must come before windows.h, which otherwise pulls in the
+// conflicting Winsock 1 declarations. Keep this order.
+// clang-format off
 #include <winsock2.h>
+#include <windows.h>
 #include <ws2tcpip.h>
+// clang-format on
 #define close closesocket
 #else
 #include <arpa/inet.h>
