@@ -1,14 +1,39 @@
 #include "bolt/lsp/lsp_client.hpp"
+
+#include <json/json.h>
+
 #include <iostream>
 #include <sstream>
-#include <json/json.h>
 
 namespace bolt {
 namespace lsp {
 
-LSPClient::LSPClient(const std::string& server_command)
-    : server_command_(server_command), initialized_(false), next_request_id_(1) {
+namespace {
+
+// Builds the TextDocumentPositionParams object shared by the position-based requests.
+Json::Value makePositionParams(const std::string& uri, int line, int character) {
+    Json::Value params;
+    params["textDocument"]["uri"] = uri;
+    params["position"]["line"] = line;
+    params["position"]["character"] = character;
+    return params;
 }
+
+// Parses an LSP Location ({uri, range}) from its JSON form.
+Location parseLocation(const Json::Value& locationJson) {
+    Location location;
+    location.uri = locationJson["uri"].asString();
+    location.range.start.line = locationJson["range"]["start"]["line"].asInt();
+    location.range.start.character = locationJson["range"]["start"]["character"].asInt();
+    location.range.end.line = locationJson["range"]["end"]["line"].asInt();
+    location.range.end.character = locationJson["range"]["end"]["character"].asInt();
+    return location;
+}
+
+}  // namespace
+
+LSPClient::LSPClient(const std::string& server_command)
+    : server_command_(server_command), initialized_(false), next_request_id_(1) {}
 
 LSPClient::~LSPClient() {
     shutdown();
@@ -18,28 +43,28 @@ bool LSPClient::initialize(const std::string& root_uri) {
     if (initialized_) {
         return true;
     }
-    
+
     // Start LSP server process
     if (!startServer()) {
         std::cerr << "Failed to start LSP server" << std::endl;
         return false;
     }
-    
+
     // Send initialize request
     Json::Value params;
     params["processId"] = static_cast<int>(getpid());
     params["rootUri"] = root_uri;
     params["capabilities"] = buildClientCapabilities();
-    
+
     auto response = sendRequest("initialize", params);
     if (response.isNull()) {
         std::cerr << "Initialize request failed" << std::endl;
         return false;
     }
-    
+
     // Send initialized notification
     sendNotification("initialized", Json::Value());
-    
+
     initialized_ = true;
     return true;
 }
@@ -48,16 +73,16 @@ void LSPClient::shutdown() {
     if (!initialized_) {
         return;
     }
-    
+
     // Send shutdown request
     sendRequest("shutdown", Json::Value());
-    
+
     // Send exit notification
     sendNotification("exit", Json::Value());
-    
+
     // Stop server process
     stopServer();
-    
+
     initialized_ = false;
 }
 
@@ -67,15 +92,16 @@ void LSPClient::didOpen(const std::string& uri, const std::string& language_id, 
     params["textDocument"]["languageId"] = language_id;
     params["textDocument"]["version"] = 1;
     params["textDocument"]["text"] = text;
-    
+
     sendNotification("textDocument/didOpen", params);
 }
 
-void LSPClient::didChange(const std::string& uri, int version, const std::vector<TextDocumentContentChangeEvent>& changes) {
+void LSPClient::didChange(const std::string& uri, int version,
+                          const std::vector<TextDocumentContentChangeEvent>& changes) {
     Json::Value params;
     params["textDocument"]["uri"] = uri;
     params["textDocument"]["version"] = version;
-    
+
     Json::Value changesArray(Json::arrayValue);
     for (const auto& change : changes) {
         Json::Value changeJson;
@@ -90,30 +116,27 @@ void LSPClient::didChange(const std::string& uri, int version, const std::vector
         changesArray.append(changeJson);
     }
     params["contentChanges"] = changesArray;
-    
+
     sendNotification("textDocument/didChange", params);
 }
 
 void LSPClient::didClose(const std::string& uri) {
     Json::Value params;
     params["textDocument"]["uri"] = uri;
-    
+
     sendNotification("textDocument/didClose", params);
 }
 
 std::vector<CompletionItem> LSPClient::completion(const std::string& uri, int line, int character) {
-    Json::Value params;
-    params["textDocument"]["uri"] = uri;
-    params["position"]["line"] = line;
-    params["position"]["character"] = character;
-    
+    Json::Value params = makePositionParams(uri, line, character);
+
     auto response = sendRequest("textDocument/completion", params);
-    
+
     std::vector<CompletionItem> items;
     if (response.isNull()) {
         return items;
     }
-    
+
     // Parse completion items
     Json::Value itemsArray = response.isArray() ? response : response["items"];
     for (const auto& item : itemsArray) {
@@ -125,76 +148,55 @@ std::vector<CompletionItem> LSPClient::completion(const std::string& uri, int li
         completion.insertText = item.get("insertText", completion.label).asString();
         items.push_back(completion);
     }
-    
+
     return items;
 }
 
 std::optional<Location> LSPClient::gotoDefinition(const std::string& uri, int line, int character) {
-    Json::Value params;
-    params["textDocument"]["uri"] = uri;
-    params["position"]["line"] = line;
-    params["position"]["character"] = character;
-    
+    Json::Value params = makePositionParams(uri, line, character);
+
     auto response = sendRequest("textDocument/definition", params);
-    
+
     if (response.isNull()) {
         return std::nullopt;
     }
-    
+
     // Handle both single location and array of locations
     Json::Value locationJson = response.isArray() ? response[0] : response;
-    
-    Location location;
-    location.uri = locationJson["uri"].asString();
-    location.range.start.line = locationJson["range"]["start"]["line"].asInt();
-    location.range.start.character = locationJson["range"]["start"]["character"].asInt();
-    location.range.end.line = locationJson["range"]["end"]["line"].asInt();
-    location.range.end.character = locationJson["range"]["end"]["character"].asInt();
-    
-    return location;
+
+    return parseLocation(locationJson);
 }
 
-std::vector<Location> LSPClient::findReferences(const std::string& uri, int line, int character, bool include_declaration) {
-    Json::Value params;
-    params["textDocument"]["uri"] = uri;
-    params["position"]["line"] = line;
-    params["position"]["character"] = character;
+std::vector<Location> LSPClient::findReferences(const std::string& uri, int line, int character,
+                                                bool include_declaration) {
+    Json::Value params = makePositionParams(uri, line, character);
     params["context"]["includeDeclaration"] = include_declaration;
-    
+
     auto response = sendRequest("textDocument/references", params);
-    
+
     std::vector<Location> locations;
     if (response.isNull() || !response.isArray()) {
         return locations;
     }
-    
+
     for (const auto& locationJson : response) {
-        Location location;
-        location.uri = locationJson["uri"].asString();
-        location.range.start.line = locationJson["range"]["start"]["line"].asInt();
-        location.range.start.character = locationJson["range"]["start"]["character"].asInt();
-        location.range.end.line = locationJson["range"]["end"]["line"].asInt();
-        location.range.end.character = locationJson["range"]["end"]["character"].asInt();
-        locations.push_back(location);
+        locations.push_back(parseLocation(locationJson));
     }
-    
+
     return locations;
 }
 
 std::optional<Hover> LSPClient::hover(const std::string& uri, int line, int character) {
-    Json::Value params;
-    params["textDocument"]["uri"] = uri;
-    params["position"]["line"] = line;
-    params["position"]["character"] = character;
-    
+    Json::Value params = makePositionParams(uri, line, character);
+
     auto response = sendRequest("textDocument/hover", params);
-    
+
     if (response.isNull()) {
         return std::nullopt;
     }
-    
+
     Hover hover;
-    
+
     // Parse contents
     Json::Value contents = response["contents"];
     if (contents.isString()) {
@@ -204,7 +206,7 @@ std::optional<Hover> LSPClient::hover(const std::string& uri, int line, int char
     } else if (contents.isArray() && contents.size() > 0) {
         hover.contents = contents[0].asString();
     }
-    
+
     // Parse range if present
     if (response.isMember("range")) {
         Range range;
@@ -214,7 +216,7 @@ std::optional<Hover> LSPClient::hover(const std::string& uri, int line, int char
         range.end.character = response["range"]["end"]["character"].asInt();
         hover.range = range;
     }
-    
+
     return hover;
 }
 
@@ -229,19 +231,19 @@ std::vector<Diagnostic> LSPClient::getDiagnostics(const std::string& uri) {
 
 Json::Value LSPClient::sendRequest(const std::string& method, const Json::Value& params) {
     int request_id = next_request_id_++;
-    
+
     Json::Value request;
     request["jsonrpc"] = "2.0";
     request["id"] = request_id;
     request["method"] = method;
     request["params"] = params;
-    
+
     std::string message = jsonToString(request);
-    
+
     if (!sendMessage(message)) {
         return Json::Value();
     }
-    
+
     // Wait for response
     return waitForResponse(request_id);
 }
@@ -251,7 +253,7 @@ void LSPClient::sendNotification(const std::string& method, const Json::Value& p
     notification["jsonrpc"] = "2.0";
     notification["method"] = method;
     notification["params"] = params;
-    
+
     std::string message = jsonToString(notification);
     sendMessage(message);
 }
@@ -261,12 +263,12 @@ bool LSPClient::startServer() {
     // 1. Fork and exec the LSP server process
     // 2. Set up pipes for stdin/stdout communication
     // 3. Start reader thread for server responses
-    
+
     std::cout << "Starting LSP server: " << server_command_ << std::endl;
-    
+
     // Placeholder: would use fork/exec or platform-specific process creation
     // For now, just indicate success
-    
+
     return true;
 }
 
@@ -275,7 +277,7 @@ void LSPClient::stopServer() {
     // 1. Close pipes
     // 2. Wait for server process to exit
     // 3. Kill server if it doesn't exit gracefully
-    
+
     std::cout << "Stopping LSP server" << std::endl;
 }
 
@@ -283,11 +285,11 @@ bool LSPClient::sendMessage(const std::string& message) {
     // Format: Content-Length: <length>\r\n\r\n<content>
     std::string header = "Content-Length: " + std::to_string(message.length()) + "\r\n\r\n";
     std::string full_message = header + message;
-    
+
     // In a real implementation, write to server's stdin
     // For now, just log
     std::cout << "Sending LSP message: " << method << std::endl;
-    
+
     return true;
 }
 
@@ -296,14 +298,14 @@ Json::Value LSPClient::waitForResponse(int request_id) {
     // 1. Wait for response with matching ID
     // 2. Handle timeout
     // 3. Return parsed response
-    
+
     // Placeholder: return empty response
     return Json::Value();
 }
 
 void LSPClient::handleNotification(const Json::Value& notification) {
     std::string method = notification["method"].asString();
-    
+
     if (method == "textDocument/publishDiagnostics") {
         handleDiagnostics(notification["params"]);
     }
@@ -312,7 +314,7 @@ void LSPClient::handleNotification(const Json::Value& notification) {
 
 void LSPClient::handleDiagnostics(const Json::Value& params) {
     std::string uri = params["uri"].asString();
-    
+
     std::vector<Diagnostic> diagnostics;
     for (const auto& diagJson : params["diagnostics"]) {
         Diagnostic diag;
@@ -325,14 +327,14 @@ void LSPClient::handleDiagnostics(const Json::Value& params) {
         diag.source = diagJson.get("source", "").asString();
         diagnostics.push_back(diag);
     }
-    
+
     std::lock_guard<std::mutex> lock(diagnostics_mutex_);
     diagnostics_[uri] = diagnostics;
 }
 
 Json::Value LSPClient::buildClientCapabilities() {
     Json::Value capabilities;
-    
+
     // Text document capabilities
     capabilities["textDocument"]["completion"]["completionItem"]["snippetSupport"] = true;
     capabilities["textDocument"]["completion"]["completionItem"]["commitCharactersSupport"] = true;
@@ -342,7 +344,7 @@ Json::Value LSPClient::buildClientCapabilities() {
     capabilities["textDocument"]["synchronization"]["dynamicRegistration"] = true;
     capabilities["textDocument"]["synchronization"]["willSave"] = true;
     capabilities["textDocument"]["synchronization"]["didSave"] = true;
-    
+
     return capabilities;
 }
 
@@ -352,5 +354,5 @@ std::string LSPClient::jsonToString(const Json::Value& json) {
     return Json::writeString(builder, json);
 }
 
-} // namespace lsp
-} // namespace bolt
+}  // namespace lsp
+}  // namespace bolt

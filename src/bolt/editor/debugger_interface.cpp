@@ -1,21 +1,31 @@
 #include "bolt/editor/debugger_interface.hpp"
-#include "bolt/editor/integrated_editor.hpp"
-#include "bolt/drawkern/dis_vm.hpp"
-#include <iostream>
-#include <sstream>
+
 #include <algorithm>
+#include <iostream>
 #include <set>
+#include <sstream>
+
+#include "bolt/drawkern/dis_vm.hpp"
+#include "bolt/editor/integrated_editor.hpp"
 
 namespace bolt {
 
-DebuggerInterface::DebuggerInterface() 
-    : vm_(std::make_unique<drawkern::DISVM>())
-    , state_(DebugState::STOPPED)
-    , event_callback_(nullptr)
-    , editor_(nullptr)
-    , debug_output_enabled_(true)
-    , current_debug_line_(0) {
-    
+namespace {
+
+// Returns an iterator to the breakpoint registered at `pc`, or end() if there is none.
+std::vector<BreakpointInfo>::iterator find_breakpoint_by_pc(std::vector<BreakpointInfo>& breakpoints, size_t pc) {
+    return std::find_if(breakpoints.begin(), breakpoints.end(), [pc](const BreakpointInfo& bp) { return bp.pc == pc; });
+}
+
+}  // namespace
+
+DebuggerInterface::DebuggerInterface()
+    : vm_(std::make_unique<drawkern::DISVM>()),
+      state_(DebugState::STOPPED),
+      event_callback_(nullptr),
+      editor_(nullptr),
+      debug_output_enabled_(true),
+      current_debug_line_(0) {
     setup_vm_handlers();
 }
 
@@ -27,27 +37,27 @@ bool DebuggerInterface::start_debug_session(const drawkern::DISProgram& program)
     if (state_ != DebugState::STOPPED) {
         stop_debug_session();
     }
-    
+
     if (!vm_->load_program(program)) {
         transition_state(DebugState::ERROR, "Failed to load program");
         return false;
     }
-    
+
     // Restore breakpoints
     for (const auto& bp : breakpoints_) {
         if (bp.enabled) {
             vm_->set_breakpoint(bp.pc);
         }
     }
-    
+
     transition_state(DebugState::PAUSED, "Debug session started");
     fire_event(DebugEvent::SESSION_STARTED, "Debugging session initialized");
-    
+
     highlight_current_line();
     refresh_breakpoint_markers();
-    
+
     log_debug_message("Debug session started with " + std::to_string(program.instructions.size()) + " instructions");
-    
+
     return true;
 }
 
@@ -55,27 +65,27 @@ bool DebuggerInterface::start_debug_session_from_source(const std::string& limbo
     if (state_ != DebugState::STOPPED) {
         stop_debug_session();
     }
-    
+
     if (!vm_->load_limbo_source(limbo_source)) {
         transition_state(DebugState::ERROR, "Failed to compile Limbo source");
         return false;
     }
-    
+
     // Restore breakpoints
     for (const auto& bp : breakpoints_) {
         if (bp.enabled) {
             vm_->set_breakpoint(bp.pc);
         }
     }
-    
+
     transition_state(DebugState::PAUSED, "Debug session started from source");
     fire_event(DebugEvent::SESSION_STARTED, "Debugging session initialized from Limbo source");
-    
+
     highlight_current_line();
     refresh_breakpoint_markers();
-    
+
     log_debug_message("Debug session started from Limbo source");
-    
+
     return true;
 }
 
@@ -83,13 +93,13 @@ void DebuggerInterface::stop_debug_session() {
     if (state_ == DebugState::STOPPED) {
         return;
     }
-    
+
     vm_->halt();
     clear_current_line_highlight();
-    
+
     transition_state(DebugState::STOPPED, "Debug session stopped");
     fire_event(DebugEvent::SESSION_STOPPED, "Debugging session ended");
-    
+
     log_debug_message("Debug session stopped");
 }
 
@@ -105,11 +115,11 @@ void DebuggerInterface::continue_execution() {
     if (state_ != DebugState::PAUSED) {
         return;
     }
-    
+
     transition_state(DebugState::RUNNING, "Continuing execution");
-    
+
     vm_->continue_execution();
-    
+
     if (vm_->is_at_breakpoint()) {
         transition_state(DebugState::PAUSED, "Breakpoint hit");
         fire_event(DebugEvent::BREAKPOINT_HIT, "Execution paused at breakpoint");
@@ -119,31 +129,36 @@ void DebuggerInterface::continue_execution() {
         fire_event(DebugEvent::EXECUTION_FINISHED, "Program execution completed");
         clear_current_line_highlight();
     }
-    
+
     update_watch_expressions();
 }
 
-void DebuggerInterface::step_over() {
-    if (state_ != DebugState::PAUSED) {
-        return;
-    }
-    
-    size_t old_pc = vm_->get_pc();
-    vm_->step_over();
-    
+void DebuggerInterface::report_step_outcome(const std::string& breakpoint_message, const std::string& paused_message,
+                                            const std::string& completed_message) {
     if (vm_->is_at_breakpoint()) {
-        transition_state(DebugState::PAUSED, "Breakpoint hit during step");
+        transition_state(DebugState::PAUSED, breakpoint_message);
         fire_event(DebugEvent::BREAKPOINT_HIT, "Execution paused at breakpoint");
     } else if (!vm_->is_running()) {
         transition_state(DebugState::FINISHED, "Execution completed");
         fire_event(DebugEvent::EXECUTION_FINISHED, "Program execution completed");
         clear_current_line_highlight();
     } else {
-        transition_state(DebugState::PAUSED, "Step completed");
-        fire_event(DebugEvent::STEP_COMPLETED, "Step over completed");
+        transition_state(DebugState::PAUSED, paused_message);
+        fire_event(DebugEvent::STEP_COMPLETED, completed_message);
         highlight_current_line();
     }
-    
+}
+
+void DebuggerInterface::step_over() {
+    if (state_ != DebugState::PAUSED) {
+        return;
+    }
+
+    size_t old_pc = vm_->get_pc();
+    vm_->step_over();
+
+    report_step_outcome("Breakpoint hit during step", "Step completed", "Step over completed");
+
     update_watch_expressions();
     log_debug_message("Step over: PC " + std::to_string(old_pc) + " -> " + std::to_string(vm_->get_pc()));
 }
@@ -152,23 +167,12 @@ void DebuggerInterface::step_into() {
     if (state_ != DebugState::PAUSED) {
         return;
     }
-    
+
     size_t old_pc = vm_->get_pc();
     vm_->step_into();
-    
-    if (vm_->is_at_breakpoint()) {
-        transition_state(DebugState::PAUSED, "Breakpoint hit during step");
-        fire_event(DebugEvent::BREAKPOINT_HIT, "Execution paused at breakpoint");
-    } else if (!vm_->is_running()) {
-        transition_state(DebugState::FINISHED, "Execution completed");
-        fire_event(DebugEvent::EXECUTION_FINISHED, "Program execution completed");
-        clear_current_line_highlight();
-    } else {
-        transition_state(DebugState::PAUSED, "Step completed");
-        fire_event(DebugEvent::STEP_COMPLETED, "Step into completed");
-        highlight_current_line();
-    }
-    
+
+    report_step_outcome("Breakpoint hit during step", "Step completed", "Step into completed");
+
     update_watch_expressions();
     log_debug_message("Step into: PC " + std::to_string(old_pc) + " -> " + std::to_string(vm_->get_pc()));
 }
@@ -177,28 +181,17 @@ void DebuggerInterface::step_out() {
     if (state_ != DebugState::PAUSED) {
         return;
     }
-    
+
     size_t old_pc = vm_->get_pc();
     size_t old_depth = vm_->get_call_stack_depth();
-    
+
     vm_->step_out();
-    
-    if (vm_->is_at_breakpoint()) {
-        transition_state(DebugState::PAUSED, "Breakpoint hit during step out");
-        fire_event(DebugEvent::BREAKPOINT_HIT, "Execution paused at breakpoint");
-    } else if (!vm_->is_running()) {
-        transition_state(DebugState::FINISHED, "Execution completed");
-        fire_event(DebugEvent::EXECUTION_FINISHED, "Program execution completed");
-        clear_current_line_highlight();
-    } else {
-        transition_state(DebugState::PAUSED, "Step out completed");
-        fire_event(DebugEvent::STEP_COMPLETED, "Step out completed");
-        highlight_current_line();
-    }
-    
+
+    report_step_outcome("Breakpoint hit during step out", "Step out completed", "Step out completed");
+
     update_watch_expressions();
-    log_debug_message("Step out: PC " + std::to_string(old_pc) + " -> " + std::to_string(vm_->get_pc()) + 
-                     ", depth " + std::to_string(old_depth) + " -> " + std::to_string(vm_->get_call_stack_depth()));
+    log_debug_message("Step out: PC " + std::to_string(old_pc) + " -> " + std::to_string(vm_->get_pc()) + ", depth " +
+                      std::to_string(old_depth) + " -> " + std::to_string(vm_->get_call_stack_depth()));
 }
 
 void DebuggerInterface::pause_execution() {
@@ -214,11 +207,10 @@ bool DebuggerInterface::set_breakpoint(size_t pc) {
     if (!is_valid_pc(pc)) {
         return false;
     }
-    
+
     // Check if breakpoint already exists
-    auto it = std::find_if(breakpoints_.begin(), breakpoints_.end(),
-                          [pc](const BreakpointInfo& bp) { return bp.pc == pc; });
-    
+    auto it = find_breakpoint_by_pc(breakpoints_, pc);
+
     if (it != breakpoints_.end()) {
         // Re-enable existing breakpoint
         it->enabled = true;
@@ -228,19 +220,19 @@ bool DebuggerInterface::set_breakpoint(size_t pc) {
         log_debug_message("Re-enabled breakpoint at PC " + std::to_string(pc));
         return true;
     }
-    
+
     // Create new breakpoint
     auto [file_path, line] = find_line_for_pc(pc);
     breakpoints_.emplace_back(pc, file_path, line);
-    
+
     if (is_debugging()) {
         vm_->set_breakpoint(pc);
     }
-    
+
     refresh_breakpoint_markers();
-    log_debug_message("Set breakpoint at PC " + std::to_string(pc) + 
-                     (file_path.empty() ? "" : " (" + file_path + ":" + std::to_string(line) + ")"));
-    
+    log_debug_message("Set breakpoint at PC " + std::to_string(pc) +
+                      (file_path.empty() ? "" : " (" + file_path + ":" + std::to_string(line) + ")"));
+
     return true;
 }
 
@@ -249,25 +241,24 @@ bool DebuggerInterface::set_breakpoint_at_line(const std::string& file_path, siz
     if (pc == SIZE_MAX) {
         return false;
     }
-    
+
     return set_breakpoint(pc);
 }
 
 bool DebuggerInterface::remove_breakpoint(size_t pc) {
-    auto it = std::find_if(breakpoints_.begin(), breakpoints_.end(),
-                          [pc](const BreakpointInfo& bp) { return bp.pc == pc; });
-    
+    auto it = find_breakpoint_by_pc(breakpoints_, pc);
+
     if (it == breakpoints_.end()) {
         return false;
     }
-    
+
     if (is_debugging()) {
         vm_->remove_breakpoint(pc);
     }
-    
+
     breakpoints_.erase(it);
     refresh_breakpoint_markers();
-    
+
     log_debug_message("Removed breakpoint at PC " + std::to_string(pc));
     return true;
 }
@@ -277,7 +268,7 @@ bool DebuggerInterface::remove_breakpoint_at_line(const std::string& file_path, 
     if (pc == SIZE_MAX) {
         return false;
     }
-    
+
     return remove_breakpoint(pc);
 }
 
@@ -285,10 +276,10 @@ void DebuggerInterface::clear_all_breakpoints() {
     if (is_debugging()) {
         vm_->clear_all_breakpoints();
     }
-    
+
     breakpoints_.clear();
     refresh_breakpoint_markers();
-    
+
     log_debug_message("Cleared all breakpoints");
 }
 
@@ -301,15 +292,14 @@ bool DebuggerInterface::toggle_breakpoint(size_t pc) {
 }
 
 bool DebuggerInterface::enable_breakpoint(size_t pc, bool enabled) {
-    auto it = std::find_if(breakpoints_.begin(), breakpoints_.end(),
-                          [pc](const BreakpointInfo& bp) { return bp.pc == pc; });
-    
+    auto it = find_breakpoint_by_pc(breakpoints_, pc);
+
     if (it == breakpoints_.end()) {
         return false;
     }
-    
+
     it->enabled = enabled;
-    
+
     if (is_debugging()) {
         if (enabled) {
             vm_->set_breakpoint(pc);
@@ -317,29 +307,28 @@ bool DebuggerInterface::enable_breakpoint(size_t pc, bool enabled) {
             vm_->remove_breakpoint(pc);
         }
     }
-    
+
     refresh_breakpoint_markers();
     log_debug_message((enabled ? "Enabled" : "Disabled") + std::string(" breakpoint at PC ") + std::to_string(pc));
-    
+
     return true;
 }
 
 bool DebuggerInterface::set_breakpoint_condition(size_t pc, const std::string& condition) {
-    auto it = std::find_if(breakpoints_.begin(), breakpoints_.end(),
-                          [pc](const BreakpointInfo& bp) { return bp.pc == pc; });
-    
+    auto it = find_breakpoint_by_pc(breakpoints_, pc);
+
     if (it == breakpoints_.end()) {
         return false;
     }
-    
+
     it->condition = condition;
-    
+
     if (condition.empty()) {
         log_debug_message("Removed condition from breakpoint at PC " + std::to_string(pc));
     } else {
         log_debug_message("Set condition for breakpoint at PC " + std::to_string(pc) + ": " + condition);
     }
-    
+
     return true;
 }
 
@@ -349,7 +338,7 @@ std::vector<BreakpointInfo> DebuggerInterface::get_all_breakpoints() const {
 
 bool DebuggerInterface::has_breakpoint(size_t pc) const {
     return std::any_of(breakpoints_.begin(), breakpoints_.end(),
-                      [pc](const BreakpointInfo& bp) { return bp.pc == pc; });
+                       [pc](const BreakpointInfo& bp) { return bp.pc == pc; });
 }
 
 size_t DebuggerInterface::get_current_pc() const {
@@ -451,31 +440,27 @@ std::map<std::string, std::string> DebuggerInterface::get_global_variables() con
 bool DebuggerInterface::add_watch_expression(const std::string& expression) {
     // Check if already exists
     auto it = std::find_if(watch_expressions_.begin(), watch_expressions_.end(),
-                          [&expression](const WatchExpression& we) { 
-                              return we.expression == expression; 
-                          });
-    
+                           [&expression](const WatchExpression& we) { return we.expression == expression; });
+
     if (it != watch_expressions_.end()) {
-        return false; // Already exists
+        return false;  // Already exists
     }
-    
+
     watch_expressions_.emplace_back(expression);
     update_watch_expressions();
-    
+
     log_debug_message("Added watch expression: " + expression);
     return true;
 }
 
 bool DebuggerInterface::remove_watch_expression(const std::string& expression) {
     auto it = std::find_if(watch_expressions_.begin(), watch_expressions_.end(),
-                          [&expression](const WatchExpression& we) { 
-                              return we.expression == expression; 
-                          });
-    
+                           [&expression](const WatchExpression& we) { return we.expression == expression; });
+
     if (it == watch_expressions_.end()) {
         return false;
     }
-    
+
     watch_expressions_.erase(it);
     log_debug_message("Removed watch expression: " + expression);
     return true;
@@ -494,7 +479,7 @@ void DebuggerInterface::update_watch_expressions() {
     for (auto& watch : watch_expressions_) {
         watch.value = evaluate_watch_expression(watch.expression);
         watch.valid = !watch.value.empty();
-        watch.type = watch.valid ? "string" : "invalid"; // Simplified type detection
+        watch.type = watch.valid ? "string" : "invalid";  // Simplified type detection
     }
 }
 
@@ -516,7 +501,7 @@ void DebuggerInterface::highlight_current_line() {
         // Clear any previous debug current line highlight
         if (!current_debug_file_.empty()) {
             editor_->clearHighlight(current_debug_file_, current_debug_line_,
-                                   IntegratedEditor::HighlightType::DebugCurrent);
+                                    IntegratedEditor::HighlightType::DebugCurrent);
         }
 
         // Store current debug location
@@ -538,7 +523,7 @@ void DebuggerInterface::clear_current_line_highlight() {
     // Clear the current debug line highlight in the editor
     if (!current_debug_file_.empty()) {
         editor_->clearHighlight(current_debug_file_, current_debug_line_,
-                               IntegratedEditor::HighlightType::DebugCurrent);
+                                IntegratedEditor::HighlightType::DebugCurrent);
 
         current_debug_file_.clear();
         current_debug_line_ = 0;
@@ -607,8 +592,8 @@ void DebuggerInterface::clear_debug_log() {
 void DebuggerInterface::transition_state(DebugState new_state, const std::string& message) {
     if (state_ != new_state) {
         state_ = new_state;
-        log_debug_message("State transition to " + std::to_string(static_cast<int>(new_state)) + 
-                         (message.empty() ? "" : ": " + message));
+        log_debug_message("State transition to " + std::to_string(static_cast<int>(new_state)) +
+                          (message.empty() ? "" : ": " + message));
     }
 }
 
@@ -652,9 +637,8 @@ void DebuggerInterface::update_breakpoint_mapping() {
         size_t colon = source_info.rfind(':');
         size_t file_end = source_info.rfind(')');
 
-        if (file_start != std::string::npos && colon != std::string::npos &&
-            file_end != std::string::npos && colon > file_start && colon < file_end) {
-
+        if (file_start != std::string::npos && colon != std::string::npos && file_end != std::string::npos &&
+            colon > file_start && colon < file_end) {
             std::string file_path = source_info.substr(file_start + 1, colon - file_start - 1);
             std::string line_str = source_info.substr(colon + 1, file_end - colon - 1);
 
@@ -677,9 +661,8 @@ void DebuggerInterface::update_breakpoint_mapping() {
         }
     }
 
-    log_debug_message("Updated breakpoint mappings: " +
-                     std::to_string(file_line_to_pc_.size()) + " line->PC, " +
-                     std::to_string(pc_to_file_line_.size()) + " PC->line");
+    log_debug_message("Updated breakpoint mappings: " + std::to_string(file_line_to_pc_.size()) + " line->PC, " +
+                      std::to_string(pc_to_file_line_.size()) + " PC->line");
 }
 
 size_t DebuggerInterface::find_pc_for_line(const std::string& file_path, size_t line) const {
@@ -695,18 +678,19 @@ std::pair<std::string, size_t> DebuggerInterface::find_line_for_pc(size_t pc) co
 std::string DebuggerInterface::evaluate_watch_expression(const std::string& expression) {
     // Basic expression evaluation implementation
     // This is a simplified version - a full implementation would use a proper parser
-    
+
     if (!is_debugging()) {
         return "<not debugging>";
     }
-    
+
     // Check if it's a simple variable name (alphanumeric and underscore only)
-    if (expression.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_") == std::string::npos) {
+    if (expression.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_") ==
+        std::string::npos) {
         // Try to find variable in VM state
         // For now, return a descriptive message since VM doesn't expose variable inspection yet
         return "<variable '" + expression + "' - VM variable inspection pending>";
     }
-    
+
     // For complex expressions, return a message
     return "<expression '" + expression + "' - complex eval pending>";
 }
@@ -767,4 +751,4 @@ void DebuggerInterface::setup_vm_handlers() {
     log_debug_message("VM handlers initialized");
 }
 
-} // namespace bolt
+}  // namespace bolt

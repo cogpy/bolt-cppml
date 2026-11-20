@@ -1,163 +1,114 @@
 #include "bolt/editor/split_view_manager.hpp"
+
 #include <algorithm>
-#include <sstream>
 #include <cmath>
+#include <sstream>
 
 namespace bolt {
 
 SplitViewManager::SplitViewManager() {
     // Create initial default pane
     std::string initialPaneId = createPane();
-    activePaneId_.write([&](std::string& activeId) {
-        activeId = initialPaneId;
-    });
+    activePaneId_.write([&](std::string& activeId) { activeId = initialPaneId; });
 }
 
 std::string SplitViewManager::createHorizontalSplit(const std::string& sourcePaneId) {
-    std::string sourceId = sourcePaneId.empty() ? getActivePaneId() : sourcePaneId;
-    
-    std::string newPaneId;
-    EditorPane::PanePosition newPanePosition;
-    
-    newPaneId = withPanes([&](auto& panes) -> std::string {
-        auto it = panes.find(sourceId);
-        if (it == panes.end()) {
-            return "";  // Source pane not found
-        }
-        
-        EditorPane* sourcePane = it->second.get();
-        EditorPane::PanePosition sourcePos = sourcePane->getPosition();
-        
-        // Calculate new positions for horizontal split (left/right)
-        EditorPane::PanePosition leftPos = sourcePos;
-        leftPos.width = sourcePos.width / 2;
-        
-        EditorPane::PanePosition rightPos = sourcePos;
-        rightPos.x = sourcePos.x + leftPos.width;
-        rightPos.width = sourcePos.width - leftPos.width;
-        
-        // Validate sizes
-        if (!validatePaneSize(leftPos.width, leftPos.height) || 
-            !validatePaneSize(rightPos.width, rightPos.height)) {
-            return "";  // Split would create too small panes
-        }
-        
-        // Update source pane position
-        sourcePane->setPosition(leftPos);
-        
-        // Create new pane
-        std::string newPaneIdLocal = generatePaneId();
-        auto newPane = std::make_unique<EditorPane>(newPaneIdLocal);
-        newPane->setPosition(rightPos);
-        
-        // Copy document from source if it has one
-        if (sourcePane->hasDocument()) {
-            newPane->openDocument(sourcePane->getDocumentPath());
-        }
-        
-        panes[newPaneIdLocal] = std::move(newPane);
-        
-        // Store position for later use
-        newPanePosition = rightPos;
-        
-        return newPaneIdLocal;
-    });
-    
-    if (!newPaneId.empty()) {
-        // Update layout and focus outside of withPanes to avoid deadlock
-        addPaneToLayout(newPaneId, newPanePosition);
-        focusPane(newPaneId);
-        notifyPaneOperation(PaneOperation::Create, newPaneId);
-    }
-    
-    return newPaneId;
+    return createSplit(sourcePaneId, SplitDirection::Horizontal);
 }
 
 std::string SplitViewManager::createVerticalSplit(const std::string& sourcePaneId) {
+    return createSplit(sourcePaneId, SplitDirection::Vertical);
+}
+
+std::string SplitViewManager::createSplit(const std::string& sourcePaneId, SplitDirection direction) {
     std::string sourceId = sourcePaneId.empty() ? getActivePaneId() : sourcePaneId;
-    
+
     std::string newPaneId;
     EditorPane::PanePosition newPanePosition;
-    
+
     newPaneId = withPanes([&](auto& panes) -> std::string {
         auto it = panes.find(sourceId);
         if (it == panes.end()) {
             return "";  // Source pane not found
         }
-        
+
         EditorPane* sourcePane = it->second.get();
         EditorPane::PanePosition sourcePos = sourcePane->getPosition();
-        
-        // Calculate new positions for vertical split (top/bottom)
-        EditorPane::PanePosition topPos = sourcePos;
-        topPos.height = sourcePos.height / 2;
-        
-        EditorPane::PanePosition bottomPos = sourcePos;
-        bottomPos.y = sourcePos.y + topPos.height;
-        bottomPos.height = sourcePos.height - topPos.height;
-        
+
+        // Calculate new positions: the source pane keeps the first half (left or top),
+        // the new pane gets the second half (right or bottom)
+        EditorPane::PanePosition firstPos = sourcePos;
+        EditorPane::PanePosition secondPos = sourcePos;
+        if (direction == SplitDirection::Horizontal) {
+            firstPos.width = sourcePos.width / 2;
+            secondPos.x = sourcePos.x + firstPos.width;
+            secondPos.width = sourcePos.width - firstPos.width;
+        } else {
+            firstPos.height = sourcePos.height / 2;
+            secondPos.y = sourcePos.y + firstPos.height;
+            secondPos.height = sourcePos.height - firstPos.height;
+        }
+
         // Validate sizes
-        if (!validatePaneSize(topPos.width, topPos.height) || 
-            !validatePaneSize(bottomPos.width, bottomPos.height)) {
+        if (!validatePaneSize(firstPos.width, firstPos.height) ||
+            !validatePaneSize(secondPos.width, secondPos.height)) {
             return "";  // Split would create too small panes
         }
-        
+
         // Update source pane position
-        sourcePane->setPosition(topPos);
-        
+        sourcePane->setPosition(firstPos);
+
         // Create new pane
         std::string newPaneIdLocal = generatePaneId();
         auto newPane = std::make_unique<EditorPane>(newPaneIdLocal);
-        newPane->setPosition(bottomPos);
-        
+        newPane->setPosition(secondPos);
+
         // Copy document from source if it has one
         if (sourcePane->hasDocument()) {
             newPane->openDocument(sourcePane->getDocumentPath());
         }
-        
+
         panes[newPaneIdLocal] = std::move(newPane);
-        
+
         // Store position for later use
-        newPanePosition = bottomPos;
-        
+        newPanePosition = secondPos;
+
         return newPaneIdLocal;
     });
-    
+
     if (!newPaneId.empty()) {
         // Update layout and focus outside of withPanes to avoid deadlock
         addPaneToLayout(newPaneId, newPanePosition);
         focusPane(newPaneId);
         notifyPaneOperation(PaneOperation::Create, newPaneId);
     }
-    
+
     return newPaneId;
 }
 
 bool SplitViewManager::closePane(const std::string& paneId) {
     // Check validity first (avoid nested lock in withPanes)
-    bool paneExists = withPanes([&](const auto& panes) -> bool {
-        return panes.find(paneId) != panes.end();
-    });
-    
+    bool paneExists = withPanes([&](const auto& panes) -> bool { return panes.find(paneId) != panes.end(); });
+
     if (!paneExists) {
         return false;
     }
-    
+
     // Get active pane ID outside of the withPanes call to avoid deadlock
     std::string activeId = getActivePaneId();
     std::string newActivePaneId;
-    
+
     bool success = withPanes([&](auto& panes) -> bool {
         // Don't allow closing the last pane
         if (panes.size() <= 1) {
             return false;
         }
-        
+
         auto it = panes.find(paneId);
         if (it == panes.end()) {
             return false;
         }
-        
+
         // If closing the active pane, find next available pane
         if (activeId == paneId) {
             for (const auto& pair : panes) {
@@ -167,41 +118,41 @@ bool SplitViewManager::closePane(const std::string& paneId) {
                 }
             }
         }
-        
+
         // Remove the pane
         panes.erase(it);
-        
+
         return true;
     });
-    
+
     if (success) {
         // Update focus if needed (outside of panes lock)
         if (!newActivePaneId.empty()) {
             focusPane(newActivePaneId);
         }
-        
+
         // Remove from layout
         removePaneFromLayout(paneId);
-        
+
         // Redistribute remaining panes
         redistributeLayout();
-        
+
         notifyPaneOperation(PaneOperation::Close, paneId);
     }
-    
+
     return success;
 }
 
 bool SplitViewManager::focusPane(const std::string& paneId) {
     // Get current active pane ID outside of the withPanes call to avoid deadlock
     std::string oldActiveId = getActivePaneId();
-    
+
     bool success = withPanes([&](auto& panes) -> bool {
         auto it = panes.find(paneId);
         if (it == panes.end()) {
             return false;
         }
-        
+
         // Remove focus from current active pane
         if (!oldActiveId.empty() && oldActiveId != paneId) {
             auto oldIt = panes.find(oldActiveId);
@@ -209,46 +160,44 @@ bool SplitViewManager::focusPane(const std::string& paneId) {
                 oldIt->second->setFocus(false);
             }
         }
-        
+
         // Set focus to new pane
         it->second->setFocus(true);
-        
+
         return true;
     });
-    
+
     if (success) {
         // Update active pane ID outside of the panes lock
-        activePaneId_.write([&](std::string& activeId) {
-            activeId = paneId;
-        });
-        
+        activePaneId_.write([&](std::string& activeId) { activeId = paneId; });
+
         notifyPaneOperation(PaneOperation::Focus, paneId);
     }
-    
+
     return success;
 }
 
 std::string SplitViewManager::createPane() {
     std::string paneId = generatePaneId();
-    
+
     auto updatePanes = [&](std::map<std::string, std::unique_ptr<EditorPane>>& panes) {
         auto newPane = std::make_unique<EditorPane>(paneId);
-        
+
         // Set default position based on existing panes
         EditorPane::PanePosition pos{0, 0, 800, 600};
         if (!panes.empty()) {
             // Position new pane relative to existing ones
             pos = calculateSplitPosition(pos, SplitDirection::Horizontal);
         }
-        
+
         newPane->setPosition(pos);
         panes[paneId] = std::move(newPane);
-        
+
         addPaneToLayout(paneId, pos);
     };
-    
+
     panes_.write(updatePanes);
-    
+
     notifyPaneOperation(PaneOperation::Create, paneId);
     return paneId;
 }
@@ -278,9 +227,7 @@ const EditorPane* SplitViewManager::getActivePane() const {
 }
 
 std::string SplitViewManager::getActivePaneId() const {
-    return activePaneId_.read([](const std::string& activeId) {
-        return activeId;
-    });
+    return activePaneId_.read([](const std::string& activeId) { return activeId; });
 }
 
 void SplitViewManager::setContainerSize(int width, int height) {
@@ -306,7 +253,7 @@ void SplitViewManager::resizePane(const std::string& paneId, int width, int heig
             pos.height = height;
             enforceSizeConstraints(pos);
             it->second->setPosition(pos);
-            
+
             notifyPaneOperation(PaneOperation::Resize, paneId);
         }
     });
@@ -317,15 +264,15 @@ void SplitViewManager::redistributeLayout() {
         if (panes.empty()) {
             return;
         }
-        
+
         // Simple redistribution: arrange panes in a grid
         size_t paneCount = panes.size();
         int cols = static_cast<int>(std::ceil(std::sqrt(paneCount)));
         int rows = static_cast<int>(std::ceil(static_cast<double>(paneCount) / cols));
-        
+
         int containerWidth = 800;  // Default container size
         int containerHeight = 600;
-        
+
         // Get container size from first pane if available
         if (!panes.empty()) {
             const auto& firstPane = panes.begin()->second;
@@ -333,22 +280,17 @@ void SplitViewManager::redistributeLayout() {
             containerWidth = pos.width * cols;
             containerHeight = pos.height * rows;
         }
-        
+
         int paneWidth = containerWidth / cols;
         int paneHeight = containerHeight / rows;
-        
+
         int index = 0;
         for (auto& pair : panes) {
             int col = index % cols;
             int row = index / cols;
-            
-            EditorPane::PanePosition pos{
-                col * paneWidth,
-                row * paneHeight,
-                paneWidth,
-                paneHeight
-            };
-            
+
+            EditorPane::PanePosition pos{col * paneWidth, row * paneHeight, paneWidth, paneHeight};
+
             enforceSizeConstraints(pos);
             pair.second->setPosition(pos);
             index++;
@@ -368,9 +310,7 @@ std::vector<std::string> SplitViewManager::getAllPaneIds() const {
 }
 
 size_t SplitViewManager::getPaneCount() const {
-    return withPanes([](const auto& panes) -> size_t {
-        return panes.size();
-    });
+    return withPanes([](const auto& panes) -> size_t { return panes.size(); });
 }
 
 void SplitViewManager::openDocumentInPane(const std::string& paneId, const std::string& filePath) {
@@ -382,7 +322,7 @@ void SplitViewManager::openDocumentInPane(const std::string& paneId, const std::
         }
         return false;
     });
-    
+
     if (success) {
         // Focus the pane with the new document (outside of withPanes to avoid deadlock)
         focusPane(paneId);
@@ -396,7 +336,7 @@ void SplitViewManager::openDocumentInNewPane(const std::string& filePath, SplitD
     } else {
         newPaneId = createVerticalSplit();
     }
-    
+
     if (!newPaneId.empty()) {
         openDocumentInPane(newPaneId, filePath);
     }
@@ -430,10 +370,8 @@ bool SplitViewManager::isEnabled() const {
 }
 
 void SplitViewManager::setEnabled(bool enabled) {
-    isEnabled_.write([enabled](bool& currentEnabled) {
-        currentEnabled = enabled;
-    });
-    
+    isEnabled_.write([enabled](bool& currentEnabled) { currentEnabled = enabled; });
+
     if (!enabled) {
         collapseAllSplits();
     }
@@ -448,13 +386,13 @@ void SplitViewManager::collapseAllSplits() {
         if (panes.size() <= 1) {
             return;
         }
-        
+
         // Keep only the active pane
         std::string activeId = getActivePaneId();
         if (activeId.empty() && !panes.empty()) {
             activeId = panes.begin()->first;
         }
-        
+
         // Remove all panes except the active one
         auto it = panes.begin();
         while (it != panes.end()) {
@@ -464,20 +402,18 @@ void SplitViewManager::collapseAllSplits() {
                 ++it;
             }
         }
-        
+
         // Resize remaining pane to full size
         if (!panes.empty()) {
             EditorPane::PanePosition fullSize{0, 0, 800, 600};
             panes.begin()->second->setPosition(fullSize);
         }
     };
-    
+
     panes_.write(updatePanes);
-    
+
     // Clear layouts
-    layouts_.write([](auto& layouts) {
-        layouts.clear();
-    });
+    layouts_.write([](auto& layouts) { layouts.clear(); });
 }
 
 std::string SplitViewManager::getNextPane(const std::string& currentPaneId, bool forward) const {
@@ -485,17 +421,17 @@ std::string SplitViewManager::getNextPane(const std::string& currentPaneId, bool
         if (panes.size() <= 1) {
             return currentPaneId;
         }
-        
+
         std::vector<std::string> paneIds;
         for (const auto& pair : panes) {
             paneIds.push_back(pair.first);
         }
-        
+
         auto it = std::find(paneIds.begin(), paneIds.end(), currentPaneId);
         if (it == paneIds.end()) {
             return paneIds.empty() ? "" : paneIds[0];
         }
-        
+
         if (forward) {
             ++it;
             if (it == paneIds.end()) {
@@ -508,7 +444,7 @@ std::string SplitViewManager::getNextPane(const std::string& currentPaneId, bool
                 --it;
             }
         }
-        
+
         return *it;
     });
 }
@@ -548,40 +484,36 @@ std::string SplitViewManager::serializeLayout() const {
 bool SplitViewManager::restoreLayout(const std::string& layoutData) {
     // Basic layout restoration - would be more robust in practice
     clearAllPanes();
-    
+
     std::istringstream iss(layoutData);
     std::string paneData;
-    
+
     while (std::getline(iss, paneData, ';')) {
-        if (paneData.empty()) continue;
-        
+        if (paneData.empty())
+            continue;
+
         // Parse pane data (simplified)
         size_t colonPos = paneData.find(':');
-        if (colonPos == std::string::npos) continue;
-        
+        if (colonPos == std::string::npos)
+            continue;
+
         std::string paneId = paneData.substr(0, colonPos);
         // Would parse position and document path here
-        
+
         createPane();  // Simplified - just create panes
     }
-    
+
     return true;
 }
 
 void SplitViewManager::clearAllPanes() {
-    auto clearPanes = [](std::map<std::string, std::unique_ptr<EditorPane>>& panes) {
-        panes.clear();
-    };
-    
+    auto clearPanes = [](std::map<std::string, std::unique_ptr<EditorPane>>& panes) { panes.clear(); };
+
     panes_.write(clearPanes);
-    
-    layouts_.write([](auto& layouts) {
-        layouts.clear();
-    });
-    
-    activePaneId_.write([](std::string& activeId) {
-        activeId = "";
-    });
+
+    layouts_.write([](auto& layouts) { layouts.clear(); });
+
+    activePaneId_.write([](std::string& activeId) { activeId = ""; });
 }
 
 // Private methods
@@ -595,13 +527,10 @@ void SplitViewManager::updateLayout(const std::string& modifiedPaneId) {
     calculatePanePositions();
 }
 
-EditorPane::PanePosition SplitViewManager::calculateSplitPosition(
-    const EditorPane::PanePosition& sourcePosition, 
-    SplitDirection direction, 
-    float splitRatio) {
-    
+EditorPane::PanePosition SplitViewManager::calculateSplitPosition(const EditorPane::PanePosition& sourcePosition,
+                                                                  SplitDirection direction, float splitRatio) {
     EditorPane::PanePosition newPosition = sourcePosition;
-    
+
     if (direction == SplitDirection::Horizontal) {
         int splitWidth = static_cast<int>(sourcePosition.width * splitRatio);
         newPosition.x = sourcePosition.x + splitWidth;
@@ -611,15 +540,13 @@ EditorPane::PanePosition SplitViewManager::calculateSplitPosition(
         newPosition.y = sourcePosition.y + splitHeight;
         newPosition.height = sourcePosition.height - splitHeight;
     }
-    
+
     enforceSizeConstraints(newPosition);
     return newPosition;
 }
 
 std::string SplitViewManager::generatePaneId() {
-    return nextPaneId_.write([](int& nextId) -> std::string {
-        return "pane_" + std::to_string(nextId++);
-    });
+    return nextPaneId_.write([](int& nextId) -> std::string { return "pane_" + std::to_string(nextId++); });
 }
 
 void SplitViewManager::notifyPaneOperation(PaneOperation op, const std::string& paneId) {
@@ -629,20 +556,14 @@ void SplitViewManager::notifyPaneOperation(PaneOperation op, const std::string& 
 }
 
 bool SplitViewManager::isValidPaneId(const std::string& paneId) const {
-    return withPanes([&](const auto& panes) -> bool {
-        return panes.find(paneId) != panes.end();
-    });
+    return withPanes([&](const auto& panes) -> bool { return panes.find(paneId) != panes.end(); });
 }
 
 void SplitViewManager::removePaneFromLayout(const std::string& paneId) {
     layouts_.write([&](auto& layouts) {
-        layouts.erase(
-            std::remove_if(layouts.begin(), layouts.end(),
-                [&paneId](const SplitLayout& layout) {
-                    return layout.paneId == paneId;
-                }),
-            layouts.end()
-        );
+        layouts.erase(std::remove_if(layouts.begin(), layouts.end(),
+                                     [&paneId](const SplitLayout& layout) { return layout.paneId == paneId; }),
+                      layouts.end());
     });
 }
 
@@ -669,14 +590,16 @@ void SplitViewManager::enforceSizeConstraints(EditorPane::PanePosition& position
 }
 
 // Template method implementations
-template<typename Func>
-auto SplitViewManager::withPanes(Func&& func) const -> decltype(func(std::declval<const std::map<std::string, std::unique_ptr<EditorPane>>&>())) {
+template <typename Func>
+auto SplitViewManager::withPanes(Func&& func) const
+    -> decltype(func(std::declval<const std::map<std::string, std::unique_ptr<EditorPane>>&>())) {
     return panes_.read(std::forward<Func>(func));
 }
 
-template<typename Func>
-auto SplitViewManager::withPanes(Func&& func) -> decltype(func(std::declval<std::map<std::string, std::unique_ptr<EditorPane>>&>())) {
+template <typename Func>
+auto SplitViewManager::withPanes(Func&& func)
+    -> decltype(func(std::declval<std::map<std::string, std::unique_ptr<EditorPane>>&>())) {
     return panes_.write(std::forward<Func>(func));
 }
 
-} // namespace bolt
+}  // namespace bolt

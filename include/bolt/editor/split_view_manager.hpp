@@ -115,6 +115,8 @@ class SplitViewManager {
 
     // Internal helpers
     std::string generatePaneId();
+    // Shared implementation of createHorizontalSplit / createVerticalSplit.
+    std::string createSplit(const std::string& sourcePaneId, SplitDirection direction);
     void notifyPaneOperation(PaneOperation op, const std::string& paneId);
     bool isValidPaneId(const std::string& paneId) const;
     void removePaneFromLayout(const std::string& paneId);

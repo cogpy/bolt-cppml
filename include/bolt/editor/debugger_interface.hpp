@@ -162,6 +162,9 @@ class DebuggerInterface {
     std::pair<std::string, size_t> find_line_for_pc(size_t pc) const;
     std::string evaluate_watch_expression(const std::string& expression);
     void setup_vm_handlers();
+    // Updates state, fires the event and adjusts the line highlight after a step_over/step_into/step_out.
+    void report_step_outcome(const std::string& breakpoint_message, const std::string& paused_message,
+                             const std::string& completed_message);
 };
 
 }  // namespace bolt
