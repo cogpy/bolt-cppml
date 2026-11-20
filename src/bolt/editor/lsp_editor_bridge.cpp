@@ -347,13 +347,15 @@ void LspEditorBridge::requestCompletion(const std::string& filePath, size_t line
 }
 
 std::string LspEditorBridge::acceptCompletion() {
-    std::lock_guard<std::mutex> lock(completionMutex_);
+    std::unique_lock<std::mutex> lock(completionMutex_);
 
     if (!completionState_.isVisible || completionState_.items.empty()) {
         return "";
     }
 
     std::string insertText = completionState_.items[completionState_.selectedIndex].insertText;
+    // dismissCompletion() takes the same mutex, so release it first.
+    lock.unlock();
     dismissCompletion();
     return insertText;
 }
@@ -662,13 +664,15 @@ void LspEditorBridge::requestDefinition(const std::string& filePath, size_t line
 }
 
 std::optional<EditorLocation> LspEditorBridge::acceptDefinition() {
-    std::lock_guard<std::mutex> lock(definitionMutex_);
+    std::unique_lock<std::mutex> lock(definitionMutex_);
 
     if (!definitionState_.isVisible || definitionState_.locations.empty()) {
         return std::nullopt;
     }
 
     EditorLocation result = definitionState_.locations[definitionState_.selectedIndex];
+    // dismissDefinition() takes the same mutex, so release it first.
+    lock.unlock();
     dismissDefinition();
     return result;
 }
@@ -715,13 +719,15 @@ void LspEditorBridge::requestReferences(const std::string& filePath, size_t line
 }
 
 std::optional<EditorLocation> LspEditorBridge::acceptReference() {
-    std::lock_guard<std::mutex> lock(referencesMutex_);
+    std::unique_lock<std::mutex> lock(referencesMutex_);
 
     if (!referencesState_.isVisible || referencesState_.locations.empty()) {
         return std::nullopt;
     }
 
     EditorLocation result = referencesState_.locations[referencesState_.selectedIndex];
+    // dismissReferences() takes the same mutex, so release it first.
+    lock.unlock();
     dismissReferences();
     return result;
 }
@@ -830,7 +836,7 @@ void LspEditorBridge::requestDocumentSymbols(const std::string& filePath) {
 }
 
 std::optional<EditorLocation> LspEditorBridge::acceptSymbol() {
-    std::lock_guard<std::mutex> lock(symbolsMutex_);
+    std::unique_lock<std::mutex> lock(symbolsMutex_);
 
     if (!symbolOutlineState_.isVisible || symbolOutlineState_.symbols.empty()) {
         return std::nullopt;
@@ -844,6 +850,8 @@ std::optional<EditorLocation> LspEditorBridge::acceptSymbol() {
     result.endLine = sym.endLine;
     result.endColumn = sym.endColumn;
 
+    // dismissSymbolOutline() takes the same mutex, so release it first.
+    lock.unlock();
     dismissSymbolOutline();
     return result;
 }
