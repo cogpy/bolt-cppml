@@ -11,6 +11,8 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: fedora:latest
+    permissions:
+      contents: write
     
     steps:
     - name: Install build dependencies
@@ -40,12 +42,24 @@ jobs:
         cmake -DCMAKE_BUILD_TYPE=Release \
               -DCMAKE_INSTALL_PREFIX=/usr \
               -DBUILD_SHARED_LIBS=ON ..
-        make -j$(nproc)
+        make -j"$(nproc)"
     
     - name: Create RPM package
       run: |
-        VERSION=$(git describe --tags --always 2>/dev/null | sed 's/^v//' || echo "0.1.0")
+        # A tag v1.2.3 gives 1.2.3. Any other run gives the project version
+        # plus the commit, for example 1.2.3+git0a1b2c3.
+        if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+          VERSION="${GITHUB_REF_NAME#v}"
+        else
+          BASE="$(sed -n 's/^project(bolt VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)"
+          VERSION="${BASE}+git${GITHUB_SHA:0:7}"
+        fi
         PACKAGE_NAME="bolt-cppml"
+
+        if [ ! -x build/bolt ]; then
+          echo "error: build/bolt not found; nothing to package" >&2
+          exit 1
+        fi
         
         # Setup RPM build environment
         rpmdev-setuptree
@@ -98,13 +112,7 @@ jobs:
         mkdir -p %{buildroot}/usr/share/doc/%{name}
         
         # Copy binary
-        if [ -f ${GITHUB_WORKSPACE}/build/bolt ]; then
         install -m 755 ${GITHUB_WORKSPACE}/build/bolt %{buildroot}/usr/bin/
-        else
-        echo '#!/bin/bash' > %{buildroot}/usr/bin/bolt
-        echo 'echo "Bolt C++ IDE"' >> %{buildroot}/usr/bin/bolt
-        chmod 755 %{buildroot}/usr/bin/bolt
-        fi
         
         # Copy libraries
         if [ -f ${GITHUB_WORKSPACE}/build/libbolt_lib.so ]; then
@@ -161,9 +169,15 @@ jobs:
         rpmbuild -bb ~/rpmbuild/SPECS/${PACKAGE_NAME}.spec
         
         # Copy RPM to workspace
-        cp ~/rpmbuild/RPMS/*/${PACKAGE_NAME}-${VERSION}-*.rpm . 2>/dev/null || \
-        cp ~/rpmbuild/RPMS/*/${PACKAGE_NAME}*.rpm . 2>/dev/null || \
-        echo "Warning: RPM not found in expected location"
+        cp ~/rpmbuild/RPMS/*/"${PACKAGE_NAME}"-*.rpm .
+        ls -l ./*.rpm
+
+    - name: Install the package and run bolt from it
+      run: |
+        dnf install -y ./bolt-cppml-*.rpm
+        /usr/bin/bolt --version
+        printf 'hello\n/exit\n' | /usr/bin/bolt | grep -q 'Echo: hello'
+        dnf remove -y bolt-cppml
     
     - name: Upload RPM package
       uses: actions/upload-artifact@v4
@@ -173,7 +187,7 @@ jobs:
     
     - name: Create Release
       if: startsWith(github.ref, 'refs/tags/')
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v2
       with:
         files: '*.rpm'
       env:
