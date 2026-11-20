@@ -132,9 +132,10 @@ set(CPACK_RPM_PACKAGE_LICENSE "MIT")
 # and after install: $ORIGIN and $ORIGIN/bin let programs run straight from the
 # build directory (libbolt_lib.so sits next to them, llama.cpp's libraries in
 # bin/) and from an unpacked tarball; $ORIGIN/../lib covers an installed
-# bin/ + lib/ layout.
+# bin/ + lib/ layout. Only relative entries: an absolute one such as
+# /usr/local/lib is rejected by rpmbuild's rpath check and is not needed.
 set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
-set(CMAKE_INSTALL_RPATH "\$ORIGIN:\$ORIGIN/bin:\$ORIGIN/../lib:\$ORIGIN/lib:/usr/local/lib")
+set(CMAKE_INSTALL_RPATH "\$ORIGIN:\$ORIGIN/bin:\$ORIGIN/../lib:\$ORIGIN/lib")
 
 # Distribution-specific optimizations
 if(LINUX_DISTRO MATCHES "ubuntu|debian")
