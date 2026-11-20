@@ -18,7 +18,13 @@ class ThreadSafe {
     T data_;
 
  public:
-    explicit ThreadSafe(T data = T{}) : data_(std::move(data)) {}
+    explicit ThreadSafe(T data = T{}) : data_(std::move(data)) {
+        // Take and release the lock once while only this thread can see the
+        // object. winpthreads (MinGW) sets a read-write lock up lazily on its
+        // first use, and several threads making that first use at the same
+        // moment can get an error back instead of the lock.
+        std::unique_lock lock(mutex_);
+    }
 
     // Read operations
     template <typename F>
