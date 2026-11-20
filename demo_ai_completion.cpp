@@ -20,6 +20,7 @@ void demonstrateAICompletion() {
     // Create a test C++ file
     std::cout << "2. Opening test C++ file with content:\n";
     std::string testFilePath = "demo.cpp";
+    // clang-format off
     std::string testContent = R"(#include <iostream>
 #include <vector>
 #include <string>
@@ -28,6 +29,7 @@ int main() {
     std::
     return 0;
 })";
+    // clang-format on
 
     std::cout << "   File: " << testFilePath << "\n";
     std::cout << "   Content:\n";

@@ -17,6 +17,7 @@ TEST_CASE("ComplexityAnalyzer basic functionality") {
     }
 
     SECTION("analyze simple code") {
+        // clang-format off
         std::string simpleCode = R"(
 #include <iostream>
 
@@ -29,6 +30,7 @@ public:
     void method() {}
 };
 )";
+        // clang-format on
 
         auto issues = analyzer.analyzeFile("test.cpp", simpleCode);
         auto metrics = analyzer.getMetrics("test.cpp", simpleCode);
@@ -84,6 +86,7 @@ TEST_CASE("SecurityAnalyzer functionality") {
     SecurityAnalyzer analyzer;
 
     SECTION("detect unsafe functions") {
+        // clang-format off
         std::string unsafeCode = R"(
 #include <cstring>
 #include <cstdio>
@@ -95,6 +98,7 @@ void unsafeFunction() {
     system("rm -rf /");
 }
 )";
+        // clang-format on
 
         auto issues = analyzer.analyzeFile("unsafe.cpp", unsafeCode);
 
@@ -130,6 +134,7 @@ TEST_CASE("DependencyAnalyzer functionality") {
     DependencyAnalyzer analyzer;
 
     SECTION("extract includes") {
+        // clang-format off
         std::string codeWithIncludes = R"(
 #include <iostream>
 #include <vector>
@@ -138,6 +143,7 @@ TEST_CASE("DependencyAnalyzer functionality") {
 
 void function() {}
 )";
+        // clang-format on
 
         auto issues = analyzer.analyzeFile("test.cpp", codeWithIncludes);
         auto metrics = analyzer.getMetrics("test.cpp", codeWithIncludes);
@@ -146,6 +152,7 @@ void function() {}
     }
 
     SECTION("detect too many dependencies") {
+        // clang-format off
         std::string manyIncludes = R"(
 #include <iostream>
 #include <vector>
@@ -171,6 +178,7 @@ void function() {}
 
 void function() {}
 )";
+        // clang-format on
 
         auto issues = analyzer.analyzeFile("many_deps.cpp", manyIncludes);
 
@@ -235,6 +243,7 @@ TEST_CASE("CodeAnalyzer integration") {
     }
 
     SECTION("analyze file with multiple issues") {
+        // clang-format off
         std::string problematicCode = R"(
 #include <cstring>
 
@@ -254,6 +263,7 @@ void problematicFunction(int x) {
     }
 }
 )";
+        // clang-format on
 
         // Create temporary file
         std::string tempFile = "/tmp/test_problematic.cpp";

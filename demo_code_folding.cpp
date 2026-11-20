@@ -10,6 +10,7 @@ int main() {
     auto& editor = bolt::IntegratedEditor::getInstance();
 
     // Sample C++ code with foldable regions
+    // clang-format off
     std::string sampleCode = R"(
 #include <iostream>
 #include <vector>
@@ -50,6 +51,7 @@ int main() {
     return 0;
 }
 )";
+    // clang-format on
 
     // Open the document with code folding
     std::cout << "1. Opening document with code folding detection...\n";

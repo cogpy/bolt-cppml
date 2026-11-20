@@ -21,6 +21,7 @@ void demonstrateBasicAnalysis() {
     });
 
     // Create sample code with various issues for testing
+    // clang-format off
     std::string sampleCode = R"(
 #include <iostream>
 #include <string>
@@ -70,6 +71,7 @@ public:
     // ... many more methods would trigger complexity warnings
 };
 )";
+    // clang-format on
 
     // Write sample code to temporary file
     std::string tempFile = "/tmp/sample_code.cpp";
@@ -218,6 +220,7 @@ void demonstrateProjectAnalysis() {
 
     // Create some sample files
     std::ofstream main_cpp(projectPath + "/main.cpp");
+    // clang-format off
     main_cpp << R"(
 #include "utils.hpp"
 #include <iostream>
@@ -233,9 +236,11 @@ int main() {
     return 0;
 }
 )";
+    // clang-format on
     main_cpp.close();
 
     std::ofstream utils_hpp(projectPath + "/utils.hpp");
+    // clang-format off
     utils_hpp << R"(
 #ifndef UTILS_HPP
 #define UTILS_HPP
@@ -246,9 +251,11 @@ void utilityFunction();
 
 #endif
 )";
+    // clang-format on
     utils_hpp.close();
 
     std::ofstream utils_cpp(projectPath + "/utils.cpp");
+    // clang-format off
     utils_cpp << R"(
 #include "utils.hpp"
 #include <cstring>
@@ -258,6 +265,7 @@ void utilityFunction() {
     strcpy(buffer, "unsafe operation");  // Security issue
 }
 )";
+    // clang-format on
     utils_cpp.close();
 
     CodeAnalyzer analyzer;

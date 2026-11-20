@@ -50,6 +50,7 @@ BOLT_TEST(E2E_Workflow, CompleteEditorSessionLifecycle) {
     BOLT_ASSERT(!fileId.empty());
 
     // 3. Add content to the file
+    // clang-format off
     std::string testContent = R"(
 #include <iostream>
 
@@ -58,6 +59,7 @@ int main() {
     return 0;
 }
 )";
+    // clang-format on
     bool contentSet = editorStore.setContent(fileId, testContent);
     BOLT_ASSERT(contentSet);
 

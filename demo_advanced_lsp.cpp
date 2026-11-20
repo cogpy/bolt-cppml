@@ -22,6 +22,7 @@
 using namespace bolt::lsp;  // NOLINT(build/namespaces)
 
 // Test file content with multiple symbols and references
+// clang-format off
 const char* TEST_CPP_CODE = R"(
 #include <iostream>
 #include <vector>
@@ -67,6 +68,7 @@ int main() {
     return 0;
 }
 )";
+// clang-format on
 
 void printSeparator(const std::string& title) {
     std::cout << "\n" << std::string(60, '=') << "\n";

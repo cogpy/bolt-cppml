@@ -4,13 +4,13 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
 
-#include <cstdint>
 #define close closesocket
 #else
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <unistd.h>
 #endif
+#include <cstdint>
 #include <cstring>
 #include <iostream>
 

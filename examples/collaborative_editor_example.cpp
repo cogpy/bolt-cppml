@@ -67,6 +67,7 @@ class SimpleCollaborativeEditor {
 
         bolt::EditorDocument doc;
         doc.filePath = currentFile_;
+        // clang-format off
         doc.value = R"(#include <iostream>
 #include <vector>
 #include <string>
@@ -105,6 +106,7 @@ int main() {
     app.displayResults();
     return 0;
 })";
+        // clang-format on
         doc.scroll = {0, 0};
         doc.cursor = {0, std::nullopt};
 

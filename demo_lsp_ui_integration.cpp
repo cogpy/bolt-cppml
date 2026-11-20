@@ -143,6 +143,7 @@ class LspUiDemo {
  private:
     void createTestFile() {
         testFilePath_ = "/tmp/lsp_ui_demo_test.cpp";
+        // clang-format off
         testContent_ = R"(#include <iostream>
 #include <vector>
 #include <string>
@@ -173,6 +174,7 @@ int main() {
     return 0;
 }
 )";
+        // clang-format on
 
         std::ofstream file(testFilePath_);
         file << testContent_;

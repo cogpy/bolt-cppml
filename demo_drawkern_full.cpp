@@ -303,6 +303,7 @@ void demonstrate_ai_integration() {
     std::cout << "=============================\n";
     std::cout << "👤 User: Write a function to sort an array in C++\n\n";
     std::cout << "🤖 AI: Here's an efficient C++ sorting function:\n\n";
+    // clang-format off
     std::cout << R"(
 #include <vector>
 #include <algorithm>
@@ -336,6 +337,7 @@ int partition(std::vector<T>& arr, int low, int high) {
 std::vector<int> data = {64, 34, 25, 12, 22, 11, 90};
 quicksort(data);
 )"
+              // clang-format on
               << "\n\n";
 
     std::cout << "🤖 AI: This implements quicksort with O(n log n) average complexity.\n";

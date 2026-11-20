@@ -26,6 +26,7 @@ int main() {
     bolt::CodeContext context1;
     context1.language = "cpp";
     context1.filePath = "example.cpp";
+    // clang-format off
     context1.content = R"(#include <iostream>
 #include <vector>
 
@@ -40,6 +41,7 @@ int calculateSum(const std::vector<int>& numbers) {
 
 // Function to calculate the average
 )";
+    // clang-format on
     context1.cursorPosition = context1.content.length();
 
     auto completions1 = llama_provider->generateCompletions(context1, "", 3);

@@ -282,6 +282,7 @@ void demonstrateCodeAnalysis() {
     bolt::StandaloneCodeAnalyzer analyzer;
 
     // Create sample code with various issues
+    // clang-format off
     std::string sampleCode = R"(
 #include <iostream>
 #include <string>
@@ -331,6 +332,7 @@ int main() {
     return 0;
 }
 )";
+    // clang-format on
 
     // Analyze the sample code
     auto startTime = std::chrono::high_resolution_clock::now();
@@ -398,6 +400,7 @@ void demonstrateProjectAnalysis() {
 
     // Create some sample files with different types of issues
     std::ofstream main_cpp(projectPath + "/main.cpp");
+    // clang-format off
     main_cpp << R"(
 #include "utils.hpp"
 #include <iostream>
@@ -418,9 +421,11 @@ int main() {
     return 0;
 }
 )";
+    // clang-format on
     main_cpp.close();
 
     std::ofstream utils_hpp(projectPath + "/utils.hpp");
+    // clang-format off
     utils_hpp << R"(
 #ifndef UTILS_HPP
 #define UTILS_HPP
@@ -436,9 +441,11 @@ public:
 
 #endif
 )";
+    // clang-format on
     utils_hpp.close();
 
     std::ofstream utils_cpp(projectPath + "/utils.cpp");
+    // clang-format off
     utils_cpp << R"(
 #include "utils.hpp"
 #include <cstring>
@@ -478,6 +485,7 @@ void UtilityClass::securityRisk() {
     scanf("%s", buffer);
 }
 )";
+    // clang-format on
     utils_cpp.close();
 
     bolt::StandaloneCodeAnalyzer analyzer;
