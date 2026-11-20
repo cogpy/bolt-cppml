@@ -249,20 +249,22 @@ jobs:
         if: matrix.compiler == 'mingw'
         uses: msys2/setup-msys2@v2
         with:
-          msystem: MINGW64
+          # UCRT64 is the environment MSYS2 maintains. The older MINGW64
+          # repository no longer carries glfw and most other libraries.
+          msystem: UCRT64
           update: true
           # git is needed at test time: the GitRepository tests shell out
           # to it, and the MSYS2 shell does not inherit the Windows PATH.
           install: >-
             git
-            mingw-w64-x86_64-gcc
-            mingw-w64-x86_64-cmake
-            mingw-w64-x86_64-ninja
-            mingw-w64-x86_64-curl
-            mingw-w64-x86_64-jsoncpp
-            mingw-w64-x86_64-glfw
-            mingw-w64-x86_64-openssl
-            mingw-w64-x86_64-zlib
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-cmake
+            mingw-w64-ucrt-x86_64-ninja
+            mingw-w64-ucrt-x86_64-curl
+            mingw-w64-ucrt-x86_64-jsoncpp
+            mingw-w64-ucrt-x86_64-glfw
+            mingw-w64-ucrt-x86_64-openssl
+            mingw-w64-ucrt-x86_64-zlib
 
       - name: Configure CMake (MSVC)
         if: matrix.compiler == 'msvc'
