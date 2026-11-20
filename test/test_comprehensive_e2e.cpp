@@ -53,6 +53,7 @@
 #include <atomic>
 #include <chrono>
 #include <cmath>
+#include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <memory>
@@ -2559,6 +2560,7 @@ BOLT_TEST(E2E_CodeAnalyzer, AnalyzeFile) {
     bolt::CodeAnalyzer analyzer;
     // Create a temp file to analyze
     std::string testFile = "/tmp/bolt_e2e_analyze.cpp";
+    // clang-format off
     FileSystemUtils::writeFile(testFile, R"(
 #include <iostream>
 int main() {
@@ -2569,6 +2571,7 @@ int main() {
     return 0;
 }
 )");
+    // clang-format on
     auto result = analyzer.analyzeFile(testFile);
     std::filesystem::remove(testFile);
 }

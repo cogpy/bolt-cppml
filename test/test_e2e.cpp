@@ -5,28 +5,28 @@
  * Comprehensive E2E tests covering complete workflows and system integration.
  */
 
-#include <bolt/test_framework.hpp>
-#include <bolt/bolt.hpp>
-#include <bolt/core/memory_manager.hpp>
-#include <bolt/core/chat_store.hpp>
-#include <bolt/core/editor_store.hpp>
-#include <bolt/core/workbench_store.hpp>
-#include <bolt/core/plugin_system.hpp>
-#include <bolt/core/logging.hpp>
-#include <bolt/editor/code_folding.hpp>
-#include <bolt/editor/cursor_manager.hpp>
-#include <bolt/editor/keyboard_shortcuts.hpp>
-#include <bolt/editor/split_view_manager.hpp>
-#include <bolt/editor/tab_bar.hpp>
-#include <bolt/editor/theme_system.hpp>
-#include <bolt/collaboration/operational_transform.hpp>
-#include <bolt/network/websocket_server.hpp>
-
 #include <chrono>
-#include <thread>
-#include <sstream>
 #include <memory>
+#include <sstream>
+#include <thread>
 #include <vector>
+
+#include "bolt/bolt.hpp"
+#include "bolt/collaboration/operational_transform.hpp"
+#include "bolt/core/chat_store.hpp"
+#include "bolt/core/editor_store.hpp"
+#include "bolt/core/logging.hpp"
+#include "bolt/core/memory_manager.hpp"
+#include "bolt/core/plugin_system.hpp"
+#include "bolt/core/workbench_store.hpp"
+#include "bolt/editor/code_folding.hpp"
+#include "bolt/editor/cursor_manager.hpp"
+#include "bolt/editor/keyboard_shortcuts.hpp"
+#include "bolt/editor/split_view_manager.hpp"
+#include "bolt/editor/tab_bar.hpp"
+#include "bolt/editor/theme_system.hpp"
+#include "bolt/network/websocket_server.hpp"
+#include "bolt/test_framework.hpp"
 
 using namespace bolt::test;
 
@@ -50,6 +50,7 @@ BOLT_TEST(E2E_Workflow, CompleteEditorSessionLifecycle) {
     BOLT_ASSERT(!fileId.empty());
 
     // 3. Add content to the file
+    // clang-format off
     std::string testContent = R"(
 #include <iostream>
 
@@ -58,6 +59,7 @@ int main() {
     return 0;
 }
 )";
+    // clang-format on
     bool contentSet = editorStore.setContent(fileId, testContent);
     BOLT_ASSERT(contentSet);
 
@@ -115,7 +117,8 @@ BOLT_TEST(E2E_Workflow, ChatAndEditorIntegration) {
 
     // Add messages simulating AI code generation
     chatStore.addMessage(sessionId, "user", "Generate a hello world function");
-    chatStore.addMessage(sessionId, "assistant", "Here's a C++ function:\n```cpp\nvoid hello() { std::cout << \"Hello!\"; }\n```");
+    chatStore.addMessage(sessionId, "assistant",
+                         "Here's a C++ function:\n```cpp\nvoid hello() { std::cout << \"Hello!\"; }\n```");
 
     // Open editor with generated code
     auto fileId = editorStore.createFile("generated.cpp");
@@ -156,7 +159,7 @@ BOLT_TEST(E2E_Memory, LargeFileHandling) {
     // Verify content was stored
     auto content = editorStore.getContent(fileId);
     BOLT_ASSERT(!content.empty());
-    BOLT_ASSERT(content.size() > 100000); // Should be > 100KB
+    BOLT_ASSERT(content.size() > 100000);  // Should be > 100KB
 
     // Clean up and verify memory is released
     editorStore.closeFile(fileId);
@@ -216,7 +219,7 @@ public:
     folding.foldAll();
     folding.unfoldAll();
 
-    BOLT_ASSERT(true); // Workflow completed successfully
+    BOLT_ASSERT(true);  // Workflow completed successfully
 }
 
 BOLT_TEST(E2E_Editor, MultiCursorEditing) {
@@ -250,9 +253,7 @@ BOLT_TEST(E2E_Editor, KeyboardShortcutExecution) {
     bool actionExecuted = false;
 
     // Register a custom shortcut
-    shortcuts.registerShortcut("Ctrl+Shift+T", "Test Action", [&]() {
-        actionExecuted = true;
-    });
+    shortcuts.registerShortcut("Ctrl+Shift+T", "Test Action", [&]() { actionExecuted = true; });
 
     // Execute the shortcut
     shortcuts.executeShortcut("Ctrl+Shift+T");
@@ -381,13 +382,9 @@ BOLT_TEST(E2E_Plugin, PluginEventSystem) {
     int eventCount = 0;
 
     // Subscribe to plugin events
-    pluginSystem.onPluginLoaded([&](const std::string& name) {
-        eventCount++;
-    });
+    pluginSystem.onPluginLoaded([&](const std::string& name) { eventCount++; });
 
-    pluginSystem.onPluginUnloaded([&](const std::string& name) {
-        eventCount++;
-    });
+    pluginSystem.onPluginUnloaded([&](const std::string& name) { eventCount++; });
 
     // Register and load a plugin
     bolt::PluginInfo plugin;
@@ -454,7 +451,7 @@ BOLT_TEST(E2E_Collaboration, OperationalTransformBasic) {
 
     // Create concurrent operations
     auto op1 = ot.createInsertOperation(5, ", Beautiful");
-    auto op2 = ot.createDeleteOperation(6, 5); // Delete "World"
+    auto op2 = ot.createDeleteOperation(6, 5);  // Delete "World"
 
     // Transform operations
     auto transformed = ot.transform(op1, op2);
@@ -488,8 +485,7 @@ BOLT_TEST(E2E_Collaboration, ConcurrentEditSimulation) {
 
     // Verify final state
     BOLT_ASSERT(!result.empty());
-    BOLT_ASSERT(result.find("// Test function") != std::string::npos ||
-                result.find("42") != std::string::npos);
+    BOLT_ASSERT(result.find("// Test function") != std::string::npos || result.find("42") != std::string::npos);
 }
 
 // ============================================
@@ -500,7 +496,7 @@ BOLT_TEST(E2E_Network, WebSocketServerStartStop) {
     bolt::WebSocketServer server;
 
     // Configure server
-    server.setPort(0); // Use any available port
+    server.setPort(0);  // Use any available port
     server.setMaxConnections(10);
 
     // Start server
@@ -579,15 +575,15 @@ BOLT_TEST(E2E_ErrorHandling, GracefulDegradation) {
 
     // Try to access non-existent file
     auto content = editorStore.getContent("nonexistent_id");
-    BOLT_ASSERT(content.empty()); // Should return empty, not crash
+    BOLT_ASSERT(content.empty());  // Should return empty, not crash
 
     // Try to close non-existent file
     bool closed = editorStore.closeFile("nonexistent_id");
-    BOLT_ASSERT(!closed); // Should return false, not crash
+    BOLT_ASSERT(!closed);  // Should return false, not crash
 
     // Try to save non-existent file
     bool saved = editorStore.saveFile("nonexistent_id");
-    BOLT_ASSERT(!saved); // Should return false, not crash
+    BOLT_ASSERT(!saved);  // Should return false, not crash
 }
 
 BOLT_TEST(E2E_ErrorHandling, InvalidInputHandling) {

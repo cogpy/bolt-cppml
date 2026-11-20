@@ -1,5 +1,5 @@
-#ifndef BOLT_AI_GGML_HPP
-#define BOLT_AI_GGML_HPP
+#ifndef BOLT_AI_GGML_HPP_
+#define BOLT_AI_GGML_HPP_
 
 #include <stdexcept>
 #include <string>
@@ -15,7 +15,7 @@ namespace bolt {
 #ifdef BOLT_HAVE_GGML
 // Utility functions for working with GGML
 class GGMLContext {
-public:
+ public:
     explicit GGMLContext(size_t mem_size) {
         ggml_init_params params = {
             .mem_size = mem_size,
@@ -27,24 +27,22 @@ public:
             throw std::runtime_error("Failed to initialize GGML context");
         }
     }
-    
+
     ~GGMLContext() {
         if (ctx_) {
             ggml_free(ctx_);
         }
     }
-    
+
     ggml_context* get() { return ctx_; }
-    
+
     // Non-copyable
     GGMLContext(const GGMLContext&) = delete;
     GGMLContext& operator=(const GGMLContext&) = delete;
-    
+
     // Movable
-    GGMLContext(GGMLContext&& other) noexcept : ctx_(other.ctx_) {
-        other.ctx_ = nullptr;
-    }
-    
+    GGMLContext(GGMLContext&& other) noexcept : ctx_(other.ctx_) { other.ctx_ = nullptr; }
+
     GGMLContext& operator=(GGMLContext&& other) noexcept {
         if (this != &other) {
             if (ctx_) {
@@ -56,13 +54,13 @@ public:
         return *this;
     }
 
-private:
+ private:
     ggml_context* ctx_ = nullptr;
 };
 #else
 // Stub when GGML is not available
 class GGMLContext {
-public:
+ public:
     explicit GGMLContext(size_t /*mem_size*/) {
         throw std::runtime_error("GGML not available - build with ENABLE_LLAMA_CPP=ON");
     }
@@ -73,6 +71,6 @@ public:
 };
 #endif
 
-} // namespace bolt
+}  // namespace bolt
 
-#endif // BOLT_AI_GGML_HPP
+#endif  // BOLT_AI_GGML_HPP_

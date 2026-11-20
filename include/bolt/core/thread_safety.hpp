@@ -1,33 +1,34 @@
 
-#ifndef THREAD_SAFETY_HPP
-#define THREAD_SAFETY_HPP
+#ifndef BOLT_CORE_THREAD_SAFETY_HPP_
+#define BOLT_CORE_THREAD_SAFETY_HPP_
 
+#include <atomic>
+#include <condition_variable>
+#include <memory>
 #include <mutex>
 #include <shared_mutex>
-#include <condition_variable>
-#include <atomic>
-#include <memory>
+#include <utility>
 
 namespace bolt {
 
-template<typename T>
+template <typename T>
 class ThreadSafe {
-private:
+ private:
     mutable std::shared_mutex mutex_;
     T data_;
 
-public:
-    ThreadSafe(T data = T{}) : data_(std::move(data)) {}
+ public:
+    explicit ThreadSafe(T data = T{}) : data_(std::move(data)) {}
 
     // Read operations
-    template<typename F>
+    template <typename F>
     auto read(F&& func) const {
         std::shared_lock lock(mutex_);
         return func(data_);
     }
 
     // Write operations
-    template<typename F>
+    template <typename F>
     auto write(F&& func) {
         std::unique_lock lock(mutex_);
         return func(data_);
@@ -43,19 +44,18 @@ public:
 class SpinLock {
     std::atomic_flag flag_ = ATOMIC_FLAG_INIT;
 
-public:
+ public:
     void lock() {
-        while (flag_.test_and_set(std::memory_order_acquire)) {}
+        while (flag_.test_and_set(std::memory_order_acquire)) {
+        }
     }
 
-    void unlock() {
-        flag_.clear(std::memory_order_release);
-    }
+    void unlock() { flag_.clear(std::memory_order_release); }
 };
 
-template<typename T>
+template <typename T>
 class LockFreeQueue {
-private:
+ private:
     struct Node {
         std::shared_ptr<T> data;
         std::atomic<Node*> next;
@@ -65,7 +65,7 @@ private:
     std::atomic<Node*> head_;
     std::atomic<Node*> tail_;
 
-public:
+ public:
     LockFreeQueue() {
         Node* dummy = new Node;
         head_.store(dummy);
@@ -82,11 +82,11 @@ public:
     void push(T value) {
         Node* new_node = new Node;
         new_node->data = std::make_shared<T>(std::move(value));
-        
+
         while (true) {
             Node* last = tail_.load();
             Node* next = last->next.load();
-            
+
             if (last == tail_.load()) {
                 if (next == nullptr) {
                     if (last->next.compare_exchange_strong(next, new_node)) {
@@ -105,7 +105,7 @@ public:
             Node* first = head_.load();
             Node* last = tail_.load();
             Node* next = first->next.load();
-            
+
             if (first == head_.load()) {
                 if (first == last) {
                     if (next == nullptr) {
@@ -127,6 +127,6 @@ public:
     }
 };
 
-} // namespace bolt
+}  // namespace bolt
 
-#endif
+#endif  // BOLT_CORE_THREAD_SAFETY_HPP_

@@ -1,18 +1,19 @@
-#ifndef CODE_FOLDING_VISIBILITY_HPP
-#define CODE_FOLDING_VISIBILITY_HPP
+#ifndef BOLT_EDITOR_CODE_FOLDING_VISIBILITY_HPP_
+#define BOLT_EDITOR_CODE_FOLDING_VISIBILITY_HPP_
 
-#include "code_folding.hpp"
 #include <map>
 #include <string>
 #include <vector>
 
+#include "bolt/editor/code_folding.hpp"
+
 namespace bolt {
 
 class CodeFoldingVisibilityManager {
-private:
+ private:
     std::map<std::string, std::map<size_t, bool>> visibilityMap_;
 
-public:
+ public:
     void setLineVisibility(const std::string& filePath, size_t line, bool visible);
     bool isLineVisible(const std::string& filePath, size_t line) const;
     void toggleFoldedSection(const std::string& filePath, size_t startLine, size_t endLine);
@@ -20,6 +21,6 @@ public:
     void updateFoldedSections(const std::string& filePath, const std::vector<FoldRange>& foldRanges);
 };
 
-} // namespace bolt
+}  // namespace bolt
 
-#endif
+#endif  // BOLT_EDITOR_CODE_FOLDING_VISIBILITY_HPP_

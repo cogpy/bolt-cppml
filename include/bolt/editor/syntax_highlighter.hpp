@@ -1,11 +1,13 @@
 
-#ifndef SYNTAX_HIGHLIGHTER_HPP
-#define SYNTAX_HIGHLIGHTER_HPP
+#ifndef BOLT_EDITOR_SYNTAX_HIGHLIGHTER_HPP_
+#define BOLT_EDITOR_SYNTAX_HIGHLIGHTER_HPP_
 
-#include <string>
-#include <vector>
-#include <regex>
 #include <map>
+#include <regex>
+#include <string>
+#include <utility>
+#include <vector>
+
 #include "bolt/core/thread_safety.hpp"
 
 namespace bolt {
@@ -17,37 +19,33 @@ struct Token {
 };
 
 class SyntaxHighlighter {
-private:
+ private:
     ThreadSafe<std::map<std::string, std::vector<std::pair<std::regex, std::string>>>> rules_;
     bool enabled_ = true;
 
-public:
+ public:
     static SyntaxHighlighter& getInstance() {
         static SyntaxHighlighter instance;
         return instance;
     }
 
-    void addLanguageRules(const std::string& language, 
-                         const std::vector<std::pair<std::string, std::string>>& patterns) {
+    void addLanguageRules(const std::string& language,
+                          const std::vector<std::pair<std::string, std::string>>& patterns) {
         std::vector<std::pair<std::regex, std::string>> compiledRules;
         for (const auto& pattern : patterns) {
             compiledRules.emplace_back(std::regex(pattern.first), pattern.second);
         }
-        
-        rules_.write([&](auto& rulesMap) {
-            rulesMap[language] = compiledRules;
-        });
+
+        rules_.write([&](auto& rulesMap) { rulesMap[language] = compiledRules; });
     }
 
     void addLanguageRule(const std::string& language, const std::string& pattern, const std::string& tokenType) {
-        rules_.write([&](auto& rulesMap) {
-            rulesMap[language].emplace_back(std::regex(pattern), tokenType);
-        });
+        rules_.write([&](auto& rulesMap) { rulesMap[language].emplace_back(std::regex(pattern), tokenType); });
     }
 
     std::vector<Token> highlight(const std::string& code, const std::string& language) {
         std::vector<Token> tokens;
-        
+
         auto rules = rules_.read([&](const auto& rulesMap) {
             auto it = rulesMap.find(language);
             return it != rulesMap.end() ? it->second : std::vector<std::pair<std::regex, std::string>>();
@@ -102,16 +100,16 @@ public:
 
     void loadDefaultRules() {
         // Load C++ default rules
-        addLanguageRules("cpp", {
-            {"\\b(int|void|return|if|else|for|while|class|struct|namespace|using|include|template|typename|const|static|virtual|override|public|private|protected)\\b", "keyword"},
-            {"\\d+\\.?\\d*", "number"},
-            {"\"[^\"]*\"", "string"},
-            {"//.*$", "comment"},
-            {"/\\*[\\s\\S]*?\\*/", "comment"}
-        });
+        addLanguageRules("cpp", {{"\\b(int|void|return|if|else|for|while|class|struct|namespace|using|include|template|"
+                                  "typename|const|static|virtual|override|public|private|protected)\\b",
+                                  "keyword"},
+                                 {"\\d+\\.?\\d*", "number"},
+                                 {"\"[^\"]*\"", "string"},
+                                 {"//.*$", "comment"},
+                                 {"/\\*[\\s\\S]*?\\*/", "comment"}});
     }
 };
 
-} // namespace bolt
+}  // namespace bolt
 
-#endif
+#endif  // BOLT_EDITOR_SYNTAX_HIGHLIGHTER_HPP_

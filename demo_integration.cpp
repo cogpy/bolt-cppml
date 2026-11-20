@@ -1,9 +1,10 @@
-#include "bolt/editor/integrated_editor.hpp"
-#include <iostream>
 #include <filesystem>
 #include <fstream>
+#include <iostream>
 
-using namespace bolt;
+#include "bolt/editor/integrated_editor.hpp"
+
+using namespace bolt;  // NOLINT(build/namespaces)
 
 void demonstrateFileTreeIntegration() {
     std::cout << "Bolt C++ File Tree Integration Demo\n";
@@ -17,15 +18,14 @@ void demonstrateFileTreeIntegration() {
     std::filesystem::create_directories(testDir);
     std::filesystem::create_directories(testDir + "/src");
     std::filesystem::create_directories(testDir + "/include");
-    
+
     // Create some test files
-    std::ofstream(testDir + "/main.cpp") 
+    std::ofstream(testDir + "/main.cpp")
         << "#include <iostream>\n\nint main() {\n    std::cout << \"Hello World!\" << std::endl;\n    return 0;\n}\n";
-    std::ofstream(testDir + "/README.md") 
-        << "# Test Project\n\nThis is a test project for the file tree demo.\n";
-    std::ofstream(testDir + "/src/utils.cpp") 
+    std::ofstream(testDir + "/README.md") << "# Test Project\n\nThis is a test project for the file tree demo.\n";
+    std::ofstream(testDir + "/src/utils.cpp")
         << "#include \"utils.h\"\n\nvoid utils_function() {\n    // Implementation\n}\n";
-    std::ofstream(testDir + "/include/utils.h") 
+    std::ofstream(testDir + "/include/utils.h")
         << "#ifndef UTILS_H\n#define UTILS_H\n\nvoid utils_function();\n\n#endif\n";
 
     std::cout << "Created test project structure at: " << testDir << "\n\n";
@@ -56,17 +56,17 @@ void demonstrateFileTreeIntegration() {
     std::cout << "Toggling file tree visibility...\n";
     editor.toggleFileTreeVisibility();
     std::cout << "File tree is visible: " << (editor.isFileTreeVisible() ? "Yes" : "No") << "\n";
-    editor.toggleFileTreeVisibility(); // Toggle back
+    editor.toggleFileTreeVisibility();  // Toggle back
     std::cout << "Toggled back. File tree is visible: " << (editor.isFileTreeVisible() ? "Yes" : "No") << "\n\n";
 
     // Demonstrate folding integration with file tree
     std::cout << "Testing folding integration...\n";
     editor.setFoldingEnabled(true);
-    
+
     // Open a C++ file and test folding
     std::string utilsCppPath = testDir + "/src/utils.cpp";
     editor.openFileFromTree(utilsCppPath);
-    
+
     auto foldingRanges = editor.getFoldingRanges(utilsCppPath);
     std::cout << "Folding ranges detected for " << utilsCppPath << ": " << foldingRanges.size() << " ranges\n";
 

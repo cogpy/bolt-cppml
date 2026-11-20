@@ -1,18 +1,19 @@
-#ifndef CODE_FOLDING_UI_HPP
-#define CODE_FOLDING_UI_HPP
+#ifndef BOLT_EDITOR_CODE_FOLDING_UI_HPP_
+#define BOLT_EDITOR_CODE_FOLDING_UI_HPP_
 
-#include "code_folding_manager.hpp"
 #include <memory>
 #include <string>
+
+#include "bolt/editor/code_folding_manager.hpp"
 
 namespace bolt {
 
 class CodeFoldingUI {
-private:
+ private:
     bool visible_;
     std::shared_ptr<CodeFoldingManager> foldingManager_;
 
-public:
+ public:
     struct FoldingGutter {
         bool isVisible;
         int width;
@@ -21,7 +22,7 @@ public:
     };
 
     CodeFoldingUI();
-    
+
     void toggleVisibility();
     void setVisibility(bool visible);
     bool isVisible() const;
@@ -30,12 +31,12 @@ public:
     void renderFoldingMarkers(const std::string& filePath);
     FoldingGutter createGutter();
 
-private:
+ private:
     void renderMarker(size_t startLine, size_t endLine, bool isCollapsed);
     void drawIcon(int x, int y, const std::string& icon);
-    static constexpr int lineHeight = 20; // Default line height in pixels
+    static constexpr int lineHeight = 20;  // Default line height in pixels
 };
 
-} // namespace bolt
+}  // namespace bolt
 
-#endif
+#endif  // BOLT_EDITOR_CODE_FOLDING_UI_HPP_

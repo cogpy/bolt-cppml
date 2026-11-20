@@ -1,10 +1,11 @@
 #pragma once
-#include <string>
-#include <vector>
+#include <functional>
 #include <map>
 #include <memory>
-#include <functional>
+#include <string>
+#include <utility>
 #include <variant>
+#include <vector>
 
 namespace bolt {
 namespace drawkern {
@@ -19,40 +20,49 @@ struct AIWorkbenchGlyph;
 
 // AST Node types for the glyph description language
 enum class ASTNodeType {
-    PROGRAM,      // Root program node
-    VM_DECL,      // VM declaration
-    GLYPH_DECL,   // Glyph declaration  
-    PROPERTY,     // Property assignment
-    BLOCK,        // Block statement
-    EXPRESSION,   // Expression
-    IDENTIFIER,   // Identifier
-    LITERAL,      // Literal value
-    LIST,         // List of items
-    CALL          // Function call
+    PROGRAM,     // Root program node
+    VM_DECL,     // VM declaration
+    GLYPH_DECL,  // Glyph declaration
+    PROPERTY,    // Property assignment
+    BLOCK,       // Block statement
+    EXPRESSION,  // Expression
+    IDENTIFIER,  // Identifier
+    LITERAL,     // Literal value
+    LIST,        // List of items
+    CALL         // Function call
 };
 
 // Token types for lexical analysis
 enum class TokenType {
     // Keywords
-    VM, GLYPH, WORKBENCH, DIS, NATIVE, WASM,
-    RENDER, AI, MODEL, TOOLS, NAMESPACE,
-    
+    VM,
+    GLYPH,
+    WORKBENCH,
+    DIS,
+    NATIVE,
+    WASM,
+    RENDER,
+    AI,
+    MODEL,
+    TOOLS,
+    NAMESPACE,
+
     // Operators and punctuation
-    ASSIGN,       // =
-    SEMICOLON,    // ;
-    COMMA,        // ,
-    LBRACE,       // {
-    RBRACE,       // }
-    LPAREN,       // (
-    RPAREN,       // )
-    LBRACKET,     // [
-    RBRACKET,     // ]
-    
+    ASSIGN,     // =
+    SEMICOLON,  // ;
+    COMMA,      // ,
+    LBRACE,     // {
+    RBRACE,     // }
+    LPAREN,     // (
+    RPAREN,     // )
+    LBRACKET,   // [
+    RBRACKET,   // ]
+
     // Literals
     IDENTIFIER,
     STRING,
     NUMBER,
-    
+
     // Special
     END_OF_FILE,
     UNKNOWN
@@ -63,128 +73,122 @@ struct Token {
     std::string value;
     size_t line;
     size_t column;
-    
-    Token(TokenType t, const std::string& v, size_t l = 0, size_t c = 0) 
-        : type(t), value(v), line(l), column(c) {}
+
+    Token(TokenType t, const std::string& v, size_t l = 0, size_t c = 0) : type(t), value(v), line(l), column(c) {}
 };
 
 // AST Node base class
 class ASTNode {
-public:
+ public:
     ASTNodeType type;
     std::vector<std::unique_ptr<ASTNode>> children;
     std::map<std::string, std::string> attributes;
-    
-    ASTNode(ASTNodeType t) : type(t) {}
+
+    explicit ASTNode(ASTNodeType t) : type(t) {}
     virtual ~ASTNode() = default;
-    
-    void add_child(std::unique_ptr<ASTNode> child) {
-        children.push_back(std::move(child));
-    }
-    
-    void set_attribute(const std::string& key, const std::string& value) {
-        attributes[key] = value;
-    }
-    
+
+    void add_child(std::unique_ptr<ASTNode> child) { children.push_back(std::move(child)); }
+
+    void set_attribute(const std::string& key, const std::string& value) { attributes[key] = value; }
+
     std::string get_attribute(const std::string& key) const {
         auto it = attributes.find(key);
         return it != attributes.end() ? it->second : "";
     }
-    
+
     virtual std::string to_string() const;
 };
 
 // Specialized AST node types
 class ProgramNode : public ASTNode {
-public:
+ public:
     ProgramNode() : ASTNode(ASTNodeType::PROGRAM) {}
 };
 
 class VMDeclNode : public ASTNode {
-public:
+ public:
     std::string vm_id;
     std::string vm_type;
-    
-    VMDeclNode(const std::string& id, const std::string& type) 
+
+    VMDeclNode(const std::string& id, const std::string& type)
         : ASTNode(ASTNodeType::VM_DECL), vm_id(id), vm_type(type) {}
 };
 
 class GlyphDeclNode : public ASTNode {
-public:
+ public:
     std::string glyph_id;
     std::string base_vm;
-    
-    GlyphDeclNode(const std::string& id, const std::string& vm) 
+
+    GlyphDeclNode(const std::string& id, const std::string& vm)
         : ASTNode(ASTNodeType::GLYPH_DECL), glyph_id(id), base_vm(vm) {}
 };
 
 class PropertyNode : public ASTNode {
-public:
+ public:
     std::string name;
     std::string value;
-    
-    PropertyNode(const std::string& n, const std::string& v) 
-        : ASTNode(ASTNodeType::PROPERTY), name(n), value(v) {}
+
+    PropertyNode(const std::string& n, const std::string& v) : ASTNode(ASTNodeType::PROPERTY), name(n), value(v) {}
 };
 
 // Lexer for tokenizing glyph description language
 class GlyphLexer {
-public:
-    GlyphLexer(const std::string& input);
+ public:
+    explicit GlyphLexer(const std::string& input);
     ~GlyphLexer();
-    
+
     std::vector<Token> tokenize();
     Token next_token();
-    
+
     bool has_errors() const { return !errors_.empty(); }
     std::vector<std::string> get_errors() const { return errors_; }
-    
-private:
+
+ private:
     std::string input_;
     size_t pos_;
     size_t line_;
     size_t column_;
     std::vector<std::string> errors_;
-    
+
     char current_char();
     char peek_char();
     void advance();
     void skip_whitespace();
     void skip_comment();
-    
+
     Token read_identifier();
     Token read_string();
     Token read_number();
-    
+
     bool is_alpha(char c);
     bool is_digit(char c);
     bool is_alnum(char c);
-    
+
     void add_error(const std::string& message);
 };
 
 // Parser for glyph description language
 class GlyphParser {
-public:
-    GlyphParser(const std::vector<Token>& tokens);
+ public:
+    explicit GlyphParser(const std::vector<Token>& tokens);
     ~GlyphParser();
-    
+
     std::unique_ptr<ProgramNode> parse();
-    
+
     bool has_errors() const { return !errors_.empty(); }
     std::vector<std::string> get_errors() const { return errors_; }
-    
-private:
+
+ private:
     std::vector<Token> tokens_;
     size_t pos_;
     std::vector<std::string> errors_;
-    
+
     Token current_token();
     Token peek_token();
     void advance();
     bool match(TokenType type);
     bool consume(TokenType type);
-    
+
     std::unique_ptr<ASTNode> parse_statement();
     std::unique_ptr<VMDeclNode> parse_vm_declaration();
     std::unique_ptr<GlyphDeclNode> parse_glyph_declaration();
@@ -192,33 +196,33 @@ private:
     std::unique_ptr<ASTNode> parse_block();
     std::unique_ptr<ASTNode> parse_expression();
     std::unique_ptr<ASTNode> parse_list();
-    
+
     void add_error(const std::string& message);
 };
 
 // Code generator - converts AST to executable VM glyphs
 class GlyphCodeGenerator {
-public:
+ public:
     GlyphCodeGenerator();
     ~GlyphCodeGenerator();
-    
+
     // Generate VM glyph from AST
     VMGlyph generate_vm_glyph(const ASTNode& ast);
     AIWorkbenchGlyph generate_ai_workbench(const ASTNode& ast);
     DISProgram generate_dis_program(const ASTNode& ast);
-    
+
     // Generate different output formats
     std::string generate_cpp_code(const ASTNode& ast);
     std::string generate_json(const ASTNode& ast);
     std::string generate_yaml(const ASTNode& ast);
-    
+
     bool has_errors() const { return !errors_.empty(); }
     std::vector<std::string> get_errors() const { return errors_; }
-    
-private:
+
+ private:
     std::vector<std::string> errors_;
     std::map<std::string, VMGlyph> vm_registry_;
-    
+
     void add_error(const std::string& message);
     void process_vm_declaration(const VMDeclNode& node);
     void process_glyph_declaration(const GlyphDeclNode& node);
@@ -259,46 +263,46 @@ mount        ::= 'mount' STRING 'as' STRING ';'
 
 // High-level interface for the grammar system
 class YaccGrammarSystem {
-public:
+ public:
     YaccGrammarSystem();
     ~YaccGrammarSystem();
-    
+
     // Parse glyph description and generate VM
     VMGlyph parse_vm_glyph(const std::string& description);
     AIWorkbenchGlyph parse_ai_workbench(const std::string& description);
-    
+
     // Validate glyph description
     bool validate_description(const std::string& description);
     std::vector<std::string> get_validation_errors() const;
-    
+
     // Generate code from description
     std::string generate_cpp_code(const std::string& description);
     std::string generate_deployment_script(const std::string& description);
-    
+
     // Built-in templates
     std::string get_ai_workbench_template();
     std::string get_file_server_template();
     std::string get_echo_server_template();
-    
+
     // Grammar introspection
     std::vector<std::string> get_supported_vm_types();
     std::vector<std::string> get_supported_properties();
     std::string get_grammar_documentation();
-    
-private:
+
+ private:
     std::unique_ptr<GlyphLexer> lexer_;
     std::unique_ptr<GlyphParser> parser_;
     std::unique_ptr<GlyphCodeGenerator> generator_;
     std::vector<std::string> errors_;
-    
+
     void clear_errors();
     void collect_errors();
 };
 
 // Example glyph descriptions as string constants
 namespace GlyphTemplates {
-    
-    constexpr const char* AI_WORKBENCH = R"(
+
+constexpr const char* AI_WORKBENCH = R"(
 vm bolt_dis : dis {
     architecture = "portable";
     capabilities = ["ai-inference", "code-parsing", "file-io"];
@@ -329,7 +333,7 @@ workbench bolt_ai on bolt_dis {
 }
 )";
 
-    constexpr const char* FILE_SERVER = R"(
+constexpr const char* FILE_SERVER = R"(
 vm file_server_vm : dis {
     architecture = "arm64";
     capabilities = ["file-io", "network"];
@@ -347,7 +351,7 @@ glyph file_server on file_server_vm {
 }
 )";
 
-    constexpr const char* ECHO_SERVER = R"(
+constexpr const char* ECHO_SERVER = R"(
 vm echo_vm : native {
     architecture = "x86_64";
     capabilities = ["network"];
@@ -364,7 +368,7 @@ glyph echo_server on echo_vm {
 }
 )";
 
-} // namespace GlyphTemplates
+}  // namespace GlyphTemplates
 
-} // namespace drawkern
-} // namespace bolt
+}  // namespace drawkern
+}  // namespace bolt

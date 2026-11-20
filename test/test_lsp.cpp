@@ -3,15 +3,15 @@
  * @brief Unit tests for LSP (Language Server Protocol) components
  */
 
-#include <bolt/test_framework.hpp>
-#include <bolt/lsp/lsp_client.hpp>
-#include <bolt/lsp/lsp_server.hpp>
-#include <bolt/lsp/lsp_types.hpp>
-#include <bolt/editor/lsp_json_rpc.hpp>
-
+#include <memory>
 #include <string>
 #include <vector>
-#include <memory>
+
+#include "bolt/editor/lsp_json_rpc.hpp"
+#include "bolt/lsp/lsp_client.hpp"
+#include "bolt/lsp/lsp_server.hpp"
+#include "bolt/lsp/lsp_types.hpp"
+#include "bolt/test_framework.hpp"
 
 using namespace bolt::test;
 
@@ -263,9 +263,7 @@ BOLT_TEST(LSPServer, NotificationHandling) {
 
     int notificationCount = 0;
 
-    server.onNotification("textDocument/didChange", [&](const std::string& params) {
-        notificationCount++;
-    });
+    server.onNotification("textDocument/didChange", [&](const std::string& params) { notificationCount++; });
 
     // Send notification
     server.handleNotification("textDocument/didChange", "{}");
@@ -284,8 +282,7 @@ BOLT_TEST(LSPProtocol, InitializeRequest) {
     auto initParams = client.createInitializeParams("/home/user/project");
 
     BOLT_ASSERT(!initParams.empty());
-    BOLT_ASSERT(initParams.find("rootUri") != std::string::npos ||
-                initParams.find("rootPath") != std::string::npos);
+    BOLT_ASSERT(initParams.find("rootUri") != std::string::npos || initParams.find("rootPath") != std::string::npos);
 }
 
 BOLT_TEST(LSPProtocol, CompletionRequest) {
@@ -368,19 +365,15 @@ BOLT_TEST(LSPDiagnostics, DiagnosticFiltering) {
 
     for (int i = 0; i < 10; i++) {
         bolt::lsp::Diagnostic diag;
-        diag.severity = (i % 2 == 0) ?
-            bolt::lsp::DiagnosticSeverity::Error :
-            bolt::lsp::DiagnosticSeverity::Warning;
+        diag.severity = (i % 2 == 0) ? bolt::lsp::DiagnosticSeverity::Error : bolt::lsp::DiagnosticSeverity::Warning;
         diag.message = "Diagnostic " + std::to_string(i);
         collection.add("file:///test.cpp", diag);
     }
 
-    auto errors = collection.getByServerity("file:///test.cpp",
-        bolt::lsp::DiagnosticSeverity::Error);
+    auto errors = collection.getByServerity("file:///test.cpp", bolt::lsp::DiagnosticSeverity::Error);
     BOLT_ASSERT_EQ(5u, errors.size());
 
-    auto warnings = collection.getByServerity("file:///test.cpp",
-        bolt::lsp::DiagnosticSeverity::Warning);
+    auto warnings = collection.getByServerity("file:///test.cpp", bolt::lsp::DiagnosticSeverity::Warning);
     BOLT_ASSERT_EQ(5u, warnings.size());
 }
 

@@ -1,18 +1,20 @@
 
-#ifndef RWKV_WRAPPER_HPP
-#define RWKV_WRAPPER_HPP
+#ifndef BOLT_AI_RWKV_WRAPPER_HPP_
+#define BOLT_AI_RWKV_WRAPPER_HPP_
 
 #include <memory>
-#include <vector>
+#include <random>
 #include <string>
 #include <unordered_map>
-#include <random>
+#include <utility>
+#include <vector>
+
 #include "bolt/ai/ggml_wrapper.hpp"
 
 #ifdef BOLT_HAVE_GGML
-#include "bolt/utils/tensor_utils.hpp"
-#include "bolt/ai/gguf_loader.hpp"
 #include "bolt/ai/bpe_tokenizer.hpp"
+#include "bolt/ai/gguf_loader.hpp"
+#include "bolt/utils/tensor_utils.hpp"
 #endif
 
 namespace bolt {
@@ -21,7 +23,7 @@ namespace bolt {
 
 // Simplified RWKV state management using GGML
 class RWKVState {
-public:
+ public:
     RWKVState(ggml_context* ctx, int n_layers, int n_embd) : n_layers_(n_layers), n_embd_(n_embd) {
         for (int i = 0; i < n_layers; i++) {
             state_aa_.push_back(ggml_new_tensor_1d(ctx, GGML_TYPE_F32, n_embd));
@@ -32,18 +34,18 @@ public:
             ggml_set_zero(state_pp_[i]);
         }
     }
-    
+
     std::vector<ggml_tensor*> state_aa_;
     std::vector<ggml_tensor*> state_bb_;
     std::vector<ggml_tensor*> state_pp_;
 
-private:
+ private:
     int n_layers_;
     int n_embd_;
 };
 
 class RWKVWrapper {
-public:
+ public:
     static RWKVWrapper& getInstance() {
         static RWKVWrapper instance;
         return instance;
@@ -51,11 +53,11 @@ public:
 
     void initialize(const std::string& model_path, int ctx_size = 1024);
     bool isInitialized() const { return model_loaded_; }
-    
+
     std::string generate(const std::string& prompt, size_t max_tokens = 256);
-    std::string generateImproved(const std::string& prompt, size_t max_tokens = 256,
-                                 float temperature = 1.0f, float top_p = 0.95f);
-    
+    std::string generateImproved(const std::string& prompt, size_t max_tokens = 256, float temperature = 1.0f,
+                                 float top_p = 0.95f);
+
     ggml_tensor* forwardWithLogits(ggml_tensor* input);
     ggml_tensor* rwkvLayer(ggml_tensor* x, int layer_idx);
     ggml_tensor* timeMixing(ggml_tensor* x, int layer_idx);
@@ -65,37 +67,37 @@ public:
     ggml_tensor* projectToVocab(ggml_tensor* hidden);
     int sampleToken(ggml_tensor* logits, float temperature, float top_p);
     ggml_tensor* forward(ggml_tensor* input);
-    
+
     int getNumLayers() const { return n_layers_; }
     int getEmbedDim() const { return n_embd_; }
 
-private:
+ private:
     RWKVWrapper() = default;
-    
+
     std::unique_ptr<GGMLContext> context_;
     std::unique_ptr<RWKVState> state_;
     std::unordered_map<std::string, ggml_tensor*> weights_;
     std::unique_ptr<GGUFLoader> gguf_loader_;
     std::unique_ptr<BPETokenizer> tokenizer_;
     std::mt19937 rng_;
-    
+
     int n_layers_ = 2;
     int n_embd_ = 64;
     int n_vocab_ = 50277;
     int n_threads_ = 4;
     bool model_loaded_ = false;
     std::string model_path_;
-    
+
     void loadModel(const std::string& path);
     std::vector<int> tokenize(const std::string& text) const;
     std::string detokenize(const std::vector<int>& tokens) const;
 };
 
-#else // !BOLT_HAVE_GGML
+#else  // !BOLT_HAVE_GGML
 
 // Stub RWKVWrapper when GGML is not available
 class RWKVWrapper {
-public:
+ public:
     static RWKVWrapper& getInstance() {
         static RWKVWrapper instance;
         return instance;
@@ -105,26 +107,24 @@ public:
         throw GGMLException("RWKV not available - build with ENABLE_LLAMA_CPP=ON");
     }
     bool isInitialized() const { return false; }
-    
-    std::string generate(const std::string& /*prompt*/, size_t /*max_tokens*/ = 256) {
-        return "";
-    }
+
+    std::string generate(const std::string& /*prompt*/, size_t /*max_tokens*/ = 256) { return ""; }
     std::string generateImproved(const std::string& /*prompt*/, size_t /*max_tokens*/ = 256,
                                  float /*temperature*/ = 1.0f, float /*top_p*/ = 0.95f) {
         return "";
     }
-    
+
     int getNumLayers() const { return n_layers_; }
     int getEmbedDim() const { return n_embd_; }
 
-private:
+ private:
     RWKVWrapper() = default;
     int n_layers_ = 2;
     int n_embd_ = 64;
 };
 
-#endif // BOLT_HAVE_GGML
+#endif  // BOLT_HAVE_GGML
 
-} // namespace bolt
+}  // namespace bolt
 
-#endif // RWKV_WRAPPER_HPP
+#endif  // BOLT_AI_RWKV_WRAPPER_HPP_

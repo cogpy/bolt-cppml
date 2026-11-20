@@ -1,12 +1,14 @@
-#ifndef FILE_TREE_HPP
-#define FILE_TREE_HPP
+#ifndef BOLT_EDITOR_FILE_TREE_HPP_
+#define BOLT_EDITOR_FILE_TREE_HPP_
 
 // Main file tree navigation component header
 // This includes all file tree functionality for the editor
 
-#include "file_tree_node.hpp"
-#include "file_tree_manager.hpp"
-#include "file_tree_ui.hpp"
+#include <memory>
+
+#include "bolt/editor/file_tree_manager.hpp"
+#include "bolt/editor/file_tree_node.hpp"
+#include "bolt/editor/file_tree_ui.hpp"
 
 namespace bolt {
 
@@ -20,6 +22,6 @@ inline std::unique_ptr<FileTreeUI> createFileTreeUI() {
     return std::make_unique<FileTreeUI>();
 }
 
-} // namespace bolt
+}  // namespace bolt
 
-#endif
+#endif  // BOLT_EDITOR_FILE_TREE_HPP_

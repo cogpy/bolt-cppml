@@ -1,13 +1,14 @@
-#include "include/bolt/core/benchmark_suite.hpp"
-#include "include/bolt/core/logging.hpp"
-#include <iostream>
-#include <vector>
-#include <string>
 #include <algorithm>
 #include <chrono>
 #include <iomanip>
+#include <iostream>
+#include <string>
+#include <vector>
 
-using namespace bolt;
+#include "include/bolt/core/benchmark_suite.hpp"
+#include "include/bolt/core/logging.hpp"
+
+using namespace bolt;  // NOLINT(build/namespaces)
 
 void printUsage(const char* programName) {
     std::cout << "Usage: " << programName << " [options]\n\n";
@@ -36,34 +37,29 @@ void printUsage(const char* programName) {
 
 void printBenchmarkSummary(const std::vector<BenchmarkResult>& results) {
     std::cout << "\n=== Benchmark Summary ===\n";
-    std::cout << std::left << std::setw(30) << "Benchmark" 
-              << std::setw(12) << "Category"
-              << std::setw(15) << "Avg Time (ms)"
-              << std::setw(15) << "Min Time (ms)"
-              << std::setw(15) << "Max Time (ms)"
+    std::cout << std::left << std::setw(30) << "Benchmark" << std::setw(12) << "Category" << std::setw(15)
+              << "Avg Time (ms)" << std::setw(15) << "Min Time (ms)" << std::setw(15) << "Max Time (ms)"
               << std::setw(12) << "Success Rate"
               << "Status\n";
     std::cout << std::string(110, '-') << "\n";
-    
+
     for (const auto& result : results) {
         std::string status = result.isValid() ? "SUCCESS" : "FAILED";
-        std::cout << std::left << std::setw(30) << result.name.substr(0, 29)
-                  << std::setw(12) << result.category
-                  << std::setw(15) << std::fixed << std::setprecision(3) << result.averageDurationMs
-                  << std::setw(15) << std::fixed << std::setprecision(3) << result.minDurationMs
-                  << std::setw(15) << std::fixed << std::setprecision(3) << result.maxDurationMs
-                  << std::setw(12) << std::fixed << std::setprecision(1) << (result.getSuccessRate() * 100) << "%"
-                  << status << "\n";
-        
+        std::cout << std::left << std::setw(30) << result.name.substr(0, 29) << std::setw(12) << result.category
+                  << std::setw(15) << std::fixed << std::setprecision(3) << result.averageDurationMs << std::setw(15)
+                  << std::fixed << std::setprecision(3) << result.minDurationMs << std::setw(15) << std::fixed
+                  << std::setprecision(3) << result.maxDurationMs << std::setw(12) << std::fixed << std::setprecision(1)
+                  << (result.getSuccessRate() * 100) << "%" << status << "\n";
+
         if (!result.errorMessage.empty()) {
             std::cout << "    Error: " << result.errorMessage << "\n";
         }
     }
-    
+
     // Calculate summary statistics
     int totalSuccessful = 0, totalFailed = 0;
     double totalTime = 0.0;
-    
+
     for (const auto& result : results) {
         if (result.isValid()) {
             totalSuccessful++;
@@ -72,28 +68,25 @@ void printBenchmarkSummary(const std::vector<BenchmarkResult>& results) {
             totalFailed++;
         }
     }
-    
+
     std::cout << "\n";
     std::cout << "Total Benchmarks: " << results.size() << "\n";
     std::cout << "Successful: " << totalSuccessful << "\n";
     std::cout << "Failed: " << totalFailed << "\n";
     if (totalSuccessful > 0) {
-        std::cout << "Average Time: " << std::fixed << std::setprecision(3) 
-                  << (totalTime / totalSuccessful) << " ms\n";
+        std::cout << "Average Time: " << std::fixed << std::setprecision(3) << (totalTime / totalSuccessful) << " ms\n";
     }
 }
 
 void printComparisonSummary(const std::vector<BenchmarkComparison>& comparisons) {
     std::cout << "\n=== Baseline Comparison ===\n";
-    std::cout << std::left << std::setw(30) << "Benchmark"
-              << std::setw(15) << "Current (ms)"
-              << std::setw(15) << "Baseline (ms)"
-              << std::setw(12) << "Change (%)"
+    std::cout << std::left << std::setw(30) << "Benchmark" << std::setw(15) << "Current (ms)" << std::setw(15)
+              << "Baseline (ms)" << std::setw(12) << "Change (%)"
               << "Status\n";
     std::cout << std::string(80, '-') << "\n";
-    
+
     int improvements = 0, regressions = 0, stable = 0;
-    
+
     for (const auto& comp : comparisons) {
         std::string statusStr;
         switch (comp.performanceStatus) {
@@ -113,19 +106,18 @@ void printComparisonSummary(const std::vector<BenchmarkComparison>& comparisons)
                 statusStr = "INCONCLUSIVE";
                 break;
         }
-        
-        std::cout << std::left << std::setw(30) << comp.benchmarkName.substr(0, 29)
-                  << std::setw(15) << std::fixed << std::setprecision(3) << comp.current.averageDurationMs
-                  << std::setw(15) << std::fixed << std::setprecision(3) << comp.baseline.averageDurationMs
-                  << std::setw(12) << std::fixed << std::setprecision(1) << comp.durationChangePercent
-                  << statusStr << "\n";
+
+        std::cout << std::left << std::setw(30) << comp.benchmarkName.substr(0, 29) << std::setw(15) << std::fixed
+                  << std::setprecision(3) << comp.current.averageDurationMs << std::setw(15) << std::fixed
+                  << std::setprecision(3) << comp.baseline.averageDurationMs << std::setw(12) << std::fixed
+                  << std::setprecision(1) << comp.durationChangePercent << statusStr << "\n";
     }
-    
+
     std::cout << "\nComparison Summary:\n";
     std::cout << "Improvements: " << improvements << "\n";
     std::cout << "Regressions: " << regressions << "\n";
     std::cout << "Stable: " << stable << "\n";
-    
+
     if (regressions > 0) {
         std::cout << "\n⚠️  Performance regressions detected!\n";
     } else if (improvements > 0) {
@@ -136,9 +128,9 @@ void printComparisonSummary(const std::vector<BenchmarkComparison>& comparisons)
 int main(int argc, char* argv[]) {
     // Initialize logging
     LogManager::configureConsoleLogging(LogLevel::INFO, false);
-    
+
     auto& suite = BenchmarkSuite::getInstance();
-    
+
     // Command line argument parsing
     std::string command;
     std::string specificBenchmark;
@@ -152,10 +144,10 @@ int main(int argc, char* argv[]) {
     int warmup = 3;
     int timeout = 30000;
     bool verbose = false;
-    
+
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
-        
+
         if (arg == "--help" || arg == "-h") {
             printUsage(argv[0]);
             return 0;
@@ -195,24 +187,24 @@ int main(int argc, char* argv[]) {
             return 1;
         }
     }
-    
+
     if (command.empty()) {
         command = "run-all";  // Default action
     }
-    
+
     // Configure benchmark suite
     suite.setDefaultIterations(iterations);
     suite.setDefaultWarmupRuns(warmup);
     suite.setDefaultTimeout(std::chrono::milliseconds(timeout));
     suite.enableVerboseOutput(verbose);
-    
+
     // Load core benchmarks by including the source
     // This ensures the benchmarks are registered
-    extern void register_core_benchmarks(); // Forward declaration
-    
+    extern void register_core_benchmarks();  // Forward declaration
+
     std::cout << "Bolt Performance Benchmark Suite\n";
     std::cout << "================================\n\n";
-    
+
     try {
         if (command == "list") {
             auto benchmarks = suite.getAvailableBenchmarks();
@@ -221,7 +213,7 @@ int main(int argc, char* argv[]) {
                 std::cout << "  " << name << "\n";
             }
             std::cout << "\nTotal: " << benchmarks.size() << " benchmarks\n";
-            
+
         } else if (command == "categories") {
             auto categories = suite.getAvailableCategories();
             std::cout << "Available Categories:\n";
@@ -229,12 +221,12 @@ int main(int argc, char* argv[]) {
                 std::cout << "  " << category << "\n";
             }
             std::cout << "\nTotal: " << categories.size() << " categories\n";
-            
+
         } else if (command == "run-all") {
             std::cout << "Running all benchmarks...\n";
             auto results = suite.runAllBenchmarks();
             printBenchmarkSummary(results);
-            
+
             // Handle baseline comparison
             if (!baselineFile.empty()) {
                 auto baseline = suite.loadBaselineResults(baselineFile);
@@ -243,7 +235,7 @@ int main(int argc, char* argv[]) {
                     printComparisonSummary(comparisons);
                 }
             }
-            
+
             // Generate reports
             if (!jsonOutput.empty()) {
                 suite.generateJsonReport(results, jsonOutput);
@@ -257,7 +249,7 @@ int main(int argc, char* argv[]) {
             if (!saveBaselineFile.empty()) {
                 suite.saveBaselineResults(results, saveBaselineFile);
             }
-            
+
         } else if (command == "category") {
             std::cout << "Running benchmarks in category: " << specificCategory << "\n";
             auto results = suite.runBenchmarksByCategory(specificCategory);
@@ -266,23 +258,22 @@ int main(int argc, char* argv[]) {
                 return 1;
             }
             printBenchmarkSummary(results);
-            
+
         } else if (command == "benchmark") {
             std::cout << "Running benchmark: " << specificBenchmark << "\n";
             auto result = suite.runBenchmark(specificBenchmark);
             std::vector<BenchmarkResult> results = {result};
             printBenchmarkSummary(results);
-            
+
             if (!result.isValid()) {
                 return 1;
             }
         }
-        
     } catch (const std::exception& e) {
         std::cerr << "Error: " << e.what() << std::endl;
         return 1;
     }
-    
+
     std::cout << "\nBenchmark execution completed.\n";
     return 0;
 }

@@ -1,7 +1,7 @@
 /**
  * @file demo_advanced_lsp.cpp
  * @brief Demo application testing all advanced LSP features
- * 
+ *
  * Tests:
  * - Go-to-Definition (F12)
  * - Find References (Shift+F12)
@@ -9,18 +9,20 @@
  * - Code Formatting (Shift+Alt+F)
  */
 
-#include "bolt/editor/lsp_client.hpp"
-#include "bolt/editor/lsp_server_configs.hpp"
-#include "bolt/editor/lsp_protocol.hpp"
-#include <iostream>
-#include <fstream>
 #include <chrono>
-#include <thread>
 #include <filesystem>
+#include <fstream>
+#include <iostream>
+#include <thread>
 
-using namespace bolt::lsp;
+#include "bolt/editor/lsp_client.hpp"
+#include "bolt/editor/lsp_protocol.hpp"
+#include "bolt/editor/lsp_server_configs.hpp"
+
+using namespace bolt::lsp;  // NOLINT(build/namespaces)
 
 // Test file content with multiple symbols and references
+// clang-format off
 const char* TEST_CPP_CODE = R"(
 #include <iostream>
 #include <vector>
@@ -66,6 +68,7 @@ int main() {
     return 0;
 }
 )";
+// clang-format on
 
 void printSeparator(const std::string& title) {
     std::cout << "\n" << std::string(60, '=') << "\n";
@@ -75,8 +78,7 @@ void printSeparator(const std::string& title) {
 
 void printLocation(const Location& loc) {
     std::cout << "  📍 " << loc.uri << "\n";
-    std::cout << "     Line " << loc.range.start.line + 1 
-              << ", Col " << loc.range.start.character + 1 << "\n";
+    std::cout << "     Line " << loc.range.start.line + 1 << ", Col " << loc.range.start.character + 1 << "\n";
 }
 
 void printSymbol(const DocumentSymbol& sym, int indent = 0) {
@@ -87,15 +89,14 @@ void printSymbol(const DocumentSymbol& sym, int indent = 0) {
     }
     std::cout << " [" << static_cast<int>(sym.kind) << "]";
     std::cout << " @ line " << sym.selectionRange.start.line + 1 << "\n";
-    
+
     for (const auto& child : sym.children) {
         printSymbol(child, indent + 1);
     }
 }
 
 void printTextEdit(const TextEdit& edit) {
-    std::cout << "  ✏️  Lines " << edit.range.start.line + 1 
-              << "-" << edit.range.end.line + 1 << ": ";
+    std::cout << "  ✏️  Lines " << edit.range.start.line + 1 << "-" << edit.range.end.line + 1 << ": ";
     if (edit.newText.length() > 50) {
         std::cout << edit.newText.substr(0, 50) << "...\n";
     } else {
@@ -115,7 +116,7 @@ int main() {
     std::string testDir = "/tmp/bolt_advanced_lsp_test";
     std::filesystem::create_directories(testDir);
     std::string testFile = testDir + "/test_advanced.cpp";
-    
+
     {
         std::ofstream ofs(testFile);
         ofs << TEST_CPP_CODE;
@@ -127,16 +128,16 @@ int main() {
         std::cerr << "❌ clangd not available. Please install clangd.\n";
         return 1;
     }
-    
+
     auto config = LspServerConfigs::getConfigForLanguage("cpp");
     config.rootPath = testDir;
-    
+
     std::cout << "✅ clangd available: " << config.serverCommand << "\n";
 
     // Create and connect LSP client
     auto connection = std::make_unique<ProcessLspConnection>();
     LspClient client(std::move(connection));
-    
+
     if (!client.connect(config)) {
         std::cerr << "❌ Failed to connect to clangd\n";
         return 1;
@@ -145,11 +146,9 @@ int main() {
 
     // Initialize
     bool initSuccess = false;
-    client.initialize([&initSuccess](bool success) {
-        initSuccess = success;
-    });
+    client.initialize([&initSuccess](bool success) { initSuccess = success; });
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    
+
     if (!initSuccess) {
         std::cerr << "❌ Failed to initialize LSP session\n";
         return 1;
@@ -171,25 +170,25 @@ int main() {
     // ========================================================================
     printSeparator("Test 1: Go-to-Definition");
     std::cout << "Testing definition of 'Calculator' at line 27 (calc.add)\n";
-    
+
     std::vector<Location> definitions;
     bool defReceived = false;
-    
+
     TextDocumentPositionParams defParams;
     defParams.textDocument.uri = doc.uri;
-    defParams.position.line = 26;  // Line with "calc.add"
+    defParams.position.line = 26;      // Line with "calc.add"
     defParams.position.character = 4;  // Position of "calc"
-    
+
     client.definition(defParams, [&definitions, &defReceived](const std::vector<Location>& locs) {
         definitions = locs;
         defReceived = true;
     });
-    
+
     // Wait for response
     for (int i = 0; i < 50 && !defReceived; ++i) {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
-    
+
     if (defReceived && !definitions.empty()) {
         std::cout << "✅ Go-to-Definition: Found " << definitions.size() << " definition(s)\n";
         for (const auto& loc : definitions) {
@@ -204,25 +203,25 @@ int main() {
     // ========================================================================
     printSeparator("Test 2: Find References");
     std::cout << "Testing references to 'add' method\n";
-    
+
     std::vector<Location> references;
     bool refsReceived = false;
-    
+
     TextDocumentPositionParams refParams;
     refParams.textDocument.uri = doc.uri;
-    refParams.position.line = 8;  // Line with "int add(int a, int b)"
+    refParams.position.line = 8;       // Line with "int add(int a, int b)"
     refParams.position.character = 8;  // Position of "add"
-    
+
     client.references(refParams, [&references, &refsReceived](const std::vector<Location>& locs) {
         references = locs;
         refsReceived = true;
     });
-    
+
     // Wait for response
     for (int i = 0; i < 50 && !refsReceived; ++i) {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
-    
+
     if (refsReceived && !references.empty()) {
         std::cout << "✅ Find References: Found " << references.size() << " reference(s)\n";
         for (const auto& loc : references) {
@@ -237,23 +236,23 @@ int main() {
     // ========================================================================
     printSeparator("Test 3: Document Symbols");
     std::cout << "Testing document symbols (outline)\n";
-    
+
     std::vector<DocumentSymbol> symbols;
     bool symsReceived = false;
-    
+
     TextDocumentIdentifier symDocId;
     symDocId.uri = doc.uri;
-    
+
     client.documentSymbol(symDocId, [&symbols, &symsReceived](const std::vector<DocumentSymbol>& syms) {
         symbols = syms;
         symsReceived = true;
     });
-    
+
     // Wait for response
     for (int i = 0; i < 50 && !symsReceived; ++i) {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
-    
+
     if (symsReceived && !symbols.empty()) {
         std::cout << "✅ Document Symbols: Found " << symbols.size() << " top-level symbol(s)\n";
         for (const auto& sym : symbols) {
@@ -268,27 +267,27 @@ int main() {
     // ========================================================================
     printSeparator("Test 4: Code Formatting");
     std::cout << "Testing document formatting\n";
-    
+
     std::vector<TextEdit> edits;
     bool fmtReceived = false;
-    
+
     TextDocumentIdentifier fmtDocId;
     fmtDocId.uri = doc.uri;
-    
+
     FormattingOptions fmtOpts;
     fmtOpts.tabSize = 4;
     fmtOpts.insertSpaces = true;
-    
+
     client.formatting(fmtDocId, fmtOpts, [&edits, &fmtReceived](const std::vector<TextEdit>& e) {
         edits = e;
         fmtReceived = true;
     });
-    
+
     // Wait for response
     for (int i = 0; i < 50 && !fmtReceived; ++i) {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
-    
+
     if (fmtReceived) {
         if (edits.empty()) {
             std::cout << "✅ Code Formatting: Document already formatted (no changes needed)\n";
@@ -306,12 +305,12 @@ int main() {
     // Cleanup
     // ========================================================================
     printSeparator("Cleanup");
-    
+
     TextDocumentIdentifier closeDocId;
     closeDocId.uri = doc.uri;
     client.didCloseTextDocument(closeDocId);
     std::cout << "✅ Document closed\n";
-    
+
     client.shutdown([](bool success) {});
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
     client.disconnect();
@@ -319,12 +318,13 @@ int main() {
 
     // Summary
     printSeparator("Summary");
+    const auto verdict = [](bool passed) { return passed ? "✅ PASSED" : "⚠️  PARTIAL"; };
     std::cout << "Advanced LSP Features Test Results:\n";
-    std::cout << "  • Go-to-Definition: " << (defReceived && !definitions.empty() ? "✅ PASSED" : "⚠️  PARTIAL") << "\n";
-    std::cout << "  • Find References:  " << (refsReceived && !references.empty() ? "✅ PASSED" : "⚠️  PARTIAL") << "\n";
-    std::cout << "  • Document Symbols: " << (symsReceived && !symbols.empty() ? "✅ PASSED" : "⚠️  PARTIAL") << "\n";
-    std::cout << "  • Code Formatting:  " << (fmtReceived ? "✅ PASSED" : "⚠️  PARTIAL") << "\n";
-    
+    std::cout << "  • Go-to-Definition: " << verdict(defReceived && !definitions.empty()) << "\n";
+    std::cout << "  • Find References:  " << verdict(refsReceived && !references.empty()) << "\n";
+    std::cout << "  • Document Symbols: " << verdict(symsReceived && !symbols.empty()) << "\n";
+    std::cout << "  • Code Formatting:  " << verdict(fmtReceived) << "\n";
+
     std::cout << "\nNote: Some features may show partial results on first run due to\n";
     std::cout << "clangd needing time to build its index. Re-running typically shows\n";
     std::cout << "complete results.\n";

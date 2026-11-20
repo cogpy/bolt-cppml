@@ -1,16 +1,17 @@
 
-#ifndef MEMORY_POOL_HPP
-#define MEMORY_POOL_HPP
+#ifndef BOLT_CORE_MEMORY_POOL_HPP_
+#define BOLT_CORE_MEMORY_POOL_HPP_
 
 #include <cstddef>
-#include <vector>
-#include <mutex>
 #include <memory>
+#include <mutex>
+#include <utility>
+#include <vector>
 
 namespace bolt {
 
 class MemoryPool {
-private:
+ private:
     struct Block {
         void* data;
         bool used;
@@ -35,8 +36,8 @@ private:
         return nullptr;
     }
 
-public:
-    explicit MemoryPool(size_t initialSize = 1024 * 1024) // 1MB default
+ public:
+    explicit MemoryPool(size_t initialSize = 1024 * 1024)  // 1MB default
         : freeList(nullptr), blockSize(initialSize), totalSize(0) {
         expandPool();
     }
@@ -49,7 +50,7 @@ public:
 
     void* allocate(size_t size) {
         std::lock_guard<std::mutex> lock(mtx);
-        
+
         Block* block = findFreeBlock(size);
         if (!block) {
             expandPool();
@@ -60,13 +61,13 @@ public:
             block->used = true;
             return block->data;
         }
-        
+
         return nullptr;
     }
 
     void deallocate(void* ptr) {
         std::lock_guard<std::mutex> lock(mtx);
-        
+
         Block* current = freeList;
         while (current) {
             if (current->data == ptr) {
@@ -79,7 +80,7 @@ public:
         }
     }
 
-private:
+ private:
     void expandPool() {
         void* newChunk = ::operator new(blockSize);
         memoryChunks.push_back(newChunk);
@@ -104,11 +105,11 @@ private:
     }
 };
 
-template<typename T>
+template <typename T>
 class PoolAllocator {
     static MemoryPool pool;
 
-public:
+ public:
     using value_type = T;
     using pointer = T*;
     using const_pointer = const T*;
@@ -117,7 +118,7 @@ public:
     using size_type = std::size_t;
     using difference_type = std::ptrdiff_t;
 
-    template<typename U>
+    template <typename U>
     struct rebind {
         using other = PoolAllocator<U>;
     };
@@ -125,28 +126,27 @@ public:
     pointer allocate(size_type n) {
         size_type size = n * sizeof(T);
         void* p = pool.allocate(size);
-        if (!p) throw std::bad_alloc();
+        if (!p)
+            throw std::bad_alloc();
         return static_cast<pointer>(p);
     }
 
-    void deallocate(pointer p, size_type) {
-        pool.deallocate(p);
-    }
+    void deallocate(pointer p, size_type) { pool.deallocate(p); }
 
-    template<typename U, typename... Args>
+    template <typename U, typename... Args>
     void construct(U* p, Args&&... args) {
-        new(p) U(std::forward<Args>(args)...);
+        new (p) U(std::forward<Args>(args)...);
     }
 
-    template<typename U>
+    template <typename U>
     void destroy(U* p) {
         p->~U();
     }
 };
 
-template<typename T>
+template <typename T>
 MemoryPool PoolAllocator<T>::pool;
 
-} // namespace bolt
+}  // namespace bolt
 
-#endif
+#endif  // BOLT_CORE_MEMORY_POOL_HPP_

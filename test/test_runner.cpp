@@ -1,14 +1,15 @@
-#include "bolt/test_framework.hpp"
 #include <iostream>
 #include <string>
 
+#include "bolt/test_framework.hpp"
+
 int main(int argc, char* argv[]) {
     using namespace bolt::test;
-    
+
     std::string suite_name = "";
     bool list_tests = false;
     bool verbose = true;
-    
+
     // Parse command line arguments
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
@@ -37,16 +38,16 @@ int main(int argc, char* argv[]) {
             suite_name = arg;
         }
     }
-    
+
     auto& testSuite = TestSuite::getInstance();
-    
+
     if (list_tests) {
         testSuite.listTests();
         return 0;
     }
-    
+
     int failed_tests = 0;
-    
+
     if (suite_name.empty()) {
         if (verbose) {
             std::cout << "Bolt C++ Unit Test Runner" << std::endl;
@@ -60,6 +61,6 @@ int main(int argc, char* argv[]) {
         }
         failed_tests = testSuite.runTestsInSuite(suite_name, verbose);
     }
-    
+
     return failed_tests;
 }

@@ -11,13 +11,14 @@
  * Path D (cpp-e2e-test-gen) applied to the koboldcpp integration.
  */
 
-#include "bolt/ai/koboldcpp_provider.hpp"
-#include "bolt/test_framework.hpp"
-#include <string>
-#include <vector>
+#include <algorithm>
 #include <iostream>
 #include <sstream>
-#include <algorithm>
+#include <string>
+#include <vector>
+
+#include "bolt/ai/koboldcpp_provider.hpp"
+#include "bolt/test_framework.hpp"
 
 using namespace bolt::ai;
 
@@ -327,12 +328,10 @@ BOLT_TEST(KoboldCppChat, ChatWithSystemPrompt) {
 
 BOLT_TEST(KoboldCppChat, ChatWithMultipleMessages) {
     KoboldCppProvider provider("http://127.0.0.1:59999");
-    std::vector<std::pair<std::string,std::string>> messages = {
-        {"system", "You are helpful."},
-        {"user", "What is C++?"},
-        {"assistant", "C++ is a programming language."},
-        {"user", "Tell me more."}
-    };
+    std::vector<std::pair<std::string, std::string>> messages = {{"system", "You are helpful."},
+                                                                 {"user", "What is C++?"},
+                                                                 {"assistant", "C++ is a programming language."},
+                                                                 {"user", "Tell me more."}};
     auto response = provider.chat(messages);
     BOLT_ASSERT(response.success == false || response.success == true);
 }
@@ -354,9 +353,7 @@ BOLT_TEST(KoboldCppStreaming, StreamCompleteNoServer) {
 
 BOLT_TEST(KoboldCppStreaming, StreamChatNoServer) {
     KoboldCppProvider provider("http://127.0.0.1:59999");
-    bool result = provider.chat_streaming("Hello", [](const std::string& token) {
-        return true;
-    });
+    bool result = provider.chat_streaming("Hello", [](const std::string& token) { return true; });
     BOLT_ASSERT(!result);
 }
 
@@ -366,8 +363,7 @@ BOLT_TEST(KoboldCppStreaming, StreamChatNoServer) {
 
 BOLT_TEST(KoboldCppInterface, ImplementsAICompletionProvider) {
     // Verify KoboldCppProvider can be used as AICompletionProvider
-    std::unique_ptr<bolt::AICompletionProvider> provider =
-        std::make_unique<KoboldCppProvider>();
+    std::unique_ptr<bolt::AICompletionProvider> provider = std::make_unique<KoboldCppProvider>();
     BOLT_ASSERT(provider != nullptr);
     BOLT_ASSERT(!provider->isReady());
 }
@@ -381,8 +377,7 @@ BOLT_TEST(KoboldCppInterface, InitializeReturnsBool) {
 }
 
 BOLT_TEST(KoboldCppInterface, ShutdownViaInterface) {
-    std::unique_ptr<bolt::AICompletionProvider> provider =
-        std::make_unique<KoboldCppProvider>();
+    std::unique_ptr<bolt::AICompletionProvider> provider = std::make_unique<KoboldCppProvider>();
     provider->shutdown();
     BOLT_ASSERT(!provider->isReady());
 }
@@ -396,7 +391,7 @@ BOLT_TEST(KoboldCppInterface, GenerateCompletionsViaInterface) {
     ctx.cursorPosition = 45;
     ctx.language = "cpp";
     auto results = provider->generateCompletions(ctx, "std::cout");
-    BOLT_ASSERT(results.empty()); // No server, so empty
+    BOLT_ASSERT(results.empty());  // No server, so empty
 }
 
 // ═══════════════════════════════════════════════════════════════════════

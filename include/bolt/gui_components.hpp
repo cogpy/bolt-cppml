@@ -1,10 +1,10 @@
 
-#ifndef BOLT_GUI_COMPONENTS_HPP
-#define BOLT_GUI_COMPONENTS_HPP
+#ifndef BOLT_GUI_COMPONENTS_HPP_
+#define BOLT_GUI_COMPONENTS_HPP_
 
+#include <memory>
 #include <string>
 #include <vector>
-#include <memory>
 
 namespace bolt {
 
@@ -15,29 +15,29 @@ struct BracketMatch {
 };
 
 class Workbench {
-public:
+ public:
     Workbench() = default;
     virtual ~Workbench() = default;
-    
+
     void setCurrentProject(const std::string& path) { currentProject_ = path; }
     std::string getCurrentProject() const { return currentProject_; }
-    
-private:
+
+ private:
     std::string currentProject_;
 };
 
 class Widget {
-public:
+ public:
     virtual ~Widget() = default;
     virtual void render() = 0;
 };
 
 class Button : public Widget {
-private:
+ private:
     std::string label_;
     bool enabled_{true};
 
-public:
+ public:
     explicit Button(const std::string& label) : label_(label) {}
     void render() override;
     void setEnabled(bool enabled) { enabled_ = enabled; }
@@ -45,26 +45,26 @@ public:
 };
 
 class Panel : public Widget {
-private:
+ private:
     std::vector<std::shared_ptr<Widget>> children_;
 
-public:
+ public:
     void addWidget(std::shared_ptr<Widget> widget);
     void render() override;
 };
 
 class TextInput : public Widget {
-private:
+ private:
     std::string text_;
     std::string placeholder_;
 
-public:
+ public:
     explicit TextInput(const std::string& placeholder = "") : placeholder_(placeholder) {}
     void render() override;
     void setText(const std::string& text) { text_ = text; }
     std::string getText() const { return text_; }
 };
 
-} // namespace bolt
+}  // namespace bolt
 
-#endif // BOLT_GUI_COMPONENTS_HPP
+#endif  // BOLT_GUI_COMPONENTS_HPP_

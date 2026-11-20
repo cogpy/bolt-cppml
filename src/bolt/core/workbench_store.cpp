@@ -3,4 +3,4 @@
 
 namespace bolt {
 // All implementation is in the header
-} // namespace bolt
+}  // namespace bolt

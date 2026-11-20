@@ -1,59 +1,58 @@
-#ifndef WORKBENCH_STORE_HPP
-#define WORKBENCH_STORE_HPP
+#ifndef BOLT_CORE_WORKBENCH_STORE_HPP_
+#define BOLT_CORE_WORKBENCH_STORE_HPP_
 
+#include <functional>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <vector>
-#include <functional>
-#include <mutex>
-#include "bolt/gui_components.hpp"
+
 #include "bolt/core/error_handling.hpp"
+#include "bolt/gui_components.hpp"
 
 namespace bolt {
 
 class WorkbenchStore {
-public:
+ public:
     static WorkbenchStore& getInstance() {
         static WorkbenchStore instance;
         return instance;
     }
 
-    void setShowWorkbench(bool show) { 
+    void setShowWorkbench(bool show) {
         std::lock_guard<std::mutex> lock(mutex_);
         showWorkbench_ = show;
         notifyListeners();
     }
 
-    bool getShowWorkbench() const { 
+    bool getShowWorkbench() const {
         std::lock_guard<std::mutex> lock(mutex_);
-        return showWorkbench_; 
+        return showWorkbench_;
     }
 
     void setCurrentView(const std::string& view) {
         ErrorHandler::validateParameter(!view.empty(), "View name cannot be empty");
         if (view.length() > MAX_VIEW_NAME_LENGTH) {
-            throw StoreException(ErrorCode::INVALID_PARAMETER,
-                "View name too long: " + std::to_string(view.length()) + 
-                " > " + std::to_string(MAX_VIEW_NAME_LENGTH));
+            throw StoreException(ErrorCode::INVALID_PARAMETER, "View name too long: " + std::to_string(view.length()) +
+                                                                   " > " + std::to_string(MAX_VIEW_NAME_LENGTH));
         }
-        
+
         std::lock_guard<std::mutex> lock(mutex_);
         currentView_ = view;
         notifyListeners();
     }
 
-    std::string getCurrentView() const { 
+    std::string getCurrentView() const {
         std::lock_guard<std::mutex> lock(mutex_);
-        return currentView_; 
+        return currentView_;
     }
 
     void setSelectedFile(const std::string& file) {
         if (!file.empty() && file.length() > MAX_FILE_PATH_LENGTH) {
-            throw StoreException(ErrorCode::INVALID_PARAMETER,
-                "File path too long: " + std::to_string(file.length()) + 
-                " > " + std::to_string(MAX_FILE_PATH_LENGTH));
+            throw StoreException(ErrorCode::INVALID_PARAMETER, "File path too long: " + std::to_string(file.length()) +
+                                                                   " > " + std::to_string(MAX_FILE_PATH_LENGTH));
         }
-        
+
         std::lock_guard<std::mutex> lock(mutex_);
         selectedFile_ = file;
         notifyListeners();
@@ -77,30 +76,30 @@ public:
 
     void addListener(std::function<void()> listener) {
         ErrorHandler::validateParameter(listener != nullptr, "Listener cannot be null");
-        
+
         std::lock_guard<std::mutex> lock(mutex_);
-        
+
         if (listeners_.size() >= MAX_LISTENERS) {
-            throw StoreException(ErrorCode::STORE_STATE_INVALID,
-                "Too many listeners: " + std::to_string(listeners_.size()) + 
-                " >= " + std::to_string(MAX_LISTENERS));
+            throw StoreException(
+                ErrorCode::STORE_STATE_INVALID,
+                "Too many listeners: " + std::to_string(listeners_.size()) + " >= " + std::to_string(MAX_LISTENERS));
         }
-        
+
         listeners_.push_back(listener);
     }
 
-    Workbench& getWorkbench() { 
+    Workbench& getWorkbench() {
         std::lock_guard<std::mutex> lock(mutex_);
         ErrorHandler::validateNotNull(workbench_.get(), "workbench");
-        return *workbench_; 
+        return *workbench_;
     }
-    
+
     size_t getListenerCount() const {
         std::lock_guard<std::mutex> lock(mutex_);
         return listeners_.size();
     }
 
-private:
+ private:
     WorkbenchStore() : workbench_(std::make_unique<Workbench>()) {
         showWorkbench_ = false;
         currentView_ = "code";
@@ -128,12 +127,12 @@ private:
     std::unique_ptr<Workbench> workbench_;
     std::vector<std::function<void()>> listeners_;
     mutable std::mutex mutex_;
-    
+
     static constexpr size_t MAX_VIEW_NAME_LENGTH = 256;
     static constexpr size_t MAX_FILE_PATH_LENGTH = 2048;
     static constexpr size_t MAX_LISTENERS = 100;
 };
 
-} // namespace bolt
+}  // namespace bolt
 
-#endif
+#endif  // BOLT_CORE_WORKBENCH_STORE_HPP_

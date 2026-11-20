@@ -1,17 +1,18 @@
 #include "bolt/ai/gpu_acceleration.hpp"
-#include "bolt/core/logging.hpp"
-#include <chrono>
+
 #include <algorithm>
+#include <chrono>
 #include <cstring>
 #include <mutex>
+
+#include "bolt/core/logging.hpp"
 
 namespace bolt {
 namespace ai {
 
 // GPUMemoryManager Implementation
 GPUMemoryManager::GPUMemoryManager(ggml_backend_t backend, ggml_backend_buffer_type_t bufferType)
-    : backend_(backend), bufferType_(bufferType), totalAllocated_(0), peakUsage_(0) {
-}
+    : backend_(backend), bufferType_(bufferType), totalAllocated_(0), peakUsage_(0) {}
 
 GPUMemoryManager::~GPUMemoryManager() {
     // Cleanup all allocated buffers
@@ -49,7 +50,7 @@ void GPUMemoryManager::deallocateBuffer(ggml_backend_buffer_t buffer) {
 
 size_t GPUMemoryManager::getTotalMemory() const {
     // This would need to be implemented per backend
-    return 0; // Placeholder
+    return 0;  // Placeholder
 }
 
 size_t GPUMemoryManager::getUsedMemory() const {
@@ -66,7 +67,7 @@ void GPUMemoryManager::optimizeMemoryUsage() {
 }
 
 void GPUMemoryManager::defragmentMemory() {
-    // Implementation would depend on specific backend capabilities  
+    // Implementation would depend on specific backend capabilities
     BOLT_INFO("GPU Memory defragmentation requested");
 }
 
@@ -78,17 +79,17 @@ GPUAccelerationManager& GPUAccelerationManager::getInstance() {
 
 bool GPUAccelerationManager::initialize(const GPUConfig& config) {
     std::lock_guard<std::mutex> lock(mutex_);
-    
+
     if (initialized_) {
         BOLT_WARN("GPU Acceleration Manager already initialized");
         return true;
     }
-    
+
     config_ = config;
-    
+
     // Detect available devices first
     availableDevices_ = detectAvailableDevices();
-    
+
     if (availableDevices_.empty()) {
         BOLT_ERROR("No GPU devices found, falling back to CPU");
         if (!initializeCPU()) {
@@ -98,7 +99,7 @@ bool GPUAccelerationManager::initialize(const GPUConfig& config) {
     } else {
         // Try to initialize preferred backend
         bool backendInitialized = false;
-        
+
         // First try the preferred backend
         if (selectDevice(config_.preferredBackend, config_.preferredDeviceId)) {
             backendInitialized = true;
@@ -111,76 +112,76 @@ bool GPUAccelerationManager::initialize(const GPUConfig& config) {
                 }
             }
         }
-        
+
         if (!backendInitialized) {
             BOLT_ERROR("Failed to initialize any GPU backend");
             return false;
         }
     }
-    
+
     // Initialize memory manager
     if (currentBackend_ && currentBufferType_) {
         memoryManager_ = std::make_unique<GPUMemoryManager>(currentBackend_, currentBufferType_);
     }
-    
+
     initialized_ = true;
     resetPerformanceStats();
-    
-    BOLT_INFO("GPU Acceleration Manager initialized with backend: " + 
-             backendTypeToString(currentBackendType_));
-    
+
+    BOLT_INFO("GPU Acceleration Manager initialized with backend: " + backendTypeToString(currentBackendType_));
+
     return true;
 }
 
 void GPUAccelerationManager::shutdown() {
     std::lock_guard<std::mutex> lock(mutex_);
-    
-    if (!initialized_) return;
-    
+
+    if (!initialized_)
+        return;
+
     // Cleanup memory manager
     memoryManager_.reset();
-    
+
     // Cleanup backend
     if (currentBackend_) {
         ggml_backend_free(currentBackend_);
         currentBackend_ = nullptr;
     }
-    
+
     currentBackendType_ = GPUBackendType::CPU;
     currentBufferType_ = nullptr;
     availableDevices_.clear();
-    
+
     initialized_ = false;
-    
+
     BOLT_INFO("GPU Acceleration Manager shutdown complete");
 }
 
 std::vector<GPUDeviceInfo> GPUAccelerationManager::detectAvailableDevices() {
     std::vector<GPUDeviceInfo> devices;
-    
+
     // Detect CUDA devices
     auto cudaDevices = detectCUDADevices();
     devices.insert(devices.end(), cudaDevices.begin(), cudaDevices.end());
-    
+
     // Detect OpenCL devices
     auto openclDevices = detectOpenCLDevices();
     devices.insert(devices.end(), openclDevices.begin(), openclDevices.end());
-    
+
     // Detect Vulkan devices
     auto vulkanDevices = detectVulkanDevices();
     devices.insert(devices.end(), vulkanDevices.begin(), vulkanDevices.end());
-    
+
     // Always add CPU as fallback
     GPUDeviceInfo cpuDevice;
     cpuDevice.deviceId = -1;
     cpuDevice.name = "CPU";
     cpuDevice.description = "CPU Fallback";
-    cpuDevice.totalMemory = 0; // System RAM
+    cpuDevice.totalMemory = 0;  // System RAM
     cpuDevice.availableMemory = 0;
     cpuDevice.backendType = GPUBackendType::CPU;
     cpuDevice.isAvailable = true;
     devices.push_back(cpuDevice);
-    
+
     return devices;
 }
 
@@ -190,9 +191,9 @@ bool GPUAccelerationManager::selectDevice(GPUBackendType backendType, int device
         ggml_backend_free(currentBackend_);
         currentBackend_ = nullptr;
     }
-    
+
     bool success = false;
-    
+
     switch (backendType) {
         case GPUBackendType::CUDA:
             success = initializeCUDA(deviceId);
@@ -210,23 +211,21 @@ bool GPUAccelerationManager::selectDevice(GPUBackendType backendType, int device
             BOLT_ERROR("Unknown GPU backend type");
             return false;
     }
-    
+
     if (success) {
         currentBackendType_ = backendType;
-        
+
         // Find and store current device info
         for (const auto& device : availableDevices_) {
-            if (device.backendType == backendType && 
-                (deviceId < 0 || device.deviceId == deviceId)) {
+            if (device.backendType == backendType && (deviceId < 0 || device.deviceId == deviceId)) {
                 currentDevice_ = device;
                 break;
             }
         }
-        
-        BOLT_INFO("Successfully selected " + backendTypeToString(backendType) + 
-                 " device " + std::to_string(deviceId));
+
+        BOLT_INFO("Successfully selected " + backendTypeToString(backendType) + " device " + std::to_string(deviceId));
     }
-    
+
     return success;
 }
 
@@ -239,9 +238,9 @@ bool GPUAccelerationManager::loadModelToGPU(ggml_context* ctx, const std::vector
         BOLT_ERROR("GPU Acceleration Manager not initialized");
         return false;
     }
-    
+
     auto startTime = std::chrono::high_resolution_clock::now();
-    
+
     // Transfer each tensor to GPU
     size_t totalTransferred = 0;
     for (auto tensor : tensors) {
@@ -251,40 +250,40 @@ bool GPUAccelerationManager::loadModelToGPU(ggml_context* ctx, const std::vector
             BOLT_WARN("Failed to transfer tensor to GPU");
         }
     }
-    
+
     auto endTime = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
-    
+
     performanceStats_.totalMemoryTransfers += totalTransferred;
     performanceStats_.totalTransferTime += duration.count() / 1000.0;
-    
-    BOLT_INFO("Transferred " + std::to_string(totalTransferred) + "/" + 
-             std::to_string(tensors.size()) + " tensors to GPU in " +
-             std::to_string(duration.count()) + "ms");
-    
+
+    BOLT_INFO("Transferred " + std::to_string(totalTransferred) + "/" + std::to_string(tensors.size()) +
+              " tensors to GPU in " + std::to_string(duration.count()) + "ms");
+
     return totalTransferred > 0;
 }
 
 bool GPUAccelerationManager::transferTensorToGPU(ggml_tensor* tensor) {
-    if (!tensor || !memoryManager_) return false;
-    
+    if (!tensor || !memoryManager_)
+        return false;
+
     // Calculate tensor size
     size_t tensorSize = ggml_nbytes(tensor);
-    
+
     // Allocate GPU buffer
     auto buffer = memoryManager_->allocateBuffer(tensorSize);
     if (!buffer) {
         BOLT_ERROR("Failed to allocate GPU buffer for tensor");
         return false;
     }
-    
+
     // Initialize the tensor with the buffer
     if (ggml_backend_buffer_init_tensor(buffer, tensor) != GGML_STATUS_SUCCESS) {
         BOLT_ERROR("Failed to initialize tensor on GPU");
         memoryManager_->deallocateBuffer(buffer);
         return false;
     }
-    
+
     return true;
 }
 
@@ -299,27 +298,26 @@ bool GPUAccelerationManager::computeGraph(ggml_cgraph* graph) {
         BOLT_ERROR("Cannot compute graph: GPU backend not properly initialized");
         return false;
     }
-    
+
     auto startTime = std::chrono::high_resolution_clock::now();
-    
+
     // Compute the graph using the current backend
     enum ggml_status result = ggml_backend_graph_compute(currentBackend_, graph);
-    
+
     auto endTime = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(endTime - startTime);
-    
+
     // Update performance stats
     performanceStats_.totalComputeOps++;
     performanceStats_.totalComputeTime += duration.count() / 1000000.0;
-    performanceStats_.averageOpsPerSecond = 
-        performanceStats_.totalComputeOps / performanceStats_.totalComputeTime;
-    
+    performanceStats_.averageOpsPerSecond = performanceStats_.totalComputeOps / performanceStats_.totalComputeTime;
+
     bool success = (result == GGML_STATUS_SUCCESS);
-    
+
     if (!success) {
         BOLT_ERROR("Failed to compute graph on GPU");
     }
-    
+
     return success;
 }
 
@@ -410,7 +408,7 @@ bool GPUAccelerationManager::initializeCPU() {
 // Device detection implementations
 std::vector<GPUDeviceInfo> GPUAccelerationManager::detectCUDADevices() {
     std::vector<GPUDeviceInfo> devices;
-    
+
 #ifdef GGML_USE_CUDA
     int deviceCount = ggml_backend_cuda_get_device_count();
     for (int i = 0; i < deviceCount; i++) {
@@ -418,27 +416,27 @@ std::vector<GPUDeviceInfo> GPUAccelerationManager::detectCUDADevices() {
         device.deviceId = i;
         device.backendType = GPUBackendType::CUDA;
         device.isAvailable = true;
-        
+
         char description[256];
         ggml_backend_cuda_get_device_description(i, description, sizeof(description));
         device.description = description;
         device.name = "CUDA Device " + std::to_string(i);
-        
+
         size_t free, total;
         ggml_backend_cuda_get_device_memory(i, &free, &total);
         device.totalMemory = total;
         device.availableMemory = free;
-        
+
         devices.push_back(device);
     }
 #endif
-    
+
     return devices;
 }
 
 std::vector<GPUDeviceInfo> GPUAccelerationManager::detectOpenCLDevices() {
     std::vector<GPUDeviceInfo> devices;
-    
+
 #ifdef GGML_USE_OPENCL
     // OpenCL device detection would require platform-specific code
     // For now, add a single OpenCL device if available
@@ -449,18 +447,18 @@ std::vector<GPUDeviceInfo> GPUAccelerationManager::detectOpenCLDevices() {
         device.description = "OpenCL Compute Device";
         device.backendType = GPUBackendType::OpenCL;
         device.isAvailable = true;
-        device.totalMemory = 0; // Would need OpenCL platform query
+        device.totalMemory = 0;  // Would need OpenCL platform query
         device.availableMemory = 0;
         devices.push_back(device);
     }
 #endif
-    
+
     return devices;
 }
 
 std::vector<GPUDeviceInfo> GPUAccelerationManager::detectVulkanDevices() {
     std::vector<GPUDeviceInfo> devices;
-    
+
 #ifdef GGML_USE_VULKAN
     int deviceCount = ggml_backend_vk_get_device_count();
     for (int i = 0; i < deviceCount; i++) {
@@ -468,21 +466,21 @@ std::vector<GPUDeviceInfo> GPUAccelerationManager::detectVulkanDevices() {
         device.deviceId = i;
         device.backendType = GPUBackendType::Vulkan;
         device.isAvailable = true;
-        
+
         char description[256];
         ggml_backend_vk_get_device_description(i, description, sizeof(description));
         device.description = description;
         device.name = "Vulkan Device " + std::to_string(i);
-        
+
         size_t free, total;
         ggml_backend_vk_get_device_memory(i, &free, &total);
         device.totalMemory = total;
         device.availableMemory = free;
-        
+
         devices.push_back(device);
     }
 #endif
-    
+
     return devices;
 }
 
@@ -494,7 +492,7 @@ bool GPUAccelerationManager::isBackendAvailable(GPUBackendType backendType) {
 #endif
 #ifdef GGML_USE_OPENCL
         case GPUBackendType::OpenCL:
-            return true; // Assume available if compiled with OpenCL
+            return true;  // Assume available if compiled with OpenCL
 #endif
 #ifdef GGML_USE_VULKAN
         case GPUBackendType::Vulkan:
@@ -509,19 +507,24 @@ bool GPUAccelerationManager::isBackendAvailable(GPUBackendType backendType) {
 
 std::string GPUAccelerationManager::backendTypeToString(GPUBackendType backendType) {
     switch (backendType) {
-        case GPUBackendType::CPU:    return "CPU";
-        case GPUBackendType::CUDA:   return "CUDA";
-        case GPUBackendType::OpenCL: return "OpenCL";
-        case GPUBackendType::Vulkan: return "Vulkan";
-        case GPUBackendType::Metal:  return "Metal";
-        default:                     return "Unknown";
+        case GPUBackendType::CPU:
+            return "CPU";
+        case GPUBackendType::CUDA:
+            return "CUDA";
+        case GPUBackendType::OpenCL:
+            return "OpenCL";
+        case GPUBackendType::Vulkan:
+            return "Vulkan";
+        case GPUBackendType::Metal:
+            return "Metal";
+        default:
+            return "Unknown";
     }
 }
 
 // GPUAcceleratedModel Implementation
 GPUAcceleratedModel::GPUAcceleratedModel(const std::string& modelPath, const GPUConfig& config)
     : modelPath_(modelPath), gpuConfig_(config) {
-    
     // Initialize GPU acceleration if not already done
     auto& gpuManager = GPUAccelerationManager::getInstance();
     if (!gpuManager.isInitialized()) {
@@ -534,7 +537,7 @@ GPUAcceleratedModel::GPUAcceleratedModel(const std::string& modelPath, const GPU
     } else {
         gpuAccelerated_ = true;
     }
-    
+
     if (threadCount_ == -1) {
         threadCount_ = std::thread::hardware_concurrency();
     }
@@ -546,46 +549,44 @@ GPUAcceleratedModel::~GPUAcceleratedModel() {
 
 bool GPUAcceleratedModel::loadModel(const std::string& path) {
     modelPath_ = path;
-    
+
     // Initialize GGML context
     struct ggml_init_params params = {
-        .mem_size   = maxContextSize_ * sizeof(float) * 4,
-        .mem_buffer = nullptr,
-        .no_alloc   = false
-    };
-    
-    context_ = std::unique_ptr<ggml_context, void(*)(ggml_context*)>(ggml_init(params), ggml_free);
+        .mem_size = maxContextSize_ * sizeof(float) * 4, .mem_buffer = nullptr, .no_alloc = false};
+
+    context_ = std::unique_ptr<ggml_context, void (*)(ggml_context*)>(ggml_init(params), ggml_free);
     if (!context_) {
         BOLT_ERROR("Failed to initialize GGML context");
         return false;
     }
-    
+
     // Load model weights (simplified implementation)
     bool success = loadModelWeights();
     if (success) {
         modelLoaded_ = true;
-        
+
         // Setup GPU context if available
         if (gpuAccelerated_ && gpuOffloadingEnabled_) {
             setupGPUContext();
         }
-        
+
         BOLT_INFO("Model loaded successfully from: " + path);
     }
-    
+
     return success;
 }
 
 bool GPUAcceleratedModel::setupGPUContext() {
-    if (!gpuAccelerated_) return false;
-    
+    if (!gpuAccelerated_)
+        return false;
+
     auto& gpuManager = GPUAccelerationManager::getInstance();
-    
+
     // Transfer model tensors to GPU
     if (!modelTensors_.empty()) {
         return gpuManager.loadModelToGPU(context_.get(), modelTensors_);
     }
-    
+
     return true;
 }
 
@@ -601,24 +602,24 @@ std::string GPUAcceleratedModel::generate(const std::string& prompt, size_t maxT
         BOLT_ERROR("Model not loaded");
         return "";
     }
-    
+
     // Tokenize input
     auto tokens = tokenize(prompt);
-    
+
     // Run inference
     auto outputTensor = runInference(tokens);
     if (!outputTensor) {
         BOLT_ERROR("Inference failed");
         return "";
     }
-    
+
     // Generate response tokens (simplified)
     std::vector<int> responseTokens;
     for (size_t i = 0; i < maxTokens; i++) {
         // In a real implementation, this would sample from the model output
         responseTokens.push_back(static_cast<int>('A') + (i % 26));
     }
-    
+
     return detokenize(responseTokens);
 }
 
@@ -627,30 +628,31 @@ std::vector<float> GPUAcceleratedModel::generateEmbedding(const std::string& inp
         BOLT_ERROR("Model not loaded");
         return {};
     }
-    
+
     // Simplified embedding generation
-    std::vector<float> embedding(768); // Standard embedding size
+    std::vector<float> embedding(768);  // Standard embedding size
     std::fill(embedding.begin(), embedding.end(), 0.1f);
-    
+
     return embedding;
 }
 
 ggml_tensor* GPUAcceleratedModel::runInference(const std::vector<int>& tokens) {
-    if (!context_ || tokens.empty()) return nullptr;
-    
+    if (!context_ || tokens.empty())
+        return nullptr;
+
     // Create computation graph
     ggml_cgraph* graph = ggml_new_graph(context_.get());
-    
+
     // Create input tensor (simplified)
     auto inputTensor = ggml_new_tensor_1d(context_.get(), GGML_TYPE_I32, tokens.size());
-    
+
     // Copy token data
     memcpy(inputTensor->data, tokens.data(), tokens.size() * sizeof(int));
-    
+
     // Build forward pass (simplified)
     auto outputTensor = ggml_new_tensor_1d(context_.get(), GGML_TYPE_F32, tokens.size());
     ggml_build_forward_expand(graph, outputTensor);
-    
+
     // Compute graph
     if (gpuAccelerated_) {
         auto& gpuManager = GPUAccelerationManager::getInstance();
@@ -663,7 +665,7 @@ ggml_tensor* GPUAcceleratedModel::runInference(const std::vector<int>& tokens) {
         ggml_cplan plan = ggml_graph_plan(graph, threadCount_, nullptr);
         ggml_graph_compute(graph, &plan);
     }
-    
+
     return outputTensor;
 }
 
@@ -694,5 +696,5 @@ GPUAccelerationManager::PerformanceStats GPUAcceleratedModel::getPerformanceStat
     return {};
 }
 
-} // namespace ai
-} // namespace bolt
+}  // namespace ai
+}  // namespace bolt

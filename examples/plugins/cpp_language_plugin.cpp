@@ -1,22 +1,23 @@
-#include "bolt/core/plugin_interface.hpp"
-#include <iostream>
 #include <algorithm>
+#include <iostream>
+
+#include "bolt/core/plugin_interface.hpp"
 
 /**
  * Example C++ Language Plugin
- * 
+ *
  * This plugin provides basic C++ language support including:
  * - Code completions for common C++ keywords and STL components
  * - Basic syntax validation
  * - Code formatting
  */
 class CppLanguagePlugin : public bolt::ILanguagePlugin {
-private:
+ private:
     bolt::PluginMetadata metadata_;
     bolt::PluginState state_ = bolt::PluginState::Unloaded;
     bolt::PluginContext* context_ = nullptr;
 
-public:
+ public:
     CppLanguagePlugin() {
         metadata_.name = "CppLanguagePlugin";
         metadata_.version = "1.0.0";
@@ -29,31 +30,28 @@ public:
     }
 
     // IPlugin interface
-    bolt::PluginMetadata getMetadata() const override {
-        return metadata_;
-    }
+    bolt::PluginMetadata getMetadata() const override { return metadata_; }
 
     bool initialize(bolt::PluginContext* context) override {
         context_ = context;
         state_ = bolt::PluginState::Initialized;
-        
+
         if (context_) {
             context_->logInfo("C++ Language Plugin initialized");
-            
+
             // Subscribe to relevant events
-            context_->subscribeToEvent(bolt::PluginEventType::DocumentOpened, 
-                [this](const bolt::PluginEvent& event) {
-                    try {
-                        std::string filePath = event.getData<std::string>("filePath");
-                        if (canHandleFileType(getFileExtension(filePath))) {
-                            context_->logInfo("C++ plugin handling file: " + filePath);
-                        }
-                    } catch (const std::exception& e) {
-                        context_->logError("Error handling document opened event: " + std::string(e.what()));
+            context_->subscribeToEvent(bolt::PluginEventType::DocumentOpened, [this](const bolt::PluginEvent& event) {
+                try {
+                    std::string filePath = event.getData<std::string>("filePath");
+                    if (canHandleFileType(getFileExtension(filePath))) {
+                        context_->logInfo("C++ plugin handling file: " + filePath);
                     }
-                });
+                } catch (const std::exception& e) {
+                    context_->logError("Error handling document opened event: " + std::string(e.what()));
+                }
+            });
         }
-        
+
         return true;
     }
 
@@ -89,14 +87,14 @@ public:
                     context_->logInfo("Advanced completions " + std::string(enabled ? "enabled" : "disabled"));
                 }
             }
-            
+
             if (config.find("maxCompletions") != config.end()) {
                 int maxCompletions = std::any_cast<int>(config.at("maxCompletions"));
                 if (context_) {
                     context_->logInfo("Max completions set to: " + std::to_string(maxCompletions));
                 }
             }
-            
+
             return true;
         } catch (const std::exception& e) {
             if (context_) {
@@ -134,7 +132,7 @@ public:
 
     std::vector<std::string> getCodeCompletions(const std::string& filePath, size_t line, size_t column) override {
         std::vector<std::string> completions;
-        
+
         // Basic C++ completions
         completions.push_back("std::");
         completions.push_back("auto");
@@ -163,7 +161,7 @@ public:
         completions.push_back("requires");
         completions.push_back("noexcept");
         completions.push_back("nullptr");
-        
+
         // STL containers
         completions.push_back("std::vector");
         completions.push_back("std::string");
@@ -177,14 +175,14 @@ public:
         completions.push_back("std::queue");
         completions.push_back("std::stack");
         completions.push_back("std::priority_queue");
-        
+
         // Smart pointers
         completions.push_back("std::unique_ptr");
         completions.push_back("std::shared_ptr");
         completions.push_back("std::weak_ptr");
         completions.push_back("std::make_unique");
         completions.push_back("std::make_shared");
-        
+
         // Common algorithms
         completions.push_back("std::for_each");
         completions.push_back("std::find");
@@ -194,30 +192,30 @@ public:
         completions.push_back("std::copy");
         completions.push_back("std::move");
         completions.push_back("std::forward");
-        
+
         return completions;
     }
 
     std::vector<std::string> getDiagnostics(const std::string& filePath, const std::string& content) override {
         std::vector<std::string> diagnostics;
-        
+
         // Basic syntax checks (simplified)
         if (content.find("#include") == std::string::npos && content.find("int main") != std::string::npos) {
             diagnostics.push_back("Warning: No includes found but main function detected");
         }
-        
+
         // Check for common issues
         if (content.find("using namespace std;") != std::string::npos) {
             diagnostics.push_back("Info: Consider avoiding 'using namespace std;' in headers");
         }
-        
+
         return diagnostics;
     }
 
     std::string formatCode(const std::string& code) override {
         // Basic formatting (in a real implementation, this would use a proper formatter)
         std::string formatted = code;
-        
+
         // Simple formatting rules
         // Add space after keywords
         std::vector<std::string> keywords = {"if", "for", "while", "switch"};
@@ -228,7 +226,7 @@ public:
                 pos += keyword.length() + 2;
             }
         }
-        
+
         return formatted;
     }
 
@@ -237,7 +235,7 @@ public:
         return "C++ symbol information would appear here";
     }
 
-private:
+ private:
     std::string getFileExtension(const std::string& filePath) const {
         size_t lastDot = filePath.find_last_of('.');
         if (lastDot != std::string::npos && lastDot < filePath.length() - 1) {
@@ -249,13 +247,13 @@ private:
 
 // Plugin export functions (required for dynamic loading)
 extern "C" {
-    bolt::IPlugin* createPlugin() {
-        return new CppLanguagePlugin();
-    }
-    
-    void destroyPlugin(bolt::IPlugin* plugin) {
-        delete plugin;
-    }
+bolt::IPlugin* createPlugin() {
+    return new CppLanguagePlugin();
+}
+
+void destroyPlugin(bolt::IPlugin* plugin) {
+    delete plugin;
+}
 }
 
 // For static linking, provide a factory function

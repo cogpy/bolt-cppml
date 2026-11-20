@@ -1,6 +1,7 @@
 #include "bolt/network/network_metrics.hpp"
 
 #include <algorithm>
+#include <cstdint>
 #include <iomanip>
 #include <sstream>
 

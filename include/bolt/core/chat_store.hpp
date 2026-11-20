@@ -1,11 +1,12 @@
-#ifndef CHAT_STORE_HPP
-#define CHAT_STORE_HPP
+#ifndef BOLT_CORE_CHAT_STORE_HPP_
+#define BOLT_CORE_CHAT_STORE_HPP_
 
-#include <string>
-#include <vector>
 #include <functional>
 #include <mutex>
-#include "error_handling.hpp"
+#include <string>
+#include <vector>
+
+#include "bolt/core/error_handling.hpp"
 
 namespace bolt {
 
@@ -13,13 +14,10 @@ namespace bolt {
 struct SimpleChatMessage {
     std::string sender;
     std::string content;
-    
+
     SimpleChatMessage() = default;
-    SimpleChatMessage(const std::string& s, const std::string& c) 
-        : sender(s), content(c) {
-        validateMessage();
-    }
-    
+    SimpleChatMessage(const std::string& s, const std::string& c) : sender(s), content(c) { validateMessage(); }
+
     void validateMessage() const {
         if (sender.empty()) {
             throw StoreException(ErrorCode::INVALID_PARAMETER, "Message sender cannot be empty");
@@ -28,23 +26,23 @@ struct SimpleChatMessage {
             throw StoreException(ErrorCode::INVALID_PARAMETER, "Message content cannot be empty");
         }
         if (sender.length() > MAX_SENDER_LENGTH) {
-            throw StoreException(ErrorCode::INVALID_PARAMETER, 
-                               "Sender name too long: " + std::to_string(sender.length()) + 
-                               " > " + std::to_string(MAX_SENDER_LENGTH));
+            throw StoreException(
+                ErrorCode::INVALID_PARAMETER,
+                "Sender name too long: " + std::to_string(sender.length()) + " > " + std::to_string(MAX_SENDER_LENGTH));
         }
         if (content.length() > MAX_CONTENT_LENGTH) {
             throw StoreException(ErrorCode::INVALID_PARAMETER,
-                               "Message content too long: " + std::to_string(content.length()) + 
-                               " > " + std::to_string(MAX_CONTENT_LENGTH));
+                                 "Message content too long: " + std::to_string(content.length()) + " > " +
+                                     std::to_string(MAX_CONTENT_LENGTH));
         }
     }
-    
+
     static constexpr size_t MAX_SENDER_LENGTH = 256;
-    static constexpr size_t MAX_CONTENT_LENGTH = 65536; // 64KB
+    static constexpr size_t MAX_CONTENT_LENGTH = 65536;  // 64KB
 };
 
 class ChatStore {
-public:
+ public:
     static ChatStore& getInstance() {
         static ChatStore instance;
         return instance;
@@ -68,69 +66,69 @@ public:
         notifyListeners();
     }
 
-    bool getChatStarted() const { 
+    bool getChatStarted() const {
         std::lock_guard<std::mutex> lock(mutex_);
-        return chatStarted_; 
+        return chatStarted_;
     }
-    
-    bool getShowChat() const { 
+
+    bool getShowChat() const {
         std::lock_guard<std::mutex> lock(mutex_);
-        return showChat_; 
+        return showChat_;
     }
-    
-    bool getAborted() const { 
+
+    bool getAborted() const {
         std::lock_guard<std::mutex> lock(mutex_);
-        return aborted_; 
+        return aborted_;
     }
 
     void addListener(std::function<void()> listener) {
         ErrorHandler::validateParameter(listener != nullptr, "Listener cannot be null");
-        
+
         std::lock_guard<std::mutex> lock(mutex_);
-        
+
         if (listeners_.size() >= MAX_LISTENERS) {
             throw StoreException(ErrorCode::STORE_STATE_INVALID,
-                "Maximum number of listeners reached: " + std::to_string(MAX_LISTENERS));
+                                 "Maximum number of listeners reached: " + std::to_string(MAX_LISTENERS));
         }
-        
+
         listeners_.push_back(listener);
     }
 
     void addMessage(const SimpleChatMessage& msg) {
-        msg.validateMessage(); // Validate message before adding
-        
+        msg.validateMessage();  // Validate message before adding
+
         std::lock_guard<std::mutex> lock(mutex_);
-        
+
         if (messages_.size() >= MAX_MESSAGES) {
             throw StoreException(ErrorCode::STORE_STATE_INVALID,
-                "Maximum number of messages reached: " + std::to_string(MAX_MESSAGES));
+                                 "Maximum number of messages reached: " + std::to_string(MAX_MESSAGES));
         }
-        
+
         messages_.push_back(msg);
     }
 
-    const std::vector<SimpleChatMessage>& getMessages() const { 
+    const std::vector<SimpleChatMessage>& getMessages() const {
         std::lock_guard<std::mutex> lock(mutex_);
-        return messages_; 
+        return messages_;
     }
-    
+
     size_t getMessageCount() const {
         std::lock_guard<std::mutex> lock(mutex_);
         return messages_.size();
     }
-    
+
     size_t getListenerCount() const {
         std::lock_guard<std::mutex> lock(mutex_);
         return listeners_.size();
     }
-    
+
     void clearMessages() {
         std::lock_guard<std::mutex> lock(mutex_);
         messages_.clear();
         notifyListeners();
     }
 
-private:
+ private:
     ChatStore() : chatStarted_(false), showChat_(true), aborted_(false) {}
 
     void notifyListeners() {
@@ -154,11 +152,11 @@ private:
     std::vector<std::function<void()>> listeners_;
     std::vector<SimpleChatMessage> messages_;
     mutable std::mutex mutex_;
-    
+
     static constexpr size_t MAX_LISTENERS = 100;
     static constexpr size_t MAX_MESSAGES = 10000;
 };
 
-} // namespace bolt
+}  // namespace bolt
 
-#endif
+#endif  // BOLT_CORE_CHAT_STORE_HPP_

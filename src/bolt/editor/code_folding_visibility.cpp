@@ -10,12 +10,12 @@ void CodeFoldingVisibilityManager::setLineVisibility(const std::string& filePath
 bool CodeFoldingVisibilityManager::isLineVisible(const std::string& filePath, size_t line) const {
     auto fileIt = visibilityMap_.find(filePath);
     if (fileIt == visibilityMap_.end()) {
-        return true; // Default visible if not managed
+        return true;  // Default visible if not managed
     }
 
     auto lineIt = fileIt->second.find(line);
     if (lineIt == fileIt->second.end()) {
-        return true; // Default visible if not managed
+        return true;  // Default visible if not managed
     }
 
     return lineIt->second;
@@ -32,7 +32,8 @@ void CodeFoldingVisibilityManager::showAllLines(const std::string& filePath) {
     visibilityMap_.erase(filePath);
 }
 
-void CodeFoldingVisibilityManager::updateFoldedSections(const std::string& filePath, const std::vector<FoldRange>& foldRanges) {
+void CodeFoldingVisibilityManager::updateFoldedSections(const std::string& filePath,
+                                                        const std::vector<FoldRange>& foldRanges) {
     for (const auto& range : foldRanges) {
         if (range.isFolded) {
             for (size_t line = range.startLine + 1; line <= range.endLine; ++line) {
@@ -42,4 +43,4 @@ void CodeFoldingVisibilityManager::updateFoldedSections(const std::string& fileP
     }
 }
 
-} // namespace bolt
+}  // namespace bolt

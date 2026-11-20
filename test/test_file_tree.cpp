@@ -1,9 +1,20 @@
+#include <chrono>
 #include <filesystem>
 #include <fstream>
 
 #include "bolt/editor/file_tree_manager.hpp"
 #include "bolt/editor/file_tree_ui.hpp"
 #include "bolt/test_framework.hpp"
+
+namespace {
+// These tests create and delete real directories. The same tests are built
+// into more than one test program and CTest runs those in parallel, so each
+// process needs its own directory or one run deletes the other's files.
+std::string uniqueTestDir(const std::string& name) {
+    const auto stamp = std::chrono::steady_clock::now().time_since_epoch().count();
+    return "/tmp/" + name + "_" + std::to_string(stamp);
+}
+}  // namespace
 
 using namespace bolt::test;
 
@@ -51,7 +62,7 @@ BOLT_TEST(FileTree, ManagerSettings) {
 
 BOLT_TEST(FileTree, DirectoryScanning) {
     // Create a temporary test directory structure
-    std::string testDir = "/tmp/bolt_test_filetree_scan";
+    std::string testDir = uniqueTestDir("bolt_test_filetree_scan");
     std::filesystem::create_directories(testDir);
     std::filesystem::create_directories(testDir + "/subdir");
 
@@ -91,7 +102,7 @@ BOLT_TEST(FileTree, UIBasics) {
 
 BOLT_TEST(FileTree, UIRendering) {
     // Create a small test directory
-    std::string testDir = "/tmp/bolt_test_ui_render";
+    std::string testDir = uniqueTestDir("bolt_test_ui_render");
     std::filesystem::create_directories(testDir);
     std::ofstream(testDir + "/test.txt") << "test";
 
@@ -113,7 +124,7 @@ BOLT_TEST(FileTree, UIRendering) {
 // ===== File Operations Tests =====
 
 BOLT_TEST(FileTree, FileSelection) {
-    std::string testDir = "/tmp/bolt_test_selection";
+    std::string testDir = uniqueTestDir("bolt_test_selection");
     std::filesystem::create_directories(testDir);
     std::ofstream(testDir + "/select_me.txt") << "content";
 
@@ -138,7 +149,7 @@ BOLT_TEST(FileTree, FileSelection) {
 }
 
 BOLT_TEST(FileTree, DirectoryExpansion) {
-    std::string testDir = "/tmp/bolt_test_expansion";
+    std::string testDir = uniqueTestDir("bolt_test_expansion");
     std::filesystem::create_directories(testDir + "/expand_test");
     std::ofstream(testDir + "/expand_test/hidden.txt") << "content";
 

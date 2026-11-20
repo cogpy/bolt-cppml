@@ -1,15 +1,15 @@
 
-#ifndef DATA_PROCESSOR_HPP
-#define DATA_PROCESSOR_HPP
+#ifndef BOLT_UTILS_DATA_PROCESSOR_HPP_
+#define BOLT_UTILS_DATA_PROCESSOR_HPP_
 
-#include <vector>
 #include <algorithm>
 #include <numeric>
 #include <stdexcept>
+#include <vector>
 
-template<typename T>
+template <typename T>
 class DataProcessor {
-public:
+ public:
     static T calculateAverage(const std::vector<T>& data) {
         if (data.empty()) {
             throw std::runtime_error("Cannot calculate average of empty dataset");
@@ -37,4 +37,4 @@ public:
     }
 };
 
-#endif
+#endif  // BOLT_UTILS_DATA_PROCESSOR_HPP_

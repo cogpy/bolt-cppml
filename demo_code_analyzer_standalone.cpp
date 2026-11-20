@@ -1,25 +1,30 @@
-#include <iostream>
-#include <string>
-#include <vector>
-#include <fstream>
-#include <filesystem>
-#include <regex>
-#include <sstream>
 #include <algorithm>
-#include <unordered_map>
 #include <chrono>
 #include <cmath>
+#include <filesystem>
+#include <fstream>
+#include <iostream>
+#include <regex>
+#include <sstream>
+#include <string>
+#include <unordered_map>
+#include <vector>
 
 // Standalone implementation of advanced code analysis tools
 namespace bolt {
 
-enum class AnalysisSeverity {
-    INFO, WARNING, ERROR, CRITICAL
-};
+enum class AnalysisSeverity { INFO, WARNING, ERROR, CRITICAL };
 
 enum class AnalysisCategory {
-    COMPLEXITY, MAINTAINABILITY, PERFORMANCE, SECURITY, 
-    STYLE, DEPENDENCIES, MEMORY, TESTING, ARCHITECTURE
+    COMPLEXITY,
+    MAINTAINABILITY,
+    PERFORMANCE,
+    SECURITY,
+    STYLE,
+    DEPENDENCIES,
+    MEMORY,
+    TESTING,
+    ARCHITECTURE
 };
 
 struct AnalysisIssue {
@@ -31,9 +36,8 @@ struct AnalysisIssue {
     std::string filePath;
     size_t lineNumber;
     std::vector<std::string> suggestions;
-    
-    AnalysisIssue(const std::string& issueId, const std::string& msg, 
-                  AnalysisSeverity sev, AnalysisCategory cat)
+
+    AnalysisIssue(const std::string& issueId, const std::string& msg, AnalysisSeverity sev, AnalysisCategory cat)
         : id(issueId), message(msg), severity(sev), category(cat), lineNumber(0) {}
 };
 
@@ -51,59 +55,58 @@ struct CodeMetrics {
 };
 
 class StandaloneCodeAnalyzer {
-public:
+ public:
     std::vector<AnalysisIssue> analyzeFile(const std::string& filePath, const std::string& content) {
         std::vector<AnalysisIssue> issues;
-        
+
         auto metrics = getMetrics(content);
-        
+
         // Complexity analysis
         if (metrics.cyclomaticComplexity > 10) {
-            AnalysisIssue issue("COMPLEX_FUNCTION", 
-                               "High cyclomatic complexity: " + std::to_string(metrics.cyclomaticComplexity),
-                               AnalysisSeverity::WARNING, AnalysisCategory::COMPLEXITY);
+            AnalysisIssue issue("COMPLEX_FUNCTION",
+                                "High cyclomatic complexity: " + std::to_string(metrics.cyclomaticComplexity),
+                                AnalysisSeverity::WARNING, AnalysisCategory::COMPLEXITY);
             issue.filePath = filePath;
             issue.suggestions.push_back("Consider breaking down complex functions into smaller ones");
             issues.push_back(issue);
         }
-        
+
         if (metrics.nestingDepth > 4) {
-            AnalysisIssue issue("DEEP_NESTING", 
-                               "Deep nesting detected: " + std::to_string(metrics.nestingDepth) + " levels",
-                               AnalysisSeverity::WARNING, AnalysisCategory::COMPLEXITY);
+            AnalysisIssue issue("DEEP_NESTING",
+                                "Deep nesting detected: " + std::to_string(metrics.nestingDepth) + " levels",
+                                AnalysisSeverity::WARNING, AnalysisCategory::COMPLEXITY);
             issue.filePath = filePath;
             issue.suggestions.push_back("Extract nested logic into separate functions");
             issues.push_back(issue);
         }
-        
+
         // Security analysis
         auto securityIssues = checkSecurityIssues(content, filePath);
         issues.insert(issues.end(), securityIssues.begin(), securityIssues.end());
-        
+
         // Performance analysis
         auto performanceIssues = checkPerformanceIssues(content, filePath);
         issues.insert(issues.end(), performanceIssues.begin(), performanceIssues.end());
-        
+
         return issues;
     }
-    
+
     CodeMetrics getMetrics(const std::string& content) {
         CodeMetrics metrics;
-        
+
         std::istringstream stream(content);
         std::string line;
-        
+
         while (std::getline(stream, line)) {
             metrics.physicalLines++;
-            
+
             // Remove leading/trailing whitespace
-            line.erase(line.begin(), std::find_if(line.begin(), line.end(), [](unsigned char ch) {
-                return !std::isspace(ch);
-            }));
-            line.erase(std::find_if(line.rbegin(), line.rend(), [](unsigned char ch) {
-                return !std::isspace(ch);
-            }).base(), line.end());
-            
+            line.erase(line.begin(),
+                       std::find_if(line.begin(), line.end(), [](unsigned char ch) { return !std::isspace(ch); }));
+            line.erase(
+                std::find_if(line.rbegin(), line.rend(), [](unsigned char ch) { return !std::isspace(ch); }).base(),
+                line.end());
+
             if (line.empty()) {
                 metrics.blankLines++;
             } else if (line.find("//") == 0 || line.find("/*") == 0) {
@@ -112,24 +115,24 @@ public:
                 metrics.linesOfCode++;
             }
         }
-        
+
         metrics.cyclomaticComplexity = calculateCyclomaticComplexity(content);
         metrics.nestingDepth = calculateNestingDepth(content);
         metrics.functionCount = countFunctions(content);
         metrics.classCount = countClasses(content);
-        
+
         // Calculate maintainability index
         if (metrics.linesOfCode > 0) {
             double complexity = static_cast<double>(metrics.cyclomaticComplexity);
             double loc = static_cast<double>(metrics.linesOfCode);
-            metrics.maintainabilityIndex = std::max(0.0, 
-                171.0 - 5.2 * std::log(complexity) - 0.23 * complexity - 16.2 * std::log(loc));
+            metrics.maintainabilityIndex =
+                std::max(0.0, 171.0 - 5.2 * std::log(complexity) - 0.23 * complexity - 16.2 * std::log(loc));
         }
-        
+
         return metrics;
     }
-    
-private:
+
+ private:
     size_t calculateCyclomaticComplexity(const std::string& content) {
         size_t complexity = 1;
         std::regex decisionPoints(R"(\b(if|else\s+if|while|for|do|switch|case|catch|\?)\b)");
@@ -138,139 +141,148 @@ private:
         complexity += std::distance(iter, end);
         return complexity;
     }
-    
+
     size_t calculateNestingDepth(const std::string& content) {
         size_t maxDepth = 0;
         size_t currentDepth = 0;
-        
+
         for (char c : content) {
             if (c == '{') {
                 currentDepth++;
                 maxDepth = std::max(maxDepth, currentDepth);
             } else if (c == '}') {
-                if (currentDepth > 0) currentDepth--;
+                if (currentDepth > 0)
+                    currentDepth--;
             }
         }
         return maxDepth;
     }
-    
+
     size_t countFunctions(const std::string& content) {
         std::regex functionPattern(R"(\b\w+\s*\([^)]*\)\s*\{)");
         std::sregex_iterator iter(content.begin(), content.end(), functionPattern);
         std::sregex_iterator end;
         return std::distance(iter, end);
     }
-    
+
     size_t countClasses(const std::string& content) {
         std::regex classPattern(R"(\bclass\s+\w+)");
         std::sregex_iterator iter(content.begin(), content.end(), classPattern);
         std::sregex_iterator end;
         return std::distance(iter, end);
     }
-    
+
     std::vector<AnalysisIssue> checkSecurityIssues(const std::string& content, const std::string& filePath) {
         std::vector<AnalysisIssue> issues;
-        
+
         // Check for unsafe buffer operations
         std::regex unsafeBufferOps(R"(\b(strcpy|strcat|sprintf|gets)\s*\()");
         std::sregex_iterator iter(content.begin(), content.end(), unsafeBufferOps);
         std::sregex_iterator end;
-        
+
         for (; iter != end; ++iter) {
-            AnalysisIssue issue("UNSAFE_BUFFER_OP", 
-                               "Unsafe buffer operation: " + (*iter)[1].str(),
-                               AnalysisSeverity::ERROR, AnalysisCategory::SECURITY);
+            AnalysisIssue issue("UNSAFE_BUFFER_OP", "Unsafe buffer operation: " + (*iter)[1].str(),
+                                AnalysisSeverity::ERROR, AnalysisCategory::SECURITY);
             issue.filePath = filePath;
             issue.suggestions.push_back("Use safer alternatives like strncpy, strncat, snprintf");
             issues.push_back(issue);
         }
-        
+
         // Check for unsafe functions
         std::vector<std::pair<std::string, std::string>> unsafeFunctions = {
-            {"scanf", "Use cin or safer input methods"},
-            {"system", "Avoid system calls, use safer alternatives"}
-        };
-        
+            {"scanf", "Use cin or safer input methods"}, {"system", "Avoid system calls, use safer alternatives"}};
+
         for (const auto& [func, suggestion] : unsafeFunctions) {
             std::regex pattern("\\b" + func + "\\s*\\(");
             if (std::regex_search(content, pattern)) {
-                AnalysisIssue issue("UNSAFE_FUNCTION", 
-                                   "Unsafe function usage: " + func,
-                                   AnalysisSeverity::WARNING, AnalysisCategory::SECURITY);
+                AnalysisIssue issue("UNSAFE_FUNCTION", "Unsafe function usage: " + func, AnalysisSeverity::WARNING,
+                                    AnalysisCategory::SECURITY);
                 issue.filePath = filePath;
                 issue.suggestions.push_back(suggestion);
                 issues.push_back(issue);
             }
         }
-        
+
         return issues;
     }
-    
+
     std::vector<AnalysisIssue> checkPerformanceIssues(const std::string& content, const std::string& filePath) {
         std::vector<AnalysisIssue> issues;
-        
+
         // Check for string concatenation in loops
         std::regex stringConcatInLoop(R"(for\s*\([^}]*\+\s*=\s*[^;]*string)");
         if (std::regex_search(content, stringConcatInLoop)) {
-            AnalysisIssue issue("STRING_CONCAT_IN_LOOP", 
-                               "String concatenation in loop detected",
-                               AnalysisSeverity::WARNING, AnalysisCategory::PERFORMANCE);
+            AnalysisIssue issue("STRING_CONCAT_IN_LOOP", "String concatenation in loop detected",
+                                AnalysisSeverity::WARNING, AnalysisCategory::PERFORMANCE);
             issue.filePath = filePath;
             issue.suggestions.push_back("Use stringstream or reserve space for better performance");
             issues.push_back(issue);
         }
-        
+
         // Check for nested loops
         std::regex nestedLoops(R"(for\s*\([^}]*for\s*\()");
         std::sregex_iterator iter(content.begin(), content.end(), nestedLoops);
         std::sregex_iterator end;
-        
+
         size_t nestedLoopCount = std::distance(iter, end);
         if (nestedLoopCount > 0) {
-            AnalysisIssue issue("NESTED_LOOPS", 
-                               "Nested loops detected (" + std::to_string(nestedLoopCount) + ")",
-                               AnalysisSeverity::INFO, AnalysisCategory::PERFORMANCE);
+            AnalysisIssue issue("NESTED_LOOPS", "Nested loops detected (" + std::to_string(nestedLoopCount) + ")",
+                                AnalysisSeverity::INFO, AnalysisCategory::PERFORMANCE);
             issue.filePath = filePath;
             issue.suggestions.push_back("Consider algorithmic improvements to reduce complexity");
             issues.push_back(issue);
         }
-        
+
         return issues;
     }
-    
-public:
+
+ public:
     std::string formatSeverity(AnalysisSeverity severity) const {
         switch (severity) {
-            case AnalysisSeverity::INFO: return "INFO";
-            case AnalysisSeverity::WARNING: return "WARNING";
-            case AnalysisSeverity::ERROR: return "ERROR";  
-            case AnalysisSeverity::CRITICAL: return "CRITICAL";
-            default: return "UNKNOWN";
+            case AnalysisSeverity::INFO:
+                return "INFO";
+            case AnalysisSeverity::WARNING:
+                return "WARNING";
+            case AnalysisSeverity::ERROR:
+                return "ERROR";
+            case AnalysisSeverity::CRITICAL:
+                return "CRITICAL";
+            default:
+                return "UNKNOWN";
         }
     }
-    
+
     std::string formatCategory(AnalysisCategory category) const {
         switch (category) {
-            case AnalysisCategory::COMPLEXITY: return "COMPLEXITY";
-            case AnalysisCategory::SECURITY: return "SECURITY";
-            case AnalysisCategory::PERFORMANCE: return "PERFORMANCE";
-            case AnalysisCategory::MAINTAINABILITY: return "MAINTAINABILITY";
-            case AnalysisCategory::STYLE: return "STYLE";
-            case AnalysisCategory::DEPENDENCIES: return "DEPENDENCIES";
-            case AnalysisCategory::MEMORY: return "MEMORY";
-            default: return "UNKNOWN";
+            case AnalysisCategory::COMPLEXITY:
+                return "COMPLEXITY";
+            case AnalysisCategory::SECURITY:
+                return "SECURITY";
+            case AnalysisCategory::PERFORMANCE:
+                return "PERFORMANCE";
+            case AnalysisCategory::MAINTAINABILITY:
+                return "MAINTAINABILITY";
+            case AnalysisCategory::STYLE:
+                return "STYLE";
+            case AnalysisCategory::DEPENDENCIES:
+                return "DEPENDENCIES";
+            case AnalysisCategory::MEMORY:
+                return "MEMORY";
+            default:
+                return "UNKNOWN";
         }
     }
 };
 
-} // namespace bolt
+}  // namespace bolt
 
 void demonstrateCodeAnalysis() {
     std::cout << "\n=== Advanced Code Analysis Tools Demo ===\n";
-    
+
     bolt::StandaloneCodeAnalyzer analyzer;
-    
+
     // Create sample code with various issues
+    // clang-format off
     std::string sampleCode = R"(
 #include <iostream>
 #include <string>
@@ -320,20 +332,21 @@ int main() {
     return 0;
 }
 )";
-    
+    // clang-format on
+
     // Analyze the sample code
     auto startTime = std::chrono::high_resolution_clock::now();
     auto issues = analyzer.analyzeFile("sample.cpp", sampleCode);
     auto metrics = analyzer.getMetrics(sampleCode);
     auto endTime = std::chrono::high_resolution_clock::now();
-    
+
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(endTime - startTime);
-    
+
     std::cout << "\nAnalysis Results:\n";
     std::cout << "=================\n";
     std::cout << "Analysis Time: " << duration.count() << " microseconds\n";
     std::cout << "Total Issues Found: " << issues.size() << "\n\n";
-    
+
     // Display metrics
     std::cout << "Code Metrics:\n";
     std::cout << "  Lines of Code: " << metrics.linesOfCode << "\n";
@@ -344,33 +357,33 @@ int main() {
     std::cout << "  Nesting Depth: " << metrics.nestingDepth << "\n";
     std::cout << "  Function Count: " << metrics.functionCount << "\n";
     std::cout << "  Class Count: " << metrics.classCount << "\n";
-    std::cout << "  Maintainability Index: " << std::fixed << std::setprecision(2) 
-              << metrics.maintainabilityIndex << "\n\n";
-    
+    std::cout << "  Maintainability Index: " << std::fixed << std::setprecision(2) << metrics.maintainabilityIndex
+              << "\n\n";
+
     // Group issues by severity
     std::unordered_map<bolt::AnalysisSeverity, int> severityCounts;
     std::unordered_map<bolt::AnalysisCategory, int> categoryCounts;
-    
+
     for (const auto& issue : issues) {
         severityCounts[issue.severity]++;
         categoryCounts[issue.category]++;
     }
-    
+
     std::cout << "Issues by Severity:\n";
     for (const auto& [severity, count] : severityCounts) {
         std::cout << "  " << analyzer.formatSeverity(severity) << ": " << count << "\n";
     }
-    
+
     std::cout << "\nIssues by Category:\n";
     for (const auto& [category, count] : categoryCounts) {
         std::cout << "  " << analyzer.formatCategory(category) << ": " << count << "\n";
     }
-    
+
     std::cout << "\nDetailed Issues:\n";
     std::cout << "================\n";
     for (const auto& issue : issues) {
-        std::cout << "[" << analyzer.formatSeverity(issue.severity) << "] " 
-                  << analyzer.formatCategory(issue.category) << ": " << issue.message << "\n";
+        std::cout << "[" << analyzer.formatSeverity(issue.severity) << "] " << analyzer.formatCategory(issue.category)
+                  << ": " << issue.message << "\n";
         for (const auto& suggestion : issue.suggestions) {
             std::cout << "  → Suggestion: " << suggestion << "\n";
         }
@@ -380,13 +393,14 @@ int main() {
 
 void demonstrateProjectAnalysis() {
     std::cout << "\n=== Project Analysis Demo ===\n";
-    
+
     // Create a temporary project structure
     std::string projectPath = "/tmp/sample_project";
     std::filesystem::create_directories(projectPath);
-    
+
     // Create some sample files with different types of issues
     std::ofstream main_cpp(projectPath + "/main.cpp");
+    // clang-format off
     main_cpp << R"(
 #include "utils.hpp"
 #include <iostream>
@@ -407,9 +421,11 @@ int main() {
     return 0;
 }
 )";
+    // clang-format on
     main_cpp.close();
-    
+
     std::ofstream utils_hpp(projectPath + "/utils.hpp");
+    // clang-format off
     utils_hpp << R"(
 #ifndef UTILS_HPP
 #define UTILS_HPP
@@ -425,9 +441,11 @@ public:
 
 #endif
 )";
+    // clang-format on
     utils_hpp.close();
-    
+
     std::ofstream utils_cpp(projectPath + "/utils.cpp");
+    // clang-format off
     utils_cpp << R"(
 #include "utils.hpp"
 #include <cstring>
@@ -467,31 +485,29 @@ void UtilityClass::securityRisk() {
     scanf("%s", buffer);
 }
 )";
+    // clang-format on
     utils_cpp.close();
-    
+
     bolt::StandaloneCodeAnalyzer analyzer;
     std::vector<bolt::AnalysisIssue> allIssues;
     std::vector<bolt::CodeMetrics> allMetrics;
     size_t totalFiles = 0;
-    
+
     // Analyze all files in the project
     for (const auto& entry : std::filesystem::recursive_directory_iterator(projectPath)) {
-        if (entry.is_regular_file() && 
-            (entry.path().extension() == ".cpp" || entry.path().extension() == ".hpp")) {
-            
+        if (entry.is_regular_file() && (entry.path().extension() == ".cpp" || entry.path().extension() == ".hpp")) {
             std::ifstream file(entry.path());
-            std::string content((std::istreambuf_iterator<char>(file)),
-                               std::istreambuf_iterator<char>());
-            
+            std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+
             auto issues = analyzer.analyzeFile(entry.path().string(), content);
             auto metrics = analyzer.getMetrics(content);
-            
+
             allIssues.insert(allIssues.end(), issues.begin(), issues.end());
             allMetrics.push_back(metrics);
             totalFiles++;
         }
     }
-    
+
     // Aggregate metrics
     bolt::CodeMetrics overallMetrics;
     for (const auto& metrics : allMetrics) {
@@ -502,7 +518,7 @@ void UtilityClass::securityRisk() {
         overallMetrics.cyclomaticComplexity += metrics.cyclomaticComplexity;
         overallMetrics.nestingDepth = std::max(overallMetrics.nestingDepth, metrics.nestingDepth);
     }
-    
+
     std::cout << "Project Analysis Results:\n";
     std::cout << "  Files Analyzed: " << totalFiles << "\n";
     std::cout << "  Total Issues: " << allIssues.size() << "\n";
@@ -511,19 +527,19 @@ void UtilityClass::securityRisk() {
     std::cout << "  Total Classes: " << overallMetrics.classCount << "\n";
     std::cout << "  Maximum Nesting Depth: " << overallMetrics.nestingDepth << "\n";
     std::cout << "  Total Cyclomatic Complexity: " << overallMetrics.cyclomaticComplexity << "\n";
-    
+
     // Show issues by file
     std::cout << "\nIssues by File:\n";
     std::unordered_map<std::string, std::vector<bolt::AnalysisIssue>> issuesByFile;
     for (const auto& issue : allIssues) {
         issuesByFile[issue.filePath].push_back(issue);
     }
-    
+
     for (const auto& [filePath, fileIssues] : issuesByFile) {
-        std::cout << "  " << std::filesystem::path(filePath).filename().string() 
-                  << ": " << fileIssues.size() << " issues\n";
+        std::cout << "  " << std::filesystem::path(filePath).filename().string() << ": " << fileIssues.size()
+                  << " issues\n";
     }
-    
+
     // Cleanup
     std::filesystem::remove_all(projectPath);
 }
@@ -533,10 +549,10 @@ int main() {
         std::cout << "=== Bolt C++ Advanced Code Analysis Tools ===\n";
         std::cout << "This standalone demo showcases the comprehensive code analysis\n";
         std::cout << "capabilities implemented for the Bolt C++ IDE.\n";
-        
+
         demonstrateCodeAnalysis();
         demonstrateProjectAnalysis();
-        
+
         std::cout << "\n=== Analysis Features Demonstrated ===\n";
         std::cout << "✓ Complexity Analysis:\n";
         std::cout << "  - Cyclomatic complexity measurement\n";
@@ -560,14 +576,13 @@ int main() {
         std::cout << "  - Issue categorization and prioritization\n";
         std::cout << "  - Actionable improvement suggestions\n";
         std::cout << "  - Fast analysis with detailed reporting\n";
-        
+
         std::cout << "\n=== Integration Ready ===\n";
         std::cout << "This code analysis framework is designed to integrate seamlessly\n";
         std::cout << "with the Bolt IDE's existing architecture, providing real-time\n";
         std::cout << "code quality feedback to developers.\n";
-        
+
         return 0;
-        
     } catch (const std::exception& e) {
         std::cerr << "Demo failed with exception: " << e.what() << std::endl;
         return 1;

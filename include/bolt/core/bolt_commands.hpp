@@ -1,25 +1,27 @@
 
-#ifndef BOLT_COMMANDS_HPP
-#define BOLT_COMMANDS_HPP
+#ifndef BOLT_CORE_BOLT_COMMANDS_HPP_
+#define BOLT_CORE_BOLT_COMMANDS_HPP_
 
-#include <string>
-#include <functional>
-#include <unordered_map>
-#include <memory>
 #include <filesystem>
+#include <functional>
+#include <memory>
+#include <string>
+#include <unordered_map>
+#include <utility>
+
 #include "bolt/utils/filesystem_utils.hpp"
 
 namespace bolt {
 
 class Command {
-public:
+ public:
     virtual ~Command() = default;
     virtual void execute() = 0;
     virtual std::string getDescription() const = 0;
 };
 
 class CommandProcessor {
-public:
+ public:
     static CommandProcessor& getInstance() {
         static CommandProcessor instance;
         return instance;
@@ -43,11 +45,11 @@ public:
         return it != commands_.end() ? it->second->getDescription() : "Command not found";
     }
 
-private:
+ private:
     CommandProcessor() = default;
     std::unordered_map<std::string, std::unique_ptr<Command>> commands_;
 };
 
-} // namespace bolt
+}  // namespace bolt
 
-#endif
+#endif  // BOLT_CORE_BOLT_COMMANDS_HPP_

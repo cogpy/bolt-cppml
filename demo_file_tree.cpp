@@ -1,10 +1,11 @@
-#include "bolt/editor/file_tree_manager.hpp"
-#include "bolt/editor/file_tree_ui.hpp"
+#include <filesystem>
 #include <iostream>
 #include <string>
-#include <filesystem>
 
-using namespace bolt;
+#include "bolt/editor/file_tree_manager.hpp"
+#include "bolt/editor/file_tree_ui.hpp"
+
+using namespace bolt;  // NOLINT(build/namespaces)
 
 void demonstrateFileTree() {
     std::cout << "Bolt C++ File Tree Navigation Component Demo\n";
@@ -16,22 +17,19 @@ void demonstrateFileTree() {
 
     // Initialize the file tree manager
     auto& manager = FileTreeManager::getInstance();
-    
+
     // Set up callbacks to demonstrate integration
-    manager.setOnFileSelected([](const std::string& path) {
-        std::cout << ">>> FILE SELECTED: " << path << std::endl;
-    });
-    
-    manager.setOnDirectoryExpanded([](const std::string& path) {
-        std::cout << ">>> DIRECTORY EXPANDED: " << path << std::endl;
-    });
+    manager.setOnFileSelected([](const std::string& path) { std::cout << ">>> FILE SELECTED: " << path << std::endl; });
+
+    manager.setOnDirectoryExpanded(
+        [](const std::string& path) { std::cout << ">>> DIRECTORY EXPANDED: " << path << std::endl; });
 
     // Set the root directory to current directory
     manager.setRootDirectory(currentDir);
 
     // Create UI component
     FileTreeUI ui;
-    
+
     // Configure rendering options
     FileTreeRenderOptions options;
     options.showIcons = true;
@@ -58,7 +56,7 @@ void demonstrateFileTree() {
                 break;
             }
         }
-        
+
         std::cout << "Selecting file: " << firstFile->name << "\n";
         manager.selectFile(firstFile->fullPath);
         ui.render();
@@ -73,12 +71,12 @@ void demonstrateFileTree() {
             manager.expandDirectory(node->fullPath);
             ui.render();
             std::cout << "\n";
-            
+
             std::cout << "Collapsing directory: " << node->name << "\n";
             manager.collapseDirectory(node->fullPath);
             ui.render();
             std::cout << "\n";
-            break; // Just demo with first expandable directory
+            break;  // Just demo with first expandable directory
         }
     }
 

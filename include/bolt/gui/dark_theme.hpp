@@ -1,5 +1,5 @@
-#ifndef BOLT_GUI_DARK_THEME_HPP
-#define BOLT_GUI_DARK_THEME_HPP
+#ifndef BOLT_GUI_DARK_THEME_HPP_
+#define BOLT_GUI_DARK_THEME_HPP_
 
 namespace bolt {
 namespace gui {
@@ -72,7 +72,7 @@ void ApplyBoltFileTreeTheme();
  */
 void ApplyBoltSettingsTheme();
 
-} // namespace gui
-} // namespace bolt
+}  // namespace gui
+}  // namespace bolt
 
-#endif // BOLT_GUI_DARK_THEME_HPP
+#endif  // BOLT_GUI_DARK_THEME_HPP_

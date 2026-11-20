@@ -1,9 +1,9 @@
-#ifndef GIT_HPP
-#define GIT_HPP
+#ifndef BOLT_GIT_GIT_HPP_
+#define BOLT_GIT_GIT_HPP_
 
 /**
  * Git integration module for Bolt C++ IDE
- * 
+ *
  * This module provides comprehensive Git integration including:
  * - Repository status monitoring
  * - Basic Git operations (add, commit, push, pull)
@@ -12,8 +12,10 @@
  * - Integration with editor components
  */
 
-#include "git_repository.hpp"
-#include "git_integration.hpp"
+#include <string>
+
+#include "bolt/git/git_integration.hpp"
+#include "bolt/git/git_repository.hpp"
 
 namespace bolt {
 namespace git {
@@ -70,9 +72,9 @@ inline std::optional<GitFileStatus> status(const std::string& filePath) {
     return GitIntegration::getInstance().getFileStatus(filePath);
 }
 
-} // namespace quick
+}  // namespace quick
 
-} // namespace git
-} // namespace bolt
+}  // namespace git
+}  // namespace bolt
 
-#endif // GIT_HPP
+#endif  // BOLT_GIT_GIT_HPP_

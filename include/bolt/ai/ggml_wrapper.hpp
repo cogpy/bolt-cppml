@@ -1,14 +1,14 @@
 
-#ifndef GGML_WRAPPER_HPP
-#define GGML_WRAPPER_HPP
+#ifndef BOLT_AI_GGML_WRAPPER_HPP_
+#define BOLT_AI_GGML_WRAPPER_HPP_
 
+#include <algorithm>
 #include <memory>
-#include <string>
-#include <vector>
 #include <stdexcept>
+#include <string>
 #include <thread>
 #include <unordered_map>
-#include <algorithm>
+#include <vector>
 
 #ifdef BOLT_HAVE_GGML
 #include <ggml.h>
@@ -19,17 +19,17 @@
 namespace bolt {
 
 class GGMLException : public std::runtime_error {
-public:
+ public:
     explicit GGMLException(const std::string& msg) : std::runtime_error(msg) {}
 };
 
 #ifdef BOLT_HAVE_GGML
 
 class GGMLModel {
-public:
-    GGMLModel(const std::string& path, size_t ctx_size = 2048, int n_threads = -1) 
-        : ctx_size_(ctx_size)
-        , n_threads_(n_threads == -1 ? static_cast<int>(std::thread::hardware_concurrency()) : n_threads) {
+ public:
+    explicit GGMLModel(const std::string& path, size_t ctx_size = 2048, int n_threads = -1)
+        : ctx_size_(ctx_size),
+          n_threads_(n_threads == -1 ? static_cast<int>(std::thread::hardware_concurrency()) : n_threads) {
         context_ = std::make_unique<GGMLContext>(ctx_size * sizeof(float) * 4);
         loadModel(path);
     }
@@ -51,7 +51,7 @@ public:
     void setContext(size_t ctx_size) { ctx_size_ = ctx_size; }
     void setThreads(int n_threads) { n_threads_ = n_threads; }
 
-private:
+ private:
     std::unique_ptr<GGMLContext> context_;
     std::string model_path_;
     size_t ctx_size_;
@@ -69,16 +69,15 @@ private:
         return tokens;
     }
 
-    std::string detokenize(ggml_tensor* /*output*/) {
-        return "Generated response";
-    }
-    
+    std::string detokenize(ggml_tensor* /*output*/) { return "Generated response"; }
+
     int argmax(const float* array, size_t size) {
         return static_cast<int>(std::max_element(array, array + size) - array);
     }
 
     ggml_tensor* runInference(ggml_cgraph* gf, const std::vector<int>& tokens) {
-        if (tokens.empty()) return nullptr;
+        if (tokens.empty())
+            return nullptr;
         const int N = static_cast<int>(tokens.size());
         auto* result = ggml_new_tensor_1d(context_->get(), GGML_TYPE_F32, N);
         ggml_build_forward_expand(gf, result);
@@ -91,12 +90,12 @@ private:
 };
 
 class GGMLWrapper {
-public:
+ public:
     static GGMLWrapper& getInstance() {
         static GGMLWrapper instance;
         return instance;
     }
-    
+
     void initialize(const std::string& model_path, enum ggml_type quantize_type = GGML_TYPE_F32) {
         try {
             model_ = std::make_unique<GGMLModel>(model_path);
@@ -107,29 +106,30 @@ public:
             throw;
         }
     }
-    
+
     void enableRWKV(bool enable = true) { use_rwkv_ = enable; }
 
     std::string generateResponse(const std::string& prompt) {
-        if (!model_) throw GGMLException("Model not initialized");
+        if (!model_)
+            throw GGMLException("Model not initialized");
         return model_->generate(prompt);
     }
 
-private:
+ private:
     GGMLWrapper() = default;
     std::unique_ptr<GGMLModel> model_;
     bool use_rwkv_ = false;
     bool rwkv_initialized_ = false;
-    
+
     void quantizeModel(enum ggml_type /*target_type*/) {}
 };
 
-#else // !BOLT_HAVE_GGML
+#else  // !BOLT_HAVE_GGML
 
 // Stub classes when GGML is not available
 class GGMLModel {
-public:
-    GGMLModel(const std::string& /*path*/, size_t /*ctx_size*/ = 2048, int /*n_threads*/ = -1) {
+ public:
+    explicit GGMLModel(const std::string& /*path*/, size_t /*ctx_size*/ = 2048, int /*n_threads*/ = -1) {
         throw GGMLException("GGML not available - build with ENABLE_LLAMA_CPP=ON");
     }
     void loadModel(const std::string& /*path*/) {}
@@ -139,7 +139,7 @@ public:
 };
 
 class GGMLWrapper {
-public:
+ public:
     static GGMLWrapper& getInstance() {
         static GGMLWrapper instance;
         return instance;
@@ -148,15 +148,14 @@ public:
         throw GGMLException("GGML not available - build with ENABLE_LLAMA_CPP=ON");
     }
     void enableRWKV(bool /*enable*/ = true) {}
-    std::string generateResponse(const std::string& /*prompt*/) {
-        throw GGMLException("GGML not available");
-    }
-private:
+    std::string generateResponse(const std::string& /*prompt*/) { throw GGMLException("GGML not available"); }
+
+ private:
     GGMLWrapper() = default;
 };
 
-#endif // BOLT_HAVE_GGML
+#endif  // BOLT_HAVE_GGML
 
-} // namespace bolt
+}  // namespace bolt
 
-#endif // GGML_WRAPPER_HPP
+#endif  // BOLT_AI_GGML_WRAPPER_HPP_

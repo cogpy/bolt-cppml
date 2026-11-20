@@ -1,4 +1,5 @@
 #include <chrono>
+#include <cstdint>
 #include <thread>
 
 #include "bolt/network/connection_pool.hpp"

@@ -1,14 +1,15 @@
 #include "bolt/ai/direct_gguf_inference.hpp"
-#include <iostream>
-#include <fstream>
-#include <sstream>
-#include <memory>
+
 #include <algorithm>
+#include <array>
+#include <chrono>
 #include <cstdlib>
 #include <ctime>
-#include <chrono>
-#include <array>
 #include <filesystem>
+#include <fstream>
+#include <iostream>
+#include <memory>
+#include <sstream>
 
 #ifdef LLAMA_AVAILABLE
 #include <llama.h>
@@ -29,9 +30,7 @@ struct DirectGGUFInference::ModelData {
     std::string model_path;
 };
 
-DirectGGUFInference::DirectGGUFInference() 
-    : model_data_(std::make_unique<ModelData>())
-    , model_loaded_(false) {
+DirectGGUFInference::DirectGGUFInference() : model_data_(std::make_unique<ModelData>()), model_loaded_(false) {
     std::cout << "📦 DirectGGUFInference initialized" << std::endl;
 }
 
@@ -119,10 +118,8 @@ bool DirectGGUFInference::load_model(const std::string& model_path) {
 #endif
 }
 
-drawkern::AIInferenceResponse DirectGGUFInference::generate_text(
-    const std::string& prompt, 
-    int max_tokens,
-    float temperature) {
+drawkern::AIInferenceResponse DirectGGUFInference::generate_text(const std::string& prompt, int max_tokens,
+                                                                 float temperature) {
     auto start_time = std::chrono::high_resolution_clock::now();
 
     drawkern::AIInferenceResponse response;
@@ -151,9 +148,8 @@ drawkern::AIInferenceResponse DirectGGUFInference::generate_text(
     return response;
 }
 
-drawkern::AIInferenceResponse DirectGGUFInference::chat(
-    const std::string& message,
-    const std::vector<std::string>& conversation_history) {
+drawkern::AIInferenceResponse DirectGGUFInference::chat(const std::string& message,
+                                                        const std::vector<std::string>& conversation_history) {
     std::string formatted_prompt = format_chat_prompt(message, conversation_history);
     return generate_text(formatted_prompt, 150, 0.7f);
 }
@@ -183,14 +179,15 @@ std::string DirectGGUFInference::generate_internal(const std::string& prompt, in
 
     // Tokenize input using new API (vocab-based)
     std::vector<llama_token> tokens_in(system_prefix.size() + 8);
-    int n_in = llama_tokenize(vocab, system_prefix.c_str(), (int)system_prefix.size(), 
-                              tokens_in.data(), (int)tokens_in.size(), true, true);
-    if (n_in < 0) return get_smart_fallback(prompt);
+    int n_in = llama_tokenize(vocab, system_prefix.c_str(), static_cast<int>(system_prefix.size()), tokens_in.data(),
+                              static_cast<int>(tokens_in.size()), true, true);
+    if (n_in < 0)
+        return get_smart_fallback(prompt);
     tokens_in.resize(n_in);
 
     // Create batch for input tokens
-    llama_batch batch = llama_batch_get_one(tokens_in.data(), (int)tokens_in.size());
-    
+    llama_batch batch = llama_batch_get_one(tokens_in.data(), static_cast<int>(tokens_in.size()));
+
     // Decode input
     if (llama_decode(ctx, batch) != 0) {
         return get_smart_fallback(prompt);
@@ -198,7 +195,7 @@ std::string DirectGGUFInference::generate_internal(const std::string& prompt, in
 
     // Sampling loop using new sampler API
     std::string out;
-    out.reserve((size_t)max_tokens * 4);
+    out.reserve(static_cast<size_t>(max_tokens) * 4);
 
     [[maybe_unused]] int n_vocab = llama_vocab_n_tokens(vocab);
     llama_token eos_token = llama_vocab_eos(vocab);
@@ -206,16 +203,18 @@ std::string DirectGGUFInference::generate_internal(const std::string& prompt, in
     for (int i = 0; i < max_tokens; ++i) {
         // Sample next token using the sampler chain
         llama_token id = llama_sampler_sample(model_data_->sampler, ctx, -1);
-        
+
         // Accept the token
         llama_sampler_accept(model_data_->sampler, id);
 
-        if (id == eos_token) break;
+        if (id == eos_token)
+            break;
 
         // Convert token to text
         char buf[256];
         int n = llama_token_to_piece(vocab, id, buf, sizeof(buf), 0, true);
-        if (n > 0) out.append(buf, n);
+        if (n > 0)
+            out.append(buf, n);
 
         // Feed back the token
         llama_batch batch_next = llama_batch_get_one(&id, 1);
@@ -231,12 +230,13 @@ std::string DirectGGUFInference::generate_internal(const std::string& prompt, in
 #endif
 }
 
-std::string DirectGGUFInference::format_chat_prompt(const std::string& message, const std::vector<std::string>& history) {
+std::string DirectGGUFInference::format_chat_prompt(const std::string& message,
+                                                    const std::vector<std::string>& history) {
     std::ostringstream prompt;
     prompt << "You are a helpful AI programming assistant specialized in C++ development. ";
     prompt << "Provide clear, concise answers focused on coding help, debugging, and best practices.\n\n";
 
-    int history_limit = 6; // Last 3 exchanges
+    int history_limit = 6;  // Last 3 exchanges
     int start_idx = std::max(0, static_cast<int>(history.size()) - history_limit);
 
     for (int i = start_idx; i < static_cast<int>(history.size()); i++) {
@@ -264,8 +264,8 @@ bolt::drawkern::AIInferenceResponse DirectGGUFInference::get_fallback_response(c
     return response;
 }
 
-} // namespace ai
-} // namespace bolt
+}  // namespace ai
+}  // namespace bolt
 
 // Implementation of helper methods as non-member functions in the bolt::ai namespace
 namespace bolt {
@@ -275,24 +275,18 @@ std::string DirectGGUFInference::get_smart_fallback(const std::string& input) {
     std::string lower_input = input;
     std::transform(lower_input.begin(), lower_input.end(), lower_input.begin(), ::tolower);
 
-    if (lower_input.find("code") != std::string::npos || 
-        lower_input.find("function") != std::string::npos ||
-        lower_input.find("class") != std::string::npos ||
-        lower_input.find("template") != std::string::npos ||
-        lower_input.find("pointer") != std::string::npos ||
-        lower_input.find("c++") != std::string::npos) {
+    if (lower_input.find("code") != std::string::npos || lower_input.find("function") != std::string::npos ||
+        lower_input.find("class") != std::string::npos || lower_input.find("template") != std::string::npos ||
+        lower_input.find("pointer") != std::string::npos || lower_input.find("c++") != std::string::npos) {
         return get_coding_help(input);
     }
 
-    if (lower_input.find("algorithm") != std::string::npos ||
-        lower_input.find("sort") != std::string::npos ||
-        lower_input.find("search") != std::string::npos ||
-        lower_input.find("complexity") != std::string::npos) {
+    if (lower_input.find("algorithm") != std::string::npos || lower_input.find("sort") != std::string::npos ||
+        lower_input.find("search") != std::string::npos || lower_input.find("complexity") != std::string::npos) {
         return get_algorithm_help(input);
     }
 
-    if (lower_input.find("config") != std::string::npos ||
-        lower_input.find("setup") != std::string::npos ||
+    if (lower_input.find("config") != std::string::npos || lower_input.find("setup") != std::string::npos ||
         lower_input.find("install") != std::string::npos) {
         return "🔧 **Configuration Help**: To use real AI models:\n\n"
                "1. **Local GGUF Model**: Download a small model file and load it directly\n"
@@ -301,9 +295,10 @@ std::string DirectGGUFInference::get_smart_fallback(const std::string& input) {
                "Currently using intelligent fallback responses. Load a GGUF model for full AI capabilities!";
     }
 
-    return "I understand you're asking: \"" + input + "\"\n\n"
+    return "I understand you're asking: \"" + input +
+           "\"\n\n"
            "💡 I'm currently using smart fallback responses. For full AI capabilities:\n"
-           "• Load a GGUF model file directly\n" 
+           "• Load a GGUF model file directly\n"
            "• Start a local llama.cpp server\n"
            "• Configure an external AI provider\n\n"
            "I can still help with C++ coding questions, algorithms, and configuration guidance!";
@@ -313,8 +308,7 @@ std::string DirectGGUFInference::get_coding_help(const std::string& input) {
     std::string lower = input;
     std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
 
-    if (lower.find("smart pointer") != std::string::npos || 
-        lower.find("unique_ptr") != std::string::npos ||
+    if (lower.find("smart pointer") != std::string::npos || lower.find("unique_ptr") != std::string::npos ||
         lower.find("shared_ptr") != std::string::npos) {
         return "📘 **Smart Pointers in Modern C++**\n\n"
                "**`std::unique_ptr`** - Exclusive ownership:\n"
@@ -410,33 +404,28 @@ std::unique_ptr<DirectGGUFInference> DirectGGUFFactory::create_from_file(const s
 
 std::unique_ptr<DirectGGUFInference> DirectGGUFFactory::create_auto_detect() {
     auto models = find_available_models();
-    
+
     if (!models.empty()) {
         auto inference = std::make_unique<DirectGGUFInference>();
         if (inference->load_model(models[0])) {
             return inference;
         }
     }
-    
+
     // Return a fallback instance that uses smart responses
     return std::make_unique<DirectGGUFInference>();
 }
 
 std::vector<std::string> DirectGGUFFactory::find_available_models() {
     std::vector<std::string> models;
-    
+
     // Common locations to search for GGUF models
-    std::vector<std::string> search_paths = {
-        "./models",
-        "../models",
-        "~/.local/share/bolt/models",
-        "/usr/local/share/bolt/models",
-        "~/.cache/huggingface/hub"
-    };
-    
+    std::vector<std::string> search_paths = {"./models", "../models", "~/.local/share/bolt/models",
+                                             "/usr/local/share/bolt/models", "~/.cache/huggingface/hub"};
+
     for (const auto& base_path : search_paths) {
         std::string expanded_path = base_path;
-        
+
         // Expand ~ to home directory
         if (!expanded_path.empty() && expanded_path[0] == '~') {
             const char* home = std::getenv("HOME");
@@ -444,7 +433,7 @@ std::vector<std::string> DirectGGUFFactory::find_available_models() {
                 expanded_path = std::string(home) + expanded_path.substr(1);
             }
         }
-        
+
         try {
             if (std::filesystem::exists(expanded_path)) {
                 for (const auto& entry : std::filesystem::recursive_directory_iterator(expanded_path)) {
@@ -460,7 +449,7 @@ std::vector<std::string> DirectGGUFFactory::find_available_models() {
             // Ignore filesystem errors
         }
     }
-    
+
     return models;
 }
 
@@ -471,5 +460,5 @@ bool DirectGGUFFactory::download_test_model(const std::string& output_path) {
     return false;
 }
 
-} // namespace ai
-} // namespace bolt
+}  // namespace ai
+}  // namespace bolt
