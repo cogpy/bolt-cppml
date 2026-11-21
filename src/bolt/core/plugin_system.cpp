@@ -1,18 +1,42 @@
 #include "bolt/core/plugin_system.hpp"
-#include "bolt/core/editor_store.hpp"
-#include "bolt/editor/integrated_editor.hpp"
-#include <iostream>
+
 #include <algorithm>
+#include <iostream>
 #include <stdexcept>
 
+#include "bolt/core/editor_store.hpp"
+#include "bolt/editor/integrated_editor.hpp"
+
 namespace bolt {
+
+namespace {
+
+// Appends the plugins of every bucket of a keyed registry map to out, in map order.
+template <typename PluginMap, typename PluginList>
+void appendAllBuckets(const PluginMap& pluginMap, PluginList& out) {
+    for (const auto& [type, typePlugins] : pluginMap) {
+        out.insert(out.end(), typePlugins.begin(), typePlugins.end());
+    }
+}
+
+// Removes the plugin called name from every bucket of a keyed registry map.
+template <typename PluginMap>
+void erasePluginFromBuckets(PluginMap& plugins, const std::string& name) {
+    for (auto& [type, typePlugins] : plugins) {
+        typePlugins.erase(std::remove_if(typePlugins.begin(), typePlugins.end(),
+                                         [&](const auto& plugin) { return plugin->getMetadata().name == name; }),
+                          typePlugins.end());
+    }
+}
+
+}  // namespace
 
 // PluginLoader implementation
 std::unique_ptr<PluginLoader::LoadedPlugin> PluginLoader::loadPlugin(const std::string& filePath) {
     if (!std::filesystem::exists(filePath)) {
         throw std::runtime_error("Plugin file not found: " + filePath);
     }
-    
+
 #ifdef _WIN32
     // Windows-specific dynamic library loading
     HMODULE handle = LoadLibraryA(filePath.c_str());
@@ -20,13 +44,11 @@ std::unique_ptr<PluginLoader::LoadedPlugin> PluginLoader::loadPlugin(const std::
         DWORD error = GetLastError();
         throw std::runtime_error("Failed to load plugin: Error code " + std::to_string(error));
     }
-    
+
     // Get the plugin creation function
     typedef IPlugin* (*create_plugin_t)();
-    create_plugin_t createPlugin = reinterpret_cast<create_plugin_t>(
-        GetProcAddress(handle, "createPlugin")
-    );
-    
+    create_plugin_t createPlugin = reinterpret_cast<create_plugin_t>(GetProcAddress(handle, "createPlugin"));
+
     if (!createPlugin) {
         DWORD error = GetLastError();
         FreeLibrary(handle);
@@ -38,20 +60,18 @@ std::unique_ptr<PluginLoader::LoadedPlugin> PluginLoader::loadPlugin(const std::
     if (!handle) {
         throw std::runtime_error("Failed to load plugin: " + std::string(dlerror()));
     }
-    
+
     // Get the plugin creation function
     typedef IPlugin* (*create_plugin_t)();
-    create_plugin_t createPlugin = reinterpret_cast<create_plugin_t>(
-        dlsym(handle, "createPlugin")
-    );
-    
+    create_plugin_t createPlugin = reinterpret_cast<create_plugin_t>(dlsym(handle, "createPlugin"));
+
     const char* dlsym_error = dlerror();
     if (dlsym_error) {
         dlclose(handle);
         throw std::runtime_error("Cannot load symbol 'createPlugin': " + std::string(dlsym_error));
     }
 #endif
-    
+
     // Create plugin instance
     IPlugin* plugin = createPlugin();
     if (!plugin) {
@@ -62,7 +82,7 @@ std::unique_ptr<PluginLoader::LoadedPlugin> PluginLoader::loadPlugin(const std::
 #endif
         throw std::runtime_error("Failed to create plugin instance");
     }
-    
+
     // Validate plugin
     if (!validatePlugin(plugin)) {
         delete plugin;
@@ -73,13 +93,13 @@ std::unique_ptr<PluginLoader::LoadedPlugin> PluginLoader::loadPlugin(const std::
 #endif
         throw std::runtime_error("Plugin validation failed");
     }
-    
+
     auto loadedPlugin = std::make_unique<LoadedPlugin>();
     loadedPlugin->handle = handle;
     loadedPlugin->plugin = std::shared_ptr<IPlugin>(plugin);
     loadedPlugin->metadata = plugin->getMetadata();
     loadedPlugin->filePath = filePath;
-    
+
     return loadedPlugin;
 }
 
@@ -87,40 +107,37 @@ bool PluginLoader::unloadPlugin(LoadedPlugin* plugin) {
     if (!plugin || !plugin->handle) {
         return false;
     }
-    
+
     // Get the plugin destruction function
     typedef void (*destroy_plugin_t)(IPlugin*);
 #ifdef _WIN32
-    destroy_plugin_t destroyPlugin = reinterpret_cast<destroy_plugin_t>(
-        GetProcAddress(static_cast<HMODULE>(plugin->handle), "destroyPlugin")
-    );
+    destroy_plugin_t destroyPlugin =
+        reinterpret_cast<destroy_plugin_t>(GetProcAddress(static_cast<HMODULE>(plugin->handle), "destroyPlugin"));
 #else
-    destroy_plugin_t destroyPlugin = reinterpret_cast<destroy_plugin_t>(
-        dlsym(plugin->handle, "destroyPlugin")
-    );
+    destroy_plugin_t destroyPlugin = reinterpret_cast<destroy_plugin_t>(dlsym(plugin->handle, "destroyPlugin"));
 #endif
-    
+
     if (destroyPlugin) {
         destroyPlugin(plugin->plugin.get());
     }
-    
+
 #ifdef _WIN32
     FreeLibrary(static_cast<HMODULE>(plugin->handle));
 #else
     dlclose(plugin->handle);
 #endif
     plugin->handle = nullptr;
-    
+
     return true;
 }
 
 std::vector<std::string> PluginLoader::discoverPlugins(const std::string& directory) {
     std::vector<std::string> plugins;
-    
+
     if (!std::filesystem::exists(directory)) {
         return plugins;
     }
-    
+
     for (const auto& entry : std::filesystem::directory_iterator(directory)) {
         if (entry.is_regular_file()) {
             const std::string& path = entry.path().string();
@@ -132,7 +149,7 @@ std::vector<std::string> PluginLoader::discoverPlugins(const std::string& direct
             }
         }
     }
-    
+
     return plugins;
 }
 
@@ -140,15 +157,14 @@ bool PluginLoader::validatePlugin(IPlugin* plugin) {
     if (!plugin) {
         return false;
     }
-    
+
     PluginMetadata metadata = plugin->getMetadata();
     return metadata.isValid();
 }
 
 // PluginContextImpl implementation
 PluginContextImpl::PluginContextImpl(EditorStore* editorStore, IntegratedEditor* integratedEditor)
-    : editorStore_(editorStore), integratedEditor_(integratedEditor) {
-}
+    : editorStore_(editorStore), integratedEditor_(integratedEditor) {}
 
 void PluginContextImpl::subscribeToEvent(PluginEventType eventType, std::function<void(const PluginEvent&)> handler) {
     eventHandlers_[eventType].push_back(handler);
@@ -212,16 +228,12 @@ std::vector<std::shared_ptr<IPlugin>> PluginContextImpl::getPlugins() {
 // PluginSystem implementation
 void PluginSystem::initialize(EditorStore* editorStore, IntegratedEditor* integratedEditor) {
     context_ = std::make_unique<PluginContextImpl>(editorStore, integratedEditor);
-    
+
     // Set up plugin getters for context
-    context_->setPluginGetter([this](const std::string& name) {
-        return getPlugin(name);
-    });
-    
-    context_->setAllPluginsGetter([this]() {
-        return getPlugins();
-    });
-    
+    context_->setPluginGetter([this](const std::string& name) { return getPlugin(name); });
+
+    context_->setAllPluginsGetter([this]() { return getPlugins(); });
+
     // Add default plugin directories
     addPluginDirectory("./plugins");
     addPluginDirectory("/usr/local/lib/bolt/plugins");
@@ -231,7 +243,7 @@ void PluginSystem::initialize(EditorStore* editorStore, IntegratedEditor* integr
 void PluginSystem::shutdown() {
     // Cleanup all plugins
     cleanupAll();
-    
+
     // Unload modern plugins
     loadedPlugins_.write([](auto& plugins) {
         for (auto& [name, plugin] : plugins) {
@@ -241,11 +253,9 @@ void PluginSystem::shutdown() {
         }
         plugins.clear();
     });
-    
-    activePlugins_.write([](auto& plugins) {
-        plugins.clear();
-    });
-    
+
+    activePlugins_.write([](auto& plugins) { plugins.clear(); });
+
     // Clear registries
     editorPlugins_.write([](auto& plugins) { plugins.clear(); });
     languagePlugins_.write([](auto& plugins) { plugins.clear(); });
@@ -255,9 +265,7 @@ void PluginSystem::shutdown() {
 
 // Legacy plugin support
 void PluginSystem::registerPlugin(Plugin plugin) {
-    legacyPlugins_.write([&](auto& plugs) {
-        plugs.push_back(std::move(plugin));
-    });
+    legacyPlugins_.write([&](auto& plugs) { plugs.push_back(std::move(plugin)); });
 }
 
 void PluginSystem::initializeAll() {
@@ -289,39 +297,35 @@ bool PluginSystem::loadPlugin(const std::string& filePath) {
     try {
         auto loadedPlugin = PluginLoader::loadPlugin(filePath);
         std::string name = loadedPlugin->metadata.name;
-        
+
         // Check if plugin is already loaded
         if (isPluginLoaded(name)) {
             handlePluginError(name, "Plugin already loaded");
             return false;
         }
-        
+
         // Check API compatibility
         if (!validatePluginCompatibility(loadedPlugin->metadata)) {
             handlePluginError(name, "Plugin API version incompatible");
             return false;
         }
-        
+
         // Initialize plugin
         if (!loadedPlugin->plugin->initialize(context_.get())) {
             handlePluginError(name, "Plugin initialization failed");
             return false;
         }
-        
+
         // Store loaded plugin
-        loadedPlugins_.write([&](auto& plugins) {
-            plugins[name] = std::move(loadedPlugin);
-        });
-        
+        loadedPlugins_.write([&](auto& plugins) { plugins[name] = std::move(loadedPlugin); });
+
         // Add to active plugins
         auto plugin = getPlugin(name);
         if (plugin) {
             registerPluginByType(plugin);
-            activePlugins_.write([&](auto& plugins) {
-                plugins[name] = plugin;
-            });
+            activePlugins_.write([&](auto& plugins) { plugins[name] = plugin; });
         }
-        
+
         return true;
     } catch (const std::exception& e) {
         handlePluginError(filePath, e.what());
@@ -333,44 +337,42 @@ bool PluginSystem::loadPlugin(std::shared_ptr<IPlugin> plugin) {
     if (!plugin) {
         return false;
     }
-    
+
     PluginMetadata metadata = plugin->getMetadata();
     std::string name = metadata.name;
-    
+
     // Check if plugin is already loaded
     if (isPluginLoaded(name)) {
         handlePluginError(name, "Plugin already loaded");
         return false;
     }
-    
+
     // Check API compatibility
     if (!validatePluginCompatibility(metadata)) {
         handlePluginError(name, "Plugin API version incompatible");
         return false;
     }
-    
+
     // Initialize plugin
     if (!plugin->initialize(context_.get())) {
         handlePluginError(name, "Plugin initialization failed");
         return false;
     }
-    
+
     // Create a LoadedPlugin wrapper for in-memory plugins
     auto loadedPlugin = std::make_unique<PluginLoader::LoadedPlugin>();
     loadedPlugin->handle = nullptr;  // No dynamic library handle for in-memory plugins
     loadedPlugin->plugin = plugin;
     loadedPlugin->metadata = metadata;
     loadedPlugin->filePath = "<in-memory>";  // Mark as in-memory plugin
-    
+
     // Store in loadedPlugins_ so isPluginLoaded() works correctly
-    loadedPlugins_.write([&](auto& plugins) {
-        plugins[name] = std::move(loadedPlugin);
-    });
-    
+    loadedPlugins_.write([&](auto& plugins) { plugins[name] = std::move(loadedPlugin); });
+
     // Register plugin by type but don't add to activePlugins yet
     // Plugins must be explicitly activated via activatePlugin()
     registerPluginByType(plugin);
-    
+
     return true;
 }
 
@@ -389,11 +391,11 @@ bool PluginSystem::unloadPlugin(const std::string& name) {
             wasActive = true;
         }
     });
-    
+
     if (wasActive) {
         unregisterPluginByType(name);
     }
-    
+
     // Remove from loaded plugins
     bool wasLoaded = false;
     loadedPlugins_.write([&](auto& plugins) {
@@ -403,13 +405,13 @@ bool PluginSystem::unloadPlugin(const std::string& name) {
             wasLoaded = true;
         }
     });
-    
+
     return wasActive || wasLoaded;
 }
 
 void PluginSystem::reloadPlugin(const std::string& name) {
     std::string filePath;
-    
+
     // Get the file path before unloading
     loadedPlugins_.read([&](const auto& plugins) {
         auto it = plugins.find(name);
@@ -417,7 +419,7 @@ void PluginSystem::reloadPlugin(const std::string& name) {
             filePath = it->second->filePath;
         }
     });
-    
+
     if (!filePath.empty()) {
         unloadPlugin(name);
         loadPlugin(filePath);
@@ -466,14 +468,14 @@ std::vector<std::string> PluginSystem::getLoadedPluginNames() const {
 
 std::shared_ptr<IPlugin> PluginSystem::getPlugin(const std::string& name) const {
     std::shared_ptr<IPlugin> result;
-    
+
     activePlugins_.read([&](const auto& plugins) {
         auto it = plugins.find(name);
         if (it != plugins.end()) {
             result = it->second;
         }
     });
-    
+
     if (!result) {
         loadedPlugins_.read([&](const auto& plugins) {
             auto it = plugins.find(name);
@@ -482,7 +484,7 @@ std::shared_ptr<IPlugin> PluginSystem::getPlugin(const std::string& name) const 
             }
         });
     }
-    
+
     return result;
 }
 
@@ -499,49 +501,42 @@ std::vector<std::shared_ptr<IPlugin>> PluginSystem::getPlugins() const {
 
 std::vector<PluginMetadata> PluginSystem::getPluginMetadata() const {
     std::vector<PluginMetadata> metadata;
-    
+
     loadedPlugins_.read([&](const auto& plugins) {
         metadata.reserve(plugins.size());
         for (const auto& [name, plugin] : plugins) {
             metadata.push_back(plugin->metadata);
         }
     });
-    
+
     return metadata;
 }
 
 // Type-specific plugin access
 std::vector<std::shared_ptr<IEditorPlugin>> PluginSystem::getEditorPlugins() const {
     std::vector<std::shared_ptr<IEditorPlugin>> plugins;
-    editorPlugins_.read([&](const auto& pluginMap) {
-        for (const auto& [type, typePlugins] : pluginMap) {
-            plugins.insert(plugins.end(), typePlugins.begin(), typePlugins.end());
-        }
-    });
+    editorPlugins_.read([&](const auto& pluginMap) { appendAllBuckets(pluginMap, plugins); });
     return plugins;
 }
 
-std::vector<std::shared_ptr<ILanguagePlugin>> PluginSystem::getLanguagePluginsForFile(const std::string& filePath) const {
+std::vector<std::shared_ptr<ILanguagePlugin>> PluginSystem::getLanguagePluginsForFile(
+    const std::string& filePath) const {
     std::string extension = getFileExtension(filePath);
     std::vector<std::shared_ptr<ILanguagePlugin>> plugins;
-    
+
     languagePlugins_.read([&](const auto& pluginMap) {
         auto it = pluginMap.find(extension);
         if (it != pluginMap.end()) {
             plugins = it->second;
         }
     });
-    
+
     return plugins;
 }
 
 std::vector<std::shared_ptr<IUIPlugin>> PluginSystem::getUIPlugins() const {
     std::vector<std::shared_ptr<IUIPlugin>> plugins;
-    uiPlugins_.read([&](const auto& pluginMap) {
-        for (const auto& [type, typePlugins] : pluginMap) {
-            plugins.insert(plugins.end(), typePlugins.begin(), typePlugins.end());
-        }
-    });
+    uiPlugins_.read([&](const auto& pluginMap) { appendAllBuckets(pluginMap, plugins); });
     return plugins;
 }
 
@@ -559,17 +554,13 @@ std::shared_ptr<IThemePlugin> PluginSystem::getActiveThemePlugin() const {
 // Plugin state management
 bool PluginSystem::isPluginLoaded(const std::string& name) const {
     bool loaded = false;
-    loadedPlugins_.read([&](const auto& plugins) {
-        loaded = plugins.find(name) != plugins.end();
-    });
+    loadedPlugins_.read([&](const auto& plugins) { loaded = plugins.find(name) != plugins.end(); });
     return loaded;
 }
 
 bool PluginSystem::isPluginActive(const std::string& name) const {
     bool active = false;
-    activePlugins_.read([&](const auto& plugins) {
-        active = plugins.find(name) != plugins.end();
-    });
+    activePlugins_.read([&](const auto& plugins) { active = plugins.find(name) != plugins.end(); });
     return active;
 }
 
@@ -587,9 +578,7 @@ bool PluginSystem::activatePlugin(const std::string& name) {
         try {
             plugin->activate();
             // Add to active plugins after successful activation
-            activePlugins_.write([&](auto& plugins) {
-                plugins[name] = plugin;
-            });
+            activePlugins_.write([&](auto& plugins) { plugins[name] = plugin; });
             return true;
         } catch (const std::exception& e) {
             handlePluginError(name, "Activation failed: " + std::string(e.what()));
@@ -604,9 +593,7 @@ bool PluginSystem::deactivatePlugin(const std::string& name) {
         try {
             plugin->deactivate();
             // Remove from active plugins after deactivation
-            activePlugins_.write([&](auto& plugins) {
-                plugins.erase(name);
-            });
+            activePlugins_.write([&](auto& plugins) { plugins.erase(name); });
             return true;
         } catch (const std::exception& e) {
             handlePluginError(name, "Deactivation failed: " + std::string(e.what()));
@@ -634,7 +621,8 @@ std::unordered_map<std::string, std::any> PluginSystem::getPluginConfiguration(c
         try {
             return plugin->getConfiguration();
         } catch (const std::exception& e) {
-            const_cast<PluginSystem*>(this)->handlePluginError(name, "Failed to get configuration: " + std::string(e.what()));
+            const_cast<PluginSystem*>(this)->handlePluginError(name,
+                                                               "Failed to get configuration: " + std::string(e.what()));
         }
     }
     return {};
@@ -646,7 +634,7 @@ void PluginSystem::publishEvent(const PluginEvent& event) {
     if (context_) {
         context_->publishEvent(event);
     }
-    
+
     // Publish to all plugins
     publishEventToPlugins(event);
 }
@@ -657,7 +645,8 @@ void PluginSystem::publishEventToPlugins(const PluginEvent& event) {
             try {
                 plugin->onEvent(event);
             } catch (const std::exception& e) {
-                const_cast<PluginSystem*>(this)->handlePluginError(name, "Error handling event: " + std::string(e.what()));
+                const_cast<PluginSystem*>(this)->handlePluginError(name,
+                                                                   "Error handling event: " + std::string(e.what()));
             }
         }
     });
@@ -667,7 +656,7 @@ void PluginSystem::publishEventToPlugins(const PluginEvent& event) {
 void PluginSystem::handlePluginError(const std::string& pluginName, const std::string& error) {
     std::string errorMsg = pluginName + ": " + error;
     std::cerr << "[PLUGIN ERROR] " << errorMsg << std::endl;
-    
+
     pluginErrors_.write([&](auto& errors) {
         errors.push_back(errorMsg);
         // Keep only last 100 errors
@@ -679,16 +668,12 @@ void PluginSystem::handlePluginError(const std::string& pluginName, const std::s
 
 std::vector<std::string> PluginSystem::getPluginErrors() const {
     std::vector<std::string> errors;
-    pluginErrors_.read([&](const auto& err) {
-        errors = err;
-    });
+    pluginErrors_.read([&](const auto& err) { errors = err; });
     return errors;
 }
 
 void PluginSystem::clearPluginErrors() {
-    pluginErrors_.write([](auto& errors) {
-        errors.clear();
-    });
+    pluginErrors_.write([](auto& errors) { errors.clear(); });
 }
 
 // Internal helpers
@@ -703,11 +688,9 @@ std::string PluginSystem::getFileExtension(const std::string& filePath) const {
 void PluginSystem::registerPluginByType(std::shared_ptr<IPlugin> plugin) {
     // Register by type
     if (auto editorPlugin = std::dynamic_pointer_cast<IEditorPlugin>(plugin)) {
-        editorPlugins_.write([&](auto& plugins) {
-            plugins["editor"].push_back(editorPlugin);
-        });
+        editorPlugins_.write([&](auto& plugins) { plugins["editor"].push_back(editorPlugin); });
     }
-    
+
     if (auto langPlugin = std::dynamic_pointer_cast<ILanguagePlugin>(plugin)) {
         languagePlugins_.write([&](auto& plugins) {
             for (const auto& ext : langPlugin->getSupportedExtensions()) {
@@ -715,52 +698,27 @@ void PluginSystem::registerPluginByType(std::shared_ptr<IPlugin> plugin) {
             }
         });
     }
-    
+
     if (auto uiPlugin = std::dynamic_pointer_cast<IUIPlugin>(plugin)) {
-        uiPlugins_.write([&](auto& plugins) {
-            plugins["ui"].push_back(uiPlugin);
-        });
+        uiPlugins_.write([&](auto& plugins) { plugins["ui"].push_back(uiPlugin); });
     }
-    
+
     if (auto themePlugin = std::dynamic_pointer_cast<IThemePlugin>(plugin)) {
-        themePlugins_.write([&](auto& plugins) {
-            plugins[themePlugin->getThemeName()] = themePlugin;
-        });
+        themePlugins_.write([&](auto& plugins) { plugins[themePlugin->getThemeName()] = themePlugin; });
     }
 }
 
 void PluginSystem::unregisterPluginByType(const std::string& name) {
     // Remove from all type registries
-    editorPlugins_.write([&](auto& plugins) {
-        for (auto& [type, typePlugins] : plugins) {
-            typePlugins.erase(
-                std::remove_if(typePlugins.begin(), typePlugins.end(),
-                    [&](const auto& plugin) { return plugin->getMetadata().name == name; }),
-                typePlugins.end());
-        }
-    });
-    
-    languagePlugins_.write([&](auto& plugins) {
-        for (auto& [ext, typePlugins] : plugins) {
-            typePlugins.erase(
-                std::remove_if(typePlugins.begin(), typePlugins.end(),
-                    [&](const auto& plugin) { return plugin->getMetadata().name == name; }),
-                typePlugins.end());
-        }
-    });
-    
-    uiPlugins_.write([&](auto& plugins) {
-        for (auto& [type, typePlugins] : plugins) {
-            typePlugins.erase(
-                std::remove_if(typePlugins.begin(), typePlugins.end(),
-                    [&](const auto& plugin) { return plugin->getMetadata().name == name; }),
-                typePlugins.end());
-        }
-    });
-    
+    editorPlugins_.write([&](auto& plugins) { erasePluginFromBuckets(plugins, name); });
+
+    languagePlugins_.write([&](auto& plugins) { erasePluginFromBuckets(plugins, name); });
+
+    uiPlugins_.write([&](auto& plugins) { erasePluginFromBuckets(plugins, name); });
+
     themePlugins_.write([&](auto& plugins) {
         auto it = std::find_if(plugins.begin(), plugins.end(),
-            [&](const auto& pair) { return pair.second->getMetadata().name == name; });
+                               [&](const auto& pair) { return pair.second->getMetadata().name == name; });
         if (it != plugins.end()) {
             plugins.erase(it);
         }
@@ -772,4 +730,4 @@ bool PluginSystem::validatePluginCompatibility(const PluginMetadata& metadata) c
     return currentAPI.isCompatible(metadata.apiVersion);
 }
 
-} // namespace bolt
+}  // namespace bolt

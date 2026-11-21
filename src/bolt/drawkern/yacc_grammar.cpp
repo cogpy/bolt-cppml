@@ -1,30 +1,67 @@
 #include "bolt/drawkern/yacc_grammar.hpp"
-#include "bolt/drawkern/drawkern.hpp"
-#include "bolt/drawkern/dis_vm.hpp"
-#include <iostream>
-#include <sstream>
+
 #include <algorithm>
 #include <cctype>
+#include <iostream>
+#include <sstream>
+
+#include "bolt/drawkern/dis_vm.hpp"
+#include "bolt/drawkern/drawkern.hpp"
 
 namespace bolt {
 namespace drawkern {
+
+namespace {
+
+// Tokenizes and parses a glyph description, leaving the lexer and parser it creates in the given owners
+// (so their errors can be collected afterwards), and returns the parsed program.
+std::unique_ptr<ProgramNode> lex_and_parse(const std::string& description, std::unique_ptr<GlyphLexer>& lexer,
+                                           std::unique_ptr<GlyphParser>& parser) {
+    lexer = std::make_unique<GlyphLexer>(description);
+    auto tokens = lexer->tokenize();
+
+    parser = std::make_unique<GlyphParser>(tokens);
+    return parser->parse();
+}
+
+}  // namespace
 
 // ASTNode implementation
 std::string ASTNode::to_string() const {
     std::string result;
     switch (type) {
-        case ASTNodeType::PROGRAM: result = "Program"; break;
-        case ASTNodeType::VM_DECL: result = "VMDecl"; break;
-        case ASTNodeType::GLYPH_DECL: result = "GlyphDecl"; break;
-        case ASTNodeType::PROPERTY: result = "Property"; break;
-        case ASTNodeType::BLOCK: result = "Block"; break;
-        case ASTNodeType::EXPRESSION: result = "Expression"; break;
-        case ASTNodeType::IDENTIFIER: result = "Identifier"; break;
-        case ASTNodeType::LITERAL: result = "Literal"; break;
-        case ASTNodeType::LIST: result = "List"; break;
-        case ASTNodeType::CALL: result = "Call"; break;
+        case ASTNodeType::PROGRAM:
+            result = "Program";
+            break;
+        case ASTNodeType::VM_DECL:
+            result = "VMDecl";
+            break;
+        case ASTNodeType::GLYPH_DECL:
+            result = "GlyphDecl";
+            break;
+        case ASTNodeType::PROPERTY:
+            result = "Property";
+            break;
+        case ASTNodeType::BLOCK:
+            result = "Block";
+            break;
+        case ASTNodeType::EXPRESSION:
+            result = "Expression";
+            break;
+        case ASTNodeType::IDENTIFIER:
+            result = "Identifier";
+            break;
+        case ASTNodeType::LITERAL:
+            result = "Literal";
+            break;
+        case ASTNodeType::LIST:
+            result = "List";
+            break;
+        case ASTNodeType::CALL:
+            result = "Call";
+            break;
     }
-    
+
     if (!attributes.empty()) {
         result += " {";
         for (const auto& [key, value] : attributes) {
@@ -32,91 +69,108 @@ std::string ASTNode::to_string() const {
         }
         result += " }";
     }
-    
+
     return result;
 }
 
 // GlyphLexer implementation
-GlyphLexer::GlyphLexer(const std::string& input) 
-    : input_(input), pos_(0), line_(1), column_(1) {
-}
+GlyphLexer::GlyphLexer(const std::string& input) : input_(input), pos_(0), line_(1), column_(1) {}
 
-GlyphLexer::~GlyphLexer() {
-}
+GlyphLexer::~GlyphLexer() {}
 
 std::vector<Token> GlyphLexer::tokenize() {
     std::vector<Token> tokens;
     errors_.clear();
-    
+
     while (pos_ < input_.length()) {
         Token token = next_token();
         if (token.type != TokenType::UNKNOWN) {
             tokens.push_back(token);
         }
-        
+
         if (token.type == TokenType::END_OF_FILE) {
             break;
         }
     }
-    
+
     return tokens;
 }
 
 Token GlyphLexer::next_token() {
     skip_whitespace();
-    
+
     if (pos_ >= input_.length()) {
         return Token(TokenType::END_OF_FILE, "", line_, column_);
     }
-    
+
     char ch = current_char();
-    
+
     // Comments
     if (ch == '/' && peek_char() == '/') {
         skip_comment();
         return next_token();
     }
-    
+
     // Single character tokens
     switch (ch) {
-        case '=': advance(); return Token(TokenType::ASSIGN, "=", line_, column_ - 1);
-        case ';': advance(); return Token(TokenType::SEMICOLON, ";", line_, column_ - 1);
-        case ',': advance(); return Token(TokenType::COMMA, ",", line_, column_ - 1);
-        case '{': advance(); return Token(TokenType::LBRACE, "{", line_, column_ - 1);
-        case '}': advance(); return Token(TokenType::RBRACE, "}", line_, column_ - 1);
-        case '(': advance(); return Token(TokenType::LPAREN, "(", line_, column_ - 1);
-        case ')': advance(); return Token(TokenType::RPAREN, ")", line_, column_ - 1);
-        case '[': advance(); return Token(TokenType::LBRACKET, "[", line_, column_ - 1);
-        case ']': advance(); return Token(TokenType::RBRACKET, "]", line_, column_ - 1);
+        case '=':
+            advance();
+            return Token(TokenType::ASSIGN, "=", line_, column_ - 1);
+        case ';':
+            advance();
+            return Token(TokenType::SEMICOLON, ";", line_, column_ - 1);
+        case ',':
+            advance();
+            return Token(TokenType::COMMA, ",", line_, column_ - 1);
+        case '{':
+            advance();
+            return Token(TokenType::LBRACE, "{", line_, column_ - 1);
+        case '}':
+            advance();
+            return Token(TokenType::RBRACE, "}", line_, column_ - 1);
+        case '(':
+            advance();
+            return Token(TokenType::LPAREN, "(", line_, column_ - 1);
+        case ')':
+            advance();
+            return Token(TokenType::RPAREN, ")", line_, column_ - 1);
+        case '[':
+            advance();
+            return Token(TokenType::LBRACKET, "[", line_, column_ - 1);
+        case ']':
+            advance();
+            return Token(TokenType::RBRACKET, "]", line_, column_ - 1);
     }
-    
+
     // String literals
     if (ch == '"') {
         return read_string();
     }
-    
+
     // Numbers
     if (is_digit(ch)) {
         return read_number();
     }
-    
+
     // Identifiers and keywords
     if (is_alpha(ch) || ch == '_') {
         return read_identifier();
     }
-    
+
     add_error("Unexpected character: " + std::string(1, ch));
     advance();
     return Token(TokenType::UNKNOWN, std::string(1, ch), line_, column_ - 1);
 }
 
 char GlyphLexer::current_char() {
-    if (pos_ >= input_.length()) return '\0';
+    if (pos_ >= input_.length())
+        return '\0';
     return input_[pos_];
 }
 
 char GlyphLexer::peek_char() {
-    if (pos_ + 1 >= input_.length()) return '\0';
+    if (pos_ + 1 >= input_.length())
+        return '\0';
     return input_[pos_ + 1];
 }
 
@@ -148,26 +202,37 @@ Token GlyphLexer::read_identifier() {
     size_t start_line = line_;
     size_t start_column = column_;
     std::string value;
-    
+
     while (pos_ < input_.length() && (is_alnum(current_char()) || current_char() == '_')) {
         value += current_char();
         advance();
     }
-    
+
     // Check for keywords
     TokenType type = TokenType::IDENTIFIER;
-    if (value == "vm") type = TokenType::VM;
-    else if (value == "glyph") type = TokenType::GLYPH;
-    else if (value == "workbench") type = TokenType::WORKBENCH;
-    else if (value == "dis") type = TokenType::DIS;
-    else if (value == "native") type = TokenType::NATIVE;
-    else if (value == "wasm") type = TokenType::WASM;
-    else if (value == "render") type = TokenType::RENDER;
-    else if (value == "ai") type = TokenType::AI;
-    else if (value == "model") type = TokenType::MODEL;
-    else if (value == "tools") type = TokenType::TOOLS;
-    else if (value == "namespace") type = TokenType::NAMESPACE;
-    
+    if (value == "vm")
+        type = TokenType::VM;
+    else if (value == "glyph")
+        type = TokenType::GLYPH;
+    else if (value == "workbench")
+        type = TokenType::WORKBENCH;
+    else if (value == "dis")
+        type = TokenType::DIS;
+    else if (value == "native")
+        type = TokenType::NATIVE;
+    else if (value == "wasm")
+        type = TokenType::WASM;
+    else if (value == "render")
+        type = TokenType::RENDER;
+    else if (value == "ai")
+        type = TokenType::AI;
+    else if (value == "model")
+        type = TokenType::MODEL;
+    else if (value == "tools")
+        type = TokenType::TOOLS;
+    else if (value == "namespace")
+        type = TokenType::NAMESPACE;
+
     return Token(type, value, start_line, start_column);
 }
 
@@ -175,33 +240,45 @@ Token GlyphLexer::read_string() {
     size_t start_line = line_;
     size_t start_column = column_;
     std::string value;
-    
-    advance(); // Skip opening quote
-    
+
+    advance();  // Skip opening quote
+
     while (pos_ < input_.length() && current_char() != '"') {
         if (current_char() == '\\' && peek_char() != '\0') {
             advance();
             char escaped = current_char();
             switch (escaped) {
-                case 'n': value += '\n'; break;
-                case 't': value += '\t'; break;
-                case 'r': value += '\r'; break;
-                case '\\': value += '\\'; break;
-                case '"': value += '"'; break;
-                default: value += escaped; break;
+                case 'n':
+                    value += '\n';
+                    break;
+                case 't':
+                    value += '\t';
+                    break;
+                case 'r':
+                    value += '\r';
+                    break;
+                case '\\':
+                    value += '\\';
+                    break;
+                case '"':
+                    value += '"';
+                    break;
+                default:
+                    value += escaped;
+                    break;
             }
         } else {
             value += current_char();
         }
         advance();
     }
-    
+
     if (current_char() == '"') {
-        advance(); // Skip closing quote
+        advance();  // Skip closing quote
     } else {
         add_error("Unterminated string literal");
     }
-    
+
     return Token(TokenType::STRING, value, start_line, start_column);
 }
 
@@ -209,12 +286,12 @@ Token GlyphLexer::read_number() {
     size_t start_line = line_;
     size_t start_column = column_;
     std::string value;
-    
+
     while (pos_ < input_.length() && (is_digit(current_char()) || current_char() == '.')) {
         value += current_char();
         advance();
     }
-    
+
     return Token(TokenType::NUMBER, value, start_line, start_column);
 }
 
@@ -235,26 +312,23 @@ void GlyphLexer::add_error(const std::string& message) {
 }
 
 // GlyphParser implementation
-GlyphParser::GlyphParser(const std::vector<Token>& tokens) 
-    : tokens_(tokens), pos_(0) {
-}
+GlyphParser::GlyphParser(const std::vector<Token>& tokens) : tokens_(tokens), pos_(0) {}
 
-GlyphParser::~GlyphParser() {
-}
+GlyphParser::~GlyphParser() {}
 
 std::unique_ptr<ProgramNode> GlyphParser::parse() {
     errors_.clear();
     pos_ = 0;
-    
+
     auto program = std::make_unique<ProgramNode>();
-    
+
     while (pos_ < tokens_.size() && current_token().type != TokenType::END_OF_FILE) {
         auto statement = parse_statement();
         if (statement) {
             program->add_child(std::move(statement));
         }
     }
-    
+
     return program;
 }
 
@@ -308,20 +382,20 @@ std::unique_ptr<VMDeclNode> GlyphParser::parse_vm_declaration() {
     if (!consume(TokenType::VM)) {
         return nullptr;
     }
-    
+
     if (!match(TokenType::IDENTIFIER)) {
         add_error("Expected VM name");
         return nullptr;
     }
-    
+
     std::string vm_id = current_token().value;
     advance();
-    
+
     if (!consume(TokenType::ASSIGN)) {
         add_error("Expected ':' after VM name");
         return nullptr;
     }
-    
+
     std::string vm_type;
     if (match(TokenType::DIS)) {
         vm_type = "dis";
@@ -336,61 +410,61 @@ std::unique_ptr<VMDeclNode> GlyphParser::parse_vm_declaration() {
         add_error("Expected VM type (dis, native, wasm)");
         return nullptr;
     }
-    
+
     auto vm_node = std::make_unique<VMDeclNode>(vm_id, vm_type);
-    
+
     if (consume(TokenType::LBRACE)) {
         auto block = parse_block();
         if (block) {
             vm_node->add_child(std::move(block));
         }
     }
-    
+
     return vm_node;
 }
 
 std::unique_ptr<GlyphDeclNode> GlyphParser::parse_glyph_declaration() {
     bool is_workbench = match(TokenType::WORKBENCH);
-    
+
     if (!(consume(TokenType::GLYPH) || consume(TokenType::WORKBENCH))) {
         return nullptr;
     }
-    
+
     if (!match(TokenType::IDENTIFIER)) {
         add_error("Expected glyph name");
         return nullptr;
     }
-    
+
     std::string glyph_id = current_token().value;
     advance();
-    
+
     // Expect 'on' keyword (simplified - using identifier)
     if (!match(TokenType::IDENTIFIER) || current_token().value != "on") {
         add_error("Expected 'on' after glyph name");
         return nullptr;
     }
     advance();
-    
+
     if (!match(TokenType::IDENTIFIER)) {
         add_error("Expected VM name after 'on'");
         return nullptr;
     }
-    
+
     std::string base_vm = current_token().value;
     advance();
-    
+
     auto glyph_node = std::make_unique<GlyphDeclNode>(glyph_id, base_vm);
     if (is_workbench) {
         glyph_node->set_attribute("type", "workbench");
     }
-    
+
     if (consume(TokenType::LBRACE)) {
         auto block = parse_block();
         if (block) {
             glyph_node->add_child(std::move(block));
         }
     }
-    
+
     return glyph_node;
 }
 
@@ -398,15 +472,15 @@ std::unique_ptr<PropertyNode> GlyphParser::parse_property() {
     if (!match(TokenType::IDENTIFIER)) {
         return nullptr;
     }
-    
+
     std::string name = current_token().value;
     advance();
-    
+
     if (!consume(TokenType::ASSIGN)) {
         add_error("Expected '=' after property name");
         return nullptr;
     }
-    
+
     std::string value;
     if (match(TokenType::STRING) || match(TokenType::NUMBER) || match(TokenType::IDENTIFIER)) {
         value = current_token().value;
@@ -430,24 +504,24 @@ std::unique_ptr<PropertyNode> GlyphParser::parse_property() {
         add_error("Expected property value");
         return nullptr;
     }
-    
-    consume(TokenType::SEMICOLON); // Optional semicolon
-    
+
+    consume(TokenType::SEMICOLON);  // Optional semicolon
+
     return std::make_unique<PropertyNode>(name, value);
 }
 
 std::unique_ptr<ASTNode> GlyphParser::parse_block() {
     auto block = std::make_unique<ASTNode>(ASTNodeType::BLOCK);
-    
+
     while (!match(TokenType::RBRACE) && !match(TokenType::END_OF_FILE)) {
         auto statement = parse_statement();
         if (statement) {
             block->add_child(std::move(statement));
         } else {
-            advance(); // Skip problematic tokens
+            advance();  // Skip problematic tokens
         }
     }
-    
+
     consume(TokenType::RBRACE);
     return block;
 }
@@ -455,53 +529,52 @@ std::unique_ptr<ASTNode> GlyphParser::parse_block() {
 std::unique_ptr<ASTNode> GlyphParser::parse_expression() {
     // Simplified expression parsing
     auto expr = std::make_unique<ASTNode>(ASTNodeType::EXPRESSION);
-    
+
     if (match(TokenType::IDENTIFIER) || match(TokenType::STRING) || match(TokenType::NUMBER)) {
         expr->set_attribute("value", current_token().value);
         advance();
     }
-    
+
     return expr;
 }
 
 std::unique_ptr<ASTNode> GlyphParser::parse_list() {
     auto list = std::make_unique<ASTNode>(ASTNodeType::LIST);
-    
+
     if (!consume(TokenType::LBRACKET)) {
         return nullptr;
     }
-    
+
     while (!match(TokenType::RBRACKET) && !match(TokenType::END_OF_FILE)) {
         auto expr = parse_expression();
         if (expr) {
             list->add_child(std::move(expr));
         }
-        
+
         if (!consume(TokenType::COMMA)) {
             break;
         }
     }
-    
+
     consume(TokenType::RBRACKET);
     return list;
 }
 
 void GlyphParser::add_error(const std::string& message) {
     Token token = current_token();
-    errors_.push_back("Line " + std::to_string(token.line) + ", Column " + std::to_string(token.column) + ": " + message);
+    errors_.push_back("Line " + std::to_string(token.line) + ", Column " + std::to_string(token.column) + ": " +
+                      message);
 }
 
 // GlyphCodeGenerator implementation
-GlyphCodeGenerator::GlyphCodeGenerator() {
-}
+GlyphCodeGenerator::GlyphCodeGenerator() {}
 
-GlyphCodeGenerator::~GlyphCodeGenerator() {
-}
+GlyphCodeGenerator::~GlyphCodeGenerator() {}
 
 VMGlyph GlyphCodeGenerator::generate_vm_glyph(const ASTNode& ast) {
     errors_.clear();
     VMGlyph glyph;
-    
+
     // Set defaults
     glyph.vm_type = "dis";
     glyph.architecture = "portable";
@@ -510,7 +583,7 @@ VMGlyph GlyphCodeGenerator::generate_vm_glyph(const ASTNode& ast) {
     glyph.render.background_color = 0x1e1e1e;
     glyph.render.interactive = true;
     glyph.render.ai_enabled = false;
-    
+
     // Process AST nodes
     for (const auto& child : ast.children) {
         if (child->type == ASTNodeType::VM_DECL) {
@@ -523,7 +596,7 @@ VMGlyph GlyphCodeGenerator::generate_vm_glyph(const ASTNode& ast) {
                     for (const auto& prop_child : grandchild->children) {
                         if (prop_child->type == ASTNodeType::PROPERTY) {
                             const PropertyNode* prop = static_cast<const PropertyNode*>(prop_child.get());
-                            
+
                             if (prop->name == "width") {
                                 glyph.render.width = std::stoi(prop->value);
                             } else if (prop->name == "height") {
@@ -539,47 +612,47 @@ VMGlyph GlyphCodeGenerator::generate_vm_glyph(const ASTNode& ast) {
             }
         }
     }
-    
+
     return glyph;
 }
 
 AIWorkbenchGlyph GlyphCodeGenerator::generate_ai_workbench(const ASTNode& ast) {
     AIWorkbenchGlyph workbench;
-    
+
     workbench.workbench_id = "generated_workbench";
     workbench.ai_model = "ggml-rwkv";
     workbench.tools = {"completion", "chat"};
     workbench.styx_address = "tcp!*!9999";
-    
+
     // Generate host VM
     workbench.host_vm = generate_vm_glyph(ast);
     workbench.host_vm.render.ai_enabled = true;
-    
+
     return workbench;
 }
 
 DISProgram GlyphCodeGenerator::generate_dis_program(const ASTNode& ast) {
     DISProgram program;
-    
+
     // Generate a simple AI workbench program
     program.add_instruction(DISInstruction(DISOpcode::NEWSTR, DISValue("🤖 AI Workbench starting...\n")));
     program.add_instruction(DISInstruction(DISOpcode::PRINT));
-    
+
     program.add_instruction(DISInstruction(DISOpcode::NEWSTR, DISValue("ggml-rwkv")));
     program.add_instruction(DISInstruction(DISOpcode::AI_INIT));
-    
+
     program.add_instruction(DISInstruction(DISOpcode::NEWSTR, DISValue("Hello from generated workbench!")));
     program.add_instruction(DISInstruction(DISOpcode::AI_CHAT));
     program.add_instruction(DISInstruction(DISOpcode::PRINT));
-    
+
     program.add_instruction(DISInstruction(DISOpcode::HALT));
-    
+
     return program;
 }
 
 std::string GlyphCodeGenerator::generate_cpp_code(const ASTNode& ast) {
     std::ostringstream code;
-    
+
     code << "#include \"bolt/drawkern/drawkern.hpp\"\n";
     code << "#include \"bolt/drawkern/dis_vm.hpp\"\n\n";
     code << "using namespace bolt::drawkern;\n\n";
@@ -598,13 +671,13 @@ std::string GlyphCodeGenerator::generate_cpp_code(const ASTNode& ast) {
     code << "    \n";
     code << "    return workbench;\n";
     code << "}\n";
-    
+
     return code.str();
 }
 
 std::string GlyphCodeGenerator::generate_json(const ASTNode& ast) {
     std::ostringstream json;
-    
+
     json << "{\n";
     json << "  \"workbench_id\": \"generated_workbench\",\n";
     json << "  \"ai_model\": \"ggml-rwkv\",\n";
@@ -619,13 +692,13 @@ std::string GlyphCodeGenerator::generate_json(const ASTNode& ast) {
     json << "    }\n";
     json << "  }\n";
     json << "}\n";
-    
+
     return json.str();
 }
 
 std::string GlyphCodeGenerator::generate_yaml(const ASTNode& ast) {
     std::ostringstream yaml;
-    
+
     yaml << "workbench_id: generated_workbench\n";
     yaml << "ai_model: ggml-rwkv\n";
     yaml << "tools:\n";
@@ -638,7 +711,7 @@ std::string GlyphCodeGenerator::generate_yaml(const ASTNode& ast) {
     yaml << "    width: 1200\n";
     yaml << "    height: 800\n";
     yaml << "    ai_enabled: true\n";
-    
+
     return yaml.str();
 }
 
@@ -647,53 +720,39 @@ void GlyphCodeGenerator::add_error(const std::string& message) {
 }
 
 // YaccGrammarSystem implementation
-YaccGrammarSystem::YaccGrammarSystem() {
-}
+YaccGrammarSystem::YaccGrammarSystem() {}
 
-YaccGrammarSystem::~YaccGrammarSystem() {
-}
+YaccGrammarSystem::~YaccGrammarSystem() {}
 
 VMGlyph YaccGrammarSystem::parse_vm_glyph(const std::string& description) {
     clear_errors();
-    
-    lexer_ = std::make_unique<GlyphLexer>(description);
-    auto tokens = lexer_->tokenize();
-    
-    parser_ = std::make_unique<GlyphParser>(tokens);
-    auto ast = parser_->parse();
-    
+
+    auto ast = lex_and_parse(description, lexer_, parser_);
+
     generator_ = std::make_unique<GlyphCodeGenerator>();
     VMGlyph glyph = generator_->generate_vm_glyph(*ast);
-    
+
     collect_errors();
     return glyph;
 }
 
 AIWorkbenchGlyph YaccGrammarSystem::parse_ai_workbench(const std::string& description) {
     clear_errors();
-    
-    lexer_ = std::make_unique<GlyphLexer>(description);
-    auto tokens = lexer_->tokenize();
-    
-    parser_ = std::make_unique<GlyphParser>(tokens);
-    auto ast = parser_->parse();
-    
+
+    auto ast = lex_and_parse(description, lexer_, parser_);
+
     generator_ = std::make_unique<GlyphCodeGenerator>();
     AIWorkbenchGlyph workbench = generator_->generate_ai_workbench(*ast);
-    
+
     collect_errors();
     return workbench;
 }
 
 bool YaccGrammarSystem::validate_description(const std::string& description) {
     clear_errors();
-    
-    lexer_ = std::make_unique<GlyphLexer>(description);
-    auto tokens = lexer_->tokenize();
-    
-    parser_ = std::make_unique<GlyphParser>(tokens);
-    auto ast = parser_->parse();
-    
+
+    auto ast = lex_and_parse(description, lexer_, parser_);
+
     collect_errors();
     return errors_.empty();
 }
@@ -704,30 +763,26 @@ std::vector<std::string> YaccGrammarSystem::get_validation_errors() const {
 
 std::string YaccGrammarSystem::generate_cpp_code(const std::string& description) {
     clear_errors();
-    
-    lexer_ = std::make_unique<GlyphLexer>(description);
-    auto tokens = lexer_->tokenize();
-    
-    parser_ = std::make_unique<GlyphParser>(tokens);
-    auto ast = parser_->parse();
-    
+
+    auto ast = lex_and_parse(description, lexer_, parser_);
+
     generator_ = std::make_unique<GlyphCodeGenerator>();
     std::string code = generator_->generate_cpp_code(*ast);
-    
+
     collect_errors();
     return code;
 }
 
 std::string YaccGrammarSystem::generate_deployment_script(const std::string& description) {
     std::ostringstream script;
-    
+
     script << "#!/bin/bash\n";
     script << "# Generated DrawKern deployment script\n\n";
     script << "echo \"Deploying DrawKern workbench...\"\n";
     script << "./drawkern_server --port 9999 &\n";
     script << "sleep 2\n";
     script << "./drawkern_client localhost:9999\n";
-    
+
     return script.str();
 }
 
@@ -748,8 +803,8 @@ std::vector<std::string> YaccGrammarSystem::get_supported_vm_types() {
 }
 
 std::vector<std::string> YaccGrammarSystem::get_supported_properties() {
-    return {"width", "height", "background", "font", "interactive", "ai_enabled", 
-            "model", "tools", "architecture", "capabilities"};
+    return {"width",      "height", "background", "font",         "interactive",
+            "ai_enabled", "model",  "tools",      "architecture", "capabilities"};
 }
 
 std::string YaccGrammarSystem::get_grammar_documentation() {
@@ -796,17 +851,17 @@ void YaccGrammarSystem::collect_errors() {
         auto lexer_errors = lexer_->get_errors();
         errors_.insert(errors_.end(), lexer_errors.begin(), lexer_errors.end());
     }
-    
+
     if (parser_ && parser_->has_errors()) {
         auto parser_errors = parser_->get_errors();
         errors_.insert(errors_.end(), parser_errors.begin(), parser_errors.end());
     }
-    
+
     if (generator_ && generator_->has_errors()) {
         auto generator_errors = generator_->get_errors();
         errors_.insert(errors_.end(), generator_errors.begin(), generator_errors.end());
     }
 }
 
-} // namespace drawkern
-} // namespace bolt
+}  // namespace drawkern
+}  // namespace bolt
