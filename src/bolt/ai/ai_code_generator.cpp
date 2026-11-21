@@ -1,9 +1,49 @@
 #include "bolt/ai/ai_code_generator.hpp"
+
 #include <algorithm>
-#include <sstream>
+#include <optional>
 #include <regex>
+#include <sstream>
 
 namespace bolt {
+
+namespace {
+
+// Asks a ready AI provider for up to maxSuggestions completions of the prompt, written in the given language.
+std::vector<CompletionItem> requestCompletions(AICompletionProvider& provider, const std::string& prompt,
+                                               const std::string& language, size_t maxSuggestions) {
+    CodeContext aiContext;
+    aiContext.content = prompt;
+    aiContext.language = language;
+    aiContext.cursorPosition = prompt.length();
+
+    return provider.generateCompletions(aiContext, prompt, maxSuggestions);
+}
+
+// The label of the provider's first completion for the prompt "instruction + code"; no value when the provider is
+// missing, not ready or returns no completions.
+std::optional<std::string> firstCompletionLabel(AICompletionProvider* provider, const std::string& instruction,
+                                                const std::string& code, const std::string& language) {
+    if (provider && provider->isReady()) {
+        std::string prompt = instruction + code;
+        auto completions = requestCompletions(*provider, prompt, language, 1);
+        if (!completions.empty()) {
+            return completions[0].label;
+        }
+    }
+    return std::nullopt;
+}
+
+// Result returned when neither the AI provider nor the template generator can produce code.
+GeneratedCode makeUnavailableResult(const std::string& message) {
+    GeneratedCode result;
+    result.code = message;
+    result.confidence = 0.0;
+    result.generatorType = "none";
+    return result;
+}
+
+}  // namespace
 
 // TemplateCodeGenerator implementation
 TemplateCodeGenerator::TemplateCodeGenerator() {
@@ -59,7 +99,8 @@ public:
     {BODY}
     return {DEFAULT_RETURN};
 })";
-    methodTemplate.placeholders = {"DESCRIPTION", "RETURN_TYPE", "CLASS_NAME", "METHOD_NAME", "PARAMETERS", "BODY", "DEFAULT_RETURN"};
+    methodTemplate.placeholders = {"DESCRIPTION", "RETURN_TYPE", "CLASS_NAME",    "METHOD_NAME",
+                                   "PARAMETERS",  "BODY",        "DEFAULT_RETURN"};
     templates_["cpp_method"] = methodTemplate;
 
     // Header Guard Template
@@ -90,36 +131,32 @@ bool TemplateCodeGenerator::initialize() {
     return initialized_;
 }
 
-std::string TemplateCodeGenerator::processTemplate(
-    const CodeTemplate& tmpl, 
-    const std::unordered_map<std::string, std::string>& values) const {
-    
+std::string TemplateCodeGenerator::processTemplate(const CodeTemplate& tmpl,
+                                                   const std::unordered_map<std::string, std::string>& values) const {
     std::string result = tmpl.pattern;
-    
+
     for (const auto& placeholder : tmpl.placeholders) {
         std::string token = "{" + placeholder + "}";
         auto it = values.find(placeholder);
         std::string replacement = (it != values.end()) ? it->second : "/* TODO: " + placeholder + " */";
-        
+
         size_t pos = 0;
         while ((pos = result.find(token, pos)) != std::string::npos) {
             result.replace(pos, token.length(), replacement);
             pos += replacement.length();
         }
     }
-    
+
     return result;
 }
 
-GeneratedCode TemplateCodeGenerator::generateFunction(
-    const std::string& description,
-    const CodeGenerationContext& context) {
-    
+GeneratedCode TemplateCodeGenerator::generateFunction(const std::string& description,
+                                                      const CodeGenerationContext& context) {
     GeneratedCode result;
     result.generatorType = "template";
     result.confidence = 0.8;
     result.description = "Generated function from template";
-    
+
     std::unordered_map<std::string, std::string> values;
     values["DESCRIPTION"] = description.empty() ? "Generated function" : description;
     values["RETURN_TYPE"] = context.language == "cpp" ? "void" : "void";
@@ -127,7 +164,7 @@ GeneratedCode TemplateCodeGenerator::generateFunction(
     values["PARAMETERS"] = "";
     values["BODY"] = "    // TODO: Implement function logic";
     values["DEFAULT_RETURN"] = context.language == "cpp" ? "" : "";
-    
+
     // Try to extract function name from description
     std::regex namePattern(R"(\b(\w+)\s*function|\bfunction\s+(\w+)|\b(\w+)\(\))");
     std::smatch match;
@@ -139,49 +176,43 @@ GeneratedCode TemplateCodeGenerator::generateFunction(
             }
         }
     }
-    
+
     result.code = processTemplate(templates_.at("cpp_function"), values);
     result.suggestions.push_back("Consider adding parameter validation");
     result.suggestions.push_back("Add proper error handling");
-    
+
     return result;
 }
 
-GeneratedCode TemplateCodeGenerator::generateClass(
-    const std::string& className,
-    const std::string& description,
-    const CodeGenerationContext& context) {
-    
+GeneratedCode TemplateCodeGenerator::generateClass(const std::string& className, const std::string& description,
+                                                   const CodeGenerationContext& context) {
     GeneratedCode result;
     result.generatorType = "template";
     result.confidence = 0.8;
     result.description = "Generated class from template";
-    
+
     std::unordered_map<std::string, std::string> values;
     values["DESCRIPTION"] = description.empty() ? "Generated class" : description;
     values["CLASS_NAME"] = className.empty() ? "GeneratedClass" : className;
     values["PRIVATE_MEMBERS"] = "    // TODO: Add private member variables";
     values["PUBLIC_METHODS"] = "    // TODO: Add public methods";
-    
+
     result.code = processTemplate(templates_.at("cpp_class"), values);
     result.suggestions.push_back("Consider using RAII principles");
     result.suggestions.push_back("Add copy/move constructors if needed");
     result.suggestions.push_back("Consider making destructor virtual if inheritance is expected");
-    
+
     return result;
 }
 
-GeneratedCode TemplateCodeGenerator::generateMethod(
-    const std::string& methodName,
-    const std::string& description,
-    const std::string& className,
-    const CodeGenerationContext& context) {
-    
+GeneratedCode TemplateCodeGenerator::generateMethod(const std::string& methodName, const std::string& description,
+                                                    const std::string& className,
+                                                    const CodeGenerationContext& context) {
     GeneratedCode result;
     result.generatorType = "template";
     result.confidence = 0.8;
     result.description = "Generated method from template";
-    
+
     std::unordered_map<std::string, std::string> values;
     values["DESCRIPTION"] = description.empty() ? "Generated method" : description;
     values["RETURN_TYPE"] = "void";
@@ -190,36 +221,34 @@ GeneratedCode TemplateCodeGenerator::generateMethod(
     values["PARAMETERS"] = "";
     values["BODY"] = "    // TODO: Implement method logic";
     values["DEFAULT_RETURN"] = "";
-    
+
     result.code = processTemplate(templates_.at("cpp_method"), values);
     result.suggestions.push_back("Consider const-correctness");
     result.suggestions.push_back("Add parameter validation");
-    
+
     return result;
 }
 
-GeneratedCode TemplateCodeGenerator::generateTemplate(
-    const std::string& templateType,
-    const CodeGenerationContext& context) {
-    
+GeneratedCode TemplateCodeGenerator::generateTemplate(const std::string& templateType,
+                                                      const CodeGenerationContext& context) {
     GeneratedCode result;
     result.generatorType = "template";
     result.confidence = 0.9;
-    
+
     if (templates_.find(templateType) != templates_.end()) {
         std::unordered_map<std::string, std::string> values;
-        
+
         if (templateType == "header_guard") {
             std::string guardName = context.fileType;
             std::transform(guardName.begin(), guardName.end(), guardName.begin(), ::toupper);
             std::replace(guardName.begin(), guardName.end(), '.', '_');
-            
+
             values["GUARD_NAME"] = guardName + "_HPP";
             values["INCLUDES"] = "#include <string>\n#include <vector>";
             values["NAMESPACE"] = "bolt";
             values["CONTENT"] = "// TODO: Add your declarations here";
         }
-        
+
         result.code = processTemplate(templates_.at(templateType), values);
         result.description = "Generated " + templateType + " template";
     } else {
@@ -227,19 +256,17 @@ GeneratedCode TemplateCodeGenerator::generateTemplate(
         result.description = "Template not available";
         result.confidence = 0.1;
     }
-    
+
     return result;
 }
 
-std::string TemplateCodeGenerator::generateDocumentation(
-    const std::string& code,
-    const CodeGenerationContext& context) {
-    
+std::string TemplateCodeGenerator::generateDocumentation(const std::string& code,
+                                                         const CodeGenerationContext& context) {
     std::ostringstream doc;
     doc << "/**\n";
     doc << " * Auto-generated documentation\n";
     doc << " * \n";
-    
+
     // Simple analysis of the code to generate basic documentation
     if (code.find("class ") != std::string::npos) {
         doc << " * This class provides functionality for code management.\n";
@@ -253,43 +280,40 @@ std::string TemplateCodeGenerator::generateDocumentation(
     } else {
         doc << " * Code documentation\n";
     }
-    
+
     doc << " */";
     return doc.str();
 }
 
-std::string TemplateCodeGenerator::explainCode(
-    const std::string& code,
-    const CodeGenerationContext& context) {
-    
+std::string TemplateCodeGenerator::explainCode(const std::string& code, const CodeGenerationContext& context) {
     std::ostringstream explanation;
     explanation << "Code Explanation:\n\n";
-    
+
     // Basic pattern recognition
     if (code.find("class ") != std::string::npos) {
         explanation << "This code defines a C++ class. Classes are fundamental building blocks ";
         explanation << "in object-oriented programming that encapsulate data and behavior.\n\n";
     }
-    
+
     if (code.find("public:") != std::string::npos) {
         explanation << "The 'public:' section contains members that can be accessed from outside the class.\n\n";
     }
-    
+
     if (code.find("private:") != std::string::npos) {
         explanation << "The 'private:' section contains members that can only be accessed from within the class.\n\n";
     }
-    
+
     if (code.find("for") != std::string::npos) {
         explanation << "This code contains a for loop, which is used for iterative operations.\n\n";
     }
-    
+
     if (code.find("if") != std::string::npos) {
         explanation << "This code contains conditional logic using if statements.\n\n";
     }
-    
+
     explanation << "Note: This is a basic template-based explanation. ";
     explanation << "For more detailed analysis, consider using an AI-powered explanation service.";
-    
+
     return explanation.str();
 }
 
@@ -306,14 +330,10 @@ std::vector<std::string> TemplateCodeGenerator::getAvailableTemplates() const {
 }
 
 // AIEnhancedCodeGenerator implementation
-AIEnhancedCodeGenerator::AIEnhancedCodeGenerator() 
-    : templateGenerator_(std::make_unique<TemplateCodeGenerator>()) {
-}
+AIEnhancedCodeGenerator::AIEnhancedCodeGenerator() : templateGenerator_(std::make_unique<TemplateCodeGenerator>()) {}
 
 AIEnhancedCodeGenerator::AIEnhancedCodeGenerator(std::unique_ptr<AICompletionProvider> provider)
-    : aiProvider_(std::move(provider))
-    , templateGenerator_(std::make_unique<TemplateCodeGenerator>()) {
-}
+    : aiProvider_(std::move(provider)), templateGenerator_(std::make_unique<TemplateCodeGenerator>()) {}
 
 void AIEnhancedCodeGenerator::setAIProvider(std::unique_ptr<AICompletionProvider> provider) {
     aiProvider_ = std::move(provider);
@@ -321,23 +341,22 @@ void AIEnhancedCodeGenerator::setAIProvider(std::unique_ptr<AICompletionProvider
 
 bool AIEnhancedCodeGenerator::initialize() {
     bool result = true;
-    
+
     if (templateGenerator_) {
         result &= templateGenerator_->initialize();
     }
-    
+
     if (aiProvider_) {
         result &= aiProvider_->initialize();
     }
-    
+
     initialized_ = result;
     return result;
 }
 
 bool AIEnhancedCodeGenerator::isReady() const {
-    return initialized_ && 
-           ((aiProvider_ && aiProvider_->isReady()) || 
-            (fallbackToTemplate_ && templateGenerator_ && templateGenerator_->isReady()));
+    return initialized_ && ((aiProvider_ && aiProvider_->isReady()) ||
+                            (fallbackToTemplate_ && templateGenerator_ && templateGenerator_->isReady()));
 }
 
 void AIEnhancedCodeGenerator::shutdown() {
@@ -350,47 +369,42 @@ void AIEnhancedCodeGenerator::shutdown() {
     initialized_ = false;
 }
 
-std::string AIEnhancedCodeGenerator::createGenerationPrompt(
-    const std::string& type,
-    const std::string& description,
-    const CodeGenerationContext& context) const {
-    
+std::string AIEnhancedCodeGenerator::createGenerationPrompt(const std::string& type, const std::string& description,
+                                                            const CodeGenerationContext& context) const {
     std::ostringstream prompt;
     prompt << "Generate " << type << " in " << context.language << ":\n";
     prompt << "Description: " << description << "\n";
-    
+
     if (!context.projectContext.empty()) {
         prompt << "Project context: " << context.projectContext << "\n";
     }
-    
+
     if (!context.existingCode.empty()) {
         prompt << "Existing code context:\n" << context.existingCode << "\n";
     }
-    
+
     if (!context.requirements.empty()) {
         prompt << "Requirements:\n";
         for (const auto& req : context.requirements) {
             prompt << "- " << req << "\n";
         }
     }
-    
+
     prompt << "\nPlease provide clean, well-documented code following best practices.";
-    
+
     return prompt.str();
 }
 
-GeneratedCode AIEnhancedCodeGenerator::processAIResponse(
-    const std::vector<CompletionItem>& completions,
-    const std::string& generatorType) const {
-    
+GeneratedCode AIEnhancedCodeGenerator::processAIResponse(const std::vector<CompletionItem>& completions,
+                                                         const std::string& generatorType) const {
     GeneratedCode result;
     result.generatorType = "ai_enhanced";
-    
+
     if (!completions.empty()) {
         result.code = completions[0].label;
         result.confidence = completions[0].score;
         result.description = "AI-generated code";
-        
+
         // Extract suggestions from other completions
         for (size_t i = 1; i < std::min(completions.size(), static_cast<size_t>(3)); ++i) {
             result.suggestions.push_back("Alternative: " + completions[i].label.substr(0, 50) + "...");
@@ -400,174 +414,108 @@ GeneratedCode AIEnhancedCodeGenerator::processAIResponse(
         result.confidence = 0.0;
         result.description = "AI generation failed";
     }
-    
+
     return result;
 }
 
-GeneratedCode AIEnhancedCodeGenerator::generateFunction(
-    const std::string& description,
-    const CodeGenerationContext& context) {
-    
+GeneratedCode AIEnhancedCodeGenerator::generateFunction(const std::string& description,
+                                                        const CodeGenerationContext& context) {
     if (aiProvider_ && aiProvider_->isReady()) {
         std::string prompt = createGenerationPrompt("function", description, context);
-        
-        CodeContext aiContext;
-        aiContext.content = prompt;
-        aiContext.language = context.language;
-        aiContext.cursorPosition = prompt.length();
-        
-        auto completions = aiProvider_->generateCompletions(aiContext, prompt, 3);
+        auto completions = requestCompletions(*aiProvider_, prompt, context.language, 3);
         if (!completions.empty()) {
             return processAIResponse(completions, "function");
         }
     }
-    
+
     // Fallback to template generation
     if (fallbackToTemplate_ && templateGenerator_) {
         auto result = templateGenerator_->generateFunction(description, context);
         result.description += " (fallback to template)";
         return result;
     }
-    
-    GeneratedCode result;
-    result.code = "// Code generation not available";
-    result.confidence = 0.0;
-    result.generatorType = "none";
-    return result;
+
+    return makeUnavailableResult("// Code generation not available");
 }
 
-GeneratedCode AIEnhancedCodeGenerator::generateClass(
-    const std::string& className,
-    const std::string& description,
-    const CodeGenerationContext& context) {
-    
+GeneratedCode AIEnhancedCodeGenerator::generateClass(const std::string& className, const std::string& description,
+                                                     const CodeGenerationContext& context) {
     if (aiProvider_ && aiProvider_->isReady()) {
         std::string prompt = createGenerationPrompt("class named " + className, description, context);
-        
-        CodeContext aiContext;
-        aiContext.content = prompt;
-        aiContext.language = context.language;
-        aiContext.cursorPosition = prompt.length();
-        
-        auto completions = aiProvider_->generateCompletions(aiContext, prompt, 3);
+        auto completions = requestCompletions(*aiProvider_, prompt, context.language, 3);
         if (!completions.empty()) {
             return processAIResponse(completions, "class");
         }
     }
-    
+
     // Fallback to template generation
     if (fallbackToTemplate_ && templateGenerator_) {
         auto result = templateGenerator_->generateClass(className, description, context);
         result.description += " (fallback to template)";
         return result;
     }
-    
-    GeneratedCode result;
-    result.code = "// Code generation not available";
-    result.confidence = 0.0;
-    result.generatorType = "none";
-    return result;
+
+    return makeUnavailableResult("// Code generation not available");
 }
 
-GeneratedCode AIEnhancedCodeGenerator::generateMethod(
-    const std::string& methodName,
-    const std::string& description,
-    const std::string& className,
-    const CodeGenerationContext& context) {
-    
+GeneratedCode AIEnhancedCodeGenerator::generateMethod(const std::string& methodName, const std::string& description,
+                                                      const std::string& className,
+                                                      const CodeGenerationContext& context) {
     if (aiProvider_ && aiProvider_->isReady()) {
-        std::string prompt = createGenerationPrompt("method " + methodName + " for class " + className, description, context);
-        
-        CodeContext aiContext;
-        aiContext.content = prompt;
-        aiContext.language = context.language;
-        aiContext.cursorPosition = prompt.length();
-        
-        auto completions = aiProvider_->generateCompletions(aiContext, prompt, 3);
+        std::string prompt =
+            createGenerationPrompt("method " + methodName + " for class " + className, description, context);
+        auto completions = requestCompletions(*aiProvider_, prompt, context.language, 3);
         if (!completions.empty()) {
             return processAIResponse(completions, "method");
         }
     }
-    
+
     // Fallback to template generation
     if (fallbackToTemplate_ && templateGenerator_) {
         auto result = templateGenerator_->generateMethod(methodName, description, className, context);
         result.description += " (fallback to template)";
         return result;
     }
-    
-    GeneratedCode result;
-    result.code = "// Code generation not available";
-    result.confidence = 0.0;
-    result.generatorType = "none";
-    return result;
+
+    return makeUnavailableResult("// Code generation not available");
 }
 
-GeneratedCode AIEnhancedCodeGenerator::generateTemplate(
-    const std::string& templateType,
-    const CodeGenerationContext& context) {
-    
+GeneratedCode AIEnhancedCodeGenerator::generateTemplate(const std::string& templateType,
+                                                        const CodeGenerationContext& context) {
     // Template generation always falls back to template generator
     if (templateGenerator_) {
         return templateGenerator_->generateTemplate(templateType, context);
     }
-    
-    GeneratedCode result;
-    result.code = "// Template generation not available";
-    result.confidence = 0.0;
-    result.generatorType = "none";
-    return result;
+
+    return makeUnavailableResult("// Template generation not available");
 }
 
-std::string AIEnhancedCodeGenerator::generateDocumentation(
-    const std::string& code,
-    const CodeGenerationContext& context) {
-    
-    if (aiProvider_ && aiProvider_->isReady()) {
-        std::string prompt = "Generate comprehensive documentation for this code:\n\n" + code;
-        
-        CodeContext aiContext;
-        aiContext.content = prompt;
-        aiContext.language = context.language;
-        aiContext.cursorPosition = prompt.length();
-        
-        auto completions = aiProvider_->generateCompletions(aiContext, prompt, 1);
-        if (!completions.empty()) {
-            return completions[0].label;
-        }
+std::string AIEnhancedCodeGenerator::generateDocumentation(const std::string& code,
+                                                           const CodeGenerationContext& context) {
+    if (auto text = firstCompletionLabel(aiProvider_.get(), "Generate comprehensive documentation for this code:\n\n",
+                                         code, context.language)) {
+        return *text;
     }
-    
+
     // Fallback to template generation
     if (fallbackToTemplate_ && templateGenerator_) {
         return templateGenerator_->generateDocumentation(code, context);
     }
-    
+
     return "// Documentation generation not available";
 }
 
-std::string AIEnhancedCodeGenerator::explainCode(
-    const std::string& code,
-    const CodeGenerationContext& context) {
-    
-    if (aiProvider_ && aiProvider_->isReady()) {
-        std::string prompt = "Explain this code in detail:\n\n" + code;
-        
-        CodeContext aiContext;
-        aiContext.content = prompt;
-        aiContext.language = context.language;
-        aiContext.cursorPosition = prompt.length();
-        
-        auto completions = aiProvider_->generateCompletions(aiContext, prompt, 1);
-        if (!completions.empty()) {
-            return completions[0].label;
-        }
+std::string AIEnhancedCodeGenerator::explainCode(const std::string& code, const CodeGenerationContext& context) {
+    if (auto text =
+            firstCompletionLabel(aiProvider_.get(), "Explain this code in detail:\n\n", code, context.language)) {
+        return *text;
     }
-    
+
     // Fallback to template generation
     if (fallbackToTemplate_ && templateGenerator_) {
         return templateGenerator_->explainCode(code, context);
     }
-    
+
     return "Code explanation not available";
 }
 
@@ -590,54 +538,44 @@ void CodeGenerationService::setGenerator(std::unique_ptr<AICodeGenerator> genera
     }
 }
 
-GeneratedCode CodeGenerationService::generateFunction(
-    const std::string& description, 
-    const CodeGenerationContext& context) {
-    
+GeneratedCode CodeGenerationService::generateFunction(const std::string& description,
+                                                      const CodeGenerationContext& context) {
     if (generator_) {
         return generator_->generateFunction(description, context);
     }
-    
+
     GeneratedCode result;
     result.code = "// Code generation service not available";
     result.confidence = 0.0;
     return result;
 }
 
-GeneratedCode CodeGenerationService::generateClass(
-    const std::string& className, 
-    const std::string& description,
-    const CodeGenerationContext& context) {
-    
+GeneratedCode CodeGenerationService::generateClass(const std::string& className, const std::string& description,
+                                                   const CodeGenerationContext& context) {
     if (generator_) {
         return generator_->generateClass(className, description, context);
     }
-    
+
     GeneratedCode result;
     result.code = "// Code generation service not available";
     result.confidence = 0.0;
     return result;
 }
 
-std::string CodeGenerationService::generateDocumentation(
-    const std::string& code,
-    const CodeGenerationContext& context) {
-    
+std::string CodeGenerationService::generateDocumentation(const std::string& code,
+                                                         const CodeGenerationContext& context) {
     if (generator_) {
         return generator_->generateDocumentation(code, context);
     }
-    
+
     return "// Documentation generation service not available";
 }
 
-std::string CodeGenerationService::explainCode(
-    const std::string& code,
-    const CodeGenerationContext& context) {
-    
+std::string CodeGenerationService::explainCode(const std::string& code, const CodeGenerationContext& context) {
     if (generator_) {
         return generator_->explainCode(code, context);
     }
-    
+
     return "Code explanation service not available";
 }
 
@@ -645,4 +583,4 @@ bool CodeGenerationService::isReady() const {
     return generator_ && generator_->isReady();
 }
 
-} // namespace bolt
+}  // namespace bolt
