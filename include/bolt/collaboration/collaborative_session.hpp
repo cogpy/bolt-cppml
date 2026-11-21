@@ -61,7 +61,7 @@ class CollaborativeSession {
 
     // Document management
     bool createDocument(const std::string& documentId, const std::string& initialContent = "") {
-        std::lock_guard<std::mutex> lock(documentsMutex_);
+        std::lock_guard<std::recursive_mutex> lock(documentsMutex_);
 
         if (documents_.find(documentId) != documents_.end()) {
             return false;  // Document already exists
@@ -77,7 +77,7 @@ class CollaborativeSession {
     }
 
     bool removeDocument(const std::string& documentId) {
-        std::lock_guard<std::mutex> lock(documentsMutex_);
+        std::lock_guard<std::recursive_mutex> lock(documentsMutex_);
 
         auto it = documents_.find(documentId);
         if (it == documents_.end()) {
@@ -97,7 +97,7 @@ class CollaborativeSession {
 
     // User management
     bool joinDocument(const std::string& userId, const std::string& userName, const std::string& documentId) {
-        std::lock_guard<std::mutex> lock(documentsMutex_);
+        std::lock_guard<std::recursive_mutex> lock(documentsMutex_);
 
         DocumentState* docPtr = findDocumentLocked(documentId);
         if (docPtr == nullptr) {
@@ -119,7 +119,7 @@ class CollaborativeSession {
     }
 
     bool leaveDocument(const std::string& userId, const std::string& documentId) {
-        std::lock_guard<std::mutex> lock(documentsMutex_);
+        std::lock_guard<std::recursive_mutex> lock(documentsMutex_);
 
         DocumentState* docPtr = findDocumentLocked(documentId);
         if (docPtr == nullptr) {
@@ -144,7 +144,7 @@ class CollaborativeSession {
 
     // Operation handling
     bool applyOperation(const DocumentOperation& operation, const std::string& documentId) {
-        std::lock_guard<std::mutex> lock(documentsMutex_);
+        std::lock_guard<std::recursive_mutex> lock(documentsMutex_);
 
         DocumentState* docPtr = findDocumentLocked(documentId);
         if (docPtr == nullptr) {
@@ -195,7 +195,7 @@ class CollaborativeSession {
 
     // Get document state
     std::vector<std::string> getDocumentLines(const std::string& documentId) const {
-        std::lock_guard<std::mutex> lock(documentsMutex_);
+        std::lock_guard<std::recursive_mutex> lock(documentsMutex_);
 
         auto it = documents_.find(documentId);
         if (it != documents_.end()) {
@@ -221,7 +221,7 @@ class CollaborativeSession {
 
     // Get active users in document
     std::vector<UserSession> getActiveUsers(const std::string& documentId) const {
-        std::lock_guard<std::mutex> lock(documentsMutex_);
+        std::lock_guard<std::recursive_mutex> lock(documentsMutex_);
 
         std::vector<UserSession> users;
         auto it = documents_.find(documentId);
@@ -244,7 +244,7 @@ class CollaborativeSession {
 
     // Maintenance
     void cleanupInactiveUsers(std::chrono::seconds inactiveThreshold = std::chrono::seconds(300)) {
-        std::lock_guard<std::mutex> lock(documentsMutex_);
+        std::lock_guard<std::recursive_mutex> lock(documentsMutex_);
 
         auto now = std::chrono::steady_clock::now();
 
@@ -271,7 +271,7 @@ class CollaborativeSession {
     };
 
     SessionStats getStats() const {
-        std::lock_guard<std::mutex> lock(documentsMutex_);
+        std::lock_guard<std::recursive_mutex> lock(documentsMutex_);
 
         SessionStats stats = {0, 0, 0};
         stats.totalDocuments = documents_.size();
@@ -308,7 +308,10 @@ class CollaborativeSession {
         return lines;
     }
 
-    mutable std::mutex documentsMutex_;
+    // Recursive on purpose: the user callbacks are invoked with this lock held,
+    // and the ones CollaborationProtocol installs call back into this class
+    // (getActiveUsers) on the same thread.
+    mutable std::recursive_mutex documentsMutex_;
     std::map<std::string, std::unique_ptr<DocumentState>> documents_;
 
     OperationCallback operationCallback_;
