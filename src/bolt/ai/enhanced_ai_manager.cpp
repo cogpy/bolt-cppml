@@ -1,9 +1,11 @@
 #include "bolt/ai/enhanced_ai_manager.hpp"
-#include "bolt/ai/ai_http_client.hpp"
-#include "bolt/ai/direct_gguf_inference.hpp"
+
 #include <algorithm>
 #include <iostream>
 #include <thread>
+
+#include "bolt/ai/ai_http_client.hpp"
+#include "bolt/ai/direct_gguf_inference.hpp"
 
 namespace bolt {
 namespace ai {
@@ -11,18 +13,18 @@ namespace ai {
 // New GGUF direct loading methods
 bool EnhancedAIManager::load_gguf_model(const std::string& model_path) {
     std::cout << "📥 Loading GGUF model: " << model_path << std::endl;
-    
+
     if (!direct_inference_) {
         direct_inference_ = std::make_unique<bolt::ai::DirectGGUFInference>();
     }
-    
+
     if (direct_inference_->load_model(model_path)) {
         use_direct_inference_ = true;
         current_provider_ = "direct_gguf";
         std::cout << "✅ GGUF model loaded successfully!" << std::endl;
         return true;
     }
-    
+
     std::cout << "❌ Failed to load GGUF model" << std::endl;
     return false;
 }
@@ -43,7 +45,7 @@ std::string EnhancedAIManager::get_model_info() const {
 
 bool EnhancedAIManager::auto_detect_models() {
     std::cout << "🔍 Auto-detecting GGUF models..." << std::endl;
-    
+
     direct_inference_ = bolt::ai::DirectGGUFFactory::create_auto_detect();
     if (direct_inference_->is_loaded()) {
         use_direct_inference_ = true;
@@ -51,22 +53,22 @@ bool EnhancedAIManager::auto_detect_models() {
         std::cout << "✅ Auto-detected and loaded GGUF model!" << std::endl;
         return true;
     }
-    
+
     std::cout << "⚠️ No GGUF models found for auto-detection" << std::endl;
     return false;
 }
 
-} // namespace ai  
-} // namespace bolt
+}  // namespace ai
+}  // namespace bolt
 
 namespace bolt {
 namespace ai {
 
 EnhancedAIManager::EnhancedAIManager() {
     config_manager_ = std::make_unique<AIConfigManager>();
-    
+
     std::cout << "🔧 Initializing Enhanced AI Manager..." << std::endl;
-    
+
     // Try direct GGUF inference first
     direct_inference_ = bolt::ai::DirectGGUFFactory::create_auto_detect();
     if (direct_inference_->is_loaded()) {
@@ -75,14 +77,14 @@ EnhancedAIManager::EnhancedAIManager() {
         std::cout << "✅ Direct GGUF model loaded - using direct inference!" << std::endl;
     } else {
         std::cout << "📋 No direct models found, loading HTTP providers..." << std::endl;
-        
+
         // Load configuration
         config_manager_->load_config();
-        
+
         // Initialize with active provider
         initialize_active_provider();
     }
-    
+
     std::cout << "✅ Enhanced AI Manager initialized" << std::endl;
 }
 
@@ -95,14 +97,13 @@ EnhancedAIManager::~EnhancedAIManager() {
 bool EnhancedAIManager::initialize_active_provider() {
     std::string active_provider = config_manager_->get_active_provider();
     bolt::ai::AIHttpConfig config = config_manager_->get_active_config();
-    
+
     try {
         http_client_ = std::make_unique<bolt::ai::AIHttpClient>(config);
         current_provider_ = active_provider;
-        
-        std::cout << "🔄 Initialized AI provider: " << active_provider 
-                  << " (" << config.base_url << ")" << std::endl;
-        
+
+        std::cout << "🔄 Initialized AI provider: " << active_provider << " (" << config.base_url << ")" << std::endl;
+
         return true;
     } catch (const std::exception& e) {
         std::cerr << "❌ Failed to initialize AI provider: " << e.what() << std::endl;
@@ -110,67 +111,69 @@ bool EnhancedAIManager::initialize_active_provider() {
     }
 }
 
+std::vector<std::string> EnhancedAIManager::session_history_snapshot(const std::string& session_id) const {
+    std::vector<std::string> history;
+    if (!session_id.empty()) {
+        auto it = session_history_.find(session_id);
+        if (it != session_history_.end()) {
+            history = it->second;
+        }
+    }
+    return history;
+}
+
+bolt::drawkern::AIInferenceResponse EnhancedAIManager::chat_with_direct_inference(const std::string& message,
+                                                                                  const std::string& session_id) {
+    auto response = direct_inference_->chat(message, session_history_snapshot(session_id));
+    if (!session_id.empty()) {
+        session_history_[session_id].push_back("Human: " + message);
+        if (response.success)
+            session_history_[session_id].push_back("AI: " + response.response);
+    }
+    update_stats(response);
+    return response;
+}
+
 bolt::drawkern::AIInferenceResponse EnhancedAIManager::chat(const std::string& message, const std::string& session_id) {
     // Use direct GGUF inference if available and loaded
     if (use_direct_inference_ && direct_inference_ && direct_inference_->is_loaded()) {
-        std::vector<std::string> history;
-        if (!session_id.empty() && session_history_.find(session_id) != session_history_.end()) {
-            history = session_history_[session_id];
-        }
-        auto response = direct_inference_->chat(message, history);
-        if (!session_id.empty()) {
-            session_history_[session_id].push_back("Human: " + message);
-            if (response.success) session_history_[session_id].push_back("AI: " + response.response);
-        }
-        update_stats(response);
-        return response;
+        return chat_with_direct_inference(message, session_id);
     }
 
     // Minimal RWKV direct stub: not a real inference; returns helpful message
     if (use_rwkv_direct_ && !rwkv_model_path_.empty()) {
         bolt::drawkern::AIInferenceResponse response;
         response.success = true;
-        response.response = "[RWKV stub] Model loaded: " + rwkv_model_path_ + ". Real RWKV generation will be added next phase.";
+        response.response =
+            "[RWKV stub] Model loaded: " + rwkv_model_path_ + ". Real RWKV generation will be added next phase.";
         update_stats(response);
         return response;
     }
-    
+
     // Try HTTP client
     if (http_client_) {
-        if (!session_id.empty()) session_history_[session_id].push_back("Human: " + message);
+        if (!session_id.empty())
+            session_history_[session_id].push_back("Human: " + message);
         auto response = http_client_->chat(message, session_id);
         if (!response.success && direct_inference_) {
             std::cout << "🔄 HTTP failed, using intelligent fallback..." << std::endl;
-            std::vector<std::string> history;
-            if (!session_id.empty() && session_history_.find(session_id) != session_history_.end()) {
-                history = session_history_[session_id];
-            }
-            response = direct_inference_->chat(message, history);
+            response = direct_inference_->chat(message, session_history_snapshot(session_id));
         }
         if (response.success && !session_id.empty()) {
             session_history_[session_id].push_back("AI: " + response.response);
             auto& history = session_history_[session_id];
-            if (history.size() > 40) history.erase(history.begin(), history.begin() + (history.size() - 40));
+            if (history.size() > 40)
+                history.erase(history.begin(), history.begin() + (history.size() - 40));
         }
         update_stats(response);
         return response;
     }
-    
+
     // Final fallback to direct inference (even without loaded model)
     if (direct_inference_) {
-        std::vector<std::string> history;
-        if (!session_id.empty() && session_history_.find(session_id) != session_history_.end()) {
-            history = session_history_[session_id];
-        }
-        auto response = direct_inference_->chat(message, history);
-        if (!session_id.empty()) {
-            session_history_[session_id].push_back("Human: " + message);
-            if (response.success) session_history_[session_id].push_back("AI: " + response.response);
-        }
-        update_stats(response);
-        return response;
+        return chat_with_direct_inference(message, session_id);
     }
-    
+
     bolt::drawkern::AIInferenceResponse error_response;
     error_response.error = "No AI provider available";
     error_response.success = false;
@@ -178,7 +181,8 @@ bolt::drawkern::AIInferenceResponse EnhancedAIManager::chat(const std::string& m
     return error_response;
 }
 
-bolt::drawkern::AIInferenceResponse EnhancedAIManager::complete_code(const std::string& code, const std::string& language) {
+bolt::drawkern::AIInferenceResponse EnhancedAIManager::complete_code(const std::string& code,
+                                                                     const std::string& language) {
     if (!http_client_) {
         bolt::drawkern::AIInferenceResponse error_response;
         error_response.error = "No AI provider initialized";
@@ -190,17 +194,18 @@ bolt::drawkern::AIInferenceResponse EnhancedAIManager::complete_code(const std::
     return response;
 }
 
-bolt::drawkern::AIInferenceResponse EnhancedAIManager::analyze_code(const std::string& code, const std::string& language) {
-    std::string analysis_prompt = "Please analyze this " + language + " code and provide feedback:\n\n" + code + 
-                                 "\n\nPlease provide:\n1. Code quality assessment\n2. Potential improvements\n3. Any bugs or issues\n4. Best practices suggestions";
+bolt::drawkern::AIInferenceResponse EnhancedAIManager::analyze_code(const std::string& code,
+                                                                    const std::string& language) {
+    std::string analysis_prompt = "Please analyze this " + language + " code and provide feedback:\n\n" + code +
+                                  "\n\nPlease provide:\n1. Code quality assessment\n2. Potential improvements\n3. Any "
+                                  "bugs or issues\n4. Best practices suggestions";
     return chat(analysis_prompt, "analysis_session");
 }
 
 bool EnhancedAIManager::switch_provider(const std::string& provider_name) {
-    if (!config_manager_->list_providers().size() || 
-        std::find(config_manager_->list_providers().begin(), 
-                 config_manager_->list_providers().end(), 
-                 provider_name) == config_manager_->list_providers().end()) {
+    if (!config_manager_->list_providers().size() ||
+        std::find(config_manager_->list_providers().begin(), config_manager_->list_providers().end(), provider_name) ==
+            config_manager_->list_providers().end()) {
         std::cerr << "❌ Provider not found: " << provider_name << std::endl;
         return false;
     }
@@ -224,7 +229,8 @@ bool EnhancedAIManager::test_all_providers() {
     for (const auto& [name, success] : results) {
         std::string status = success ? "✅ Working" : "❌ Failed";
         std::cout << "  " << name << ": " << status << std::endl;
-        if (success) any_working = true;
+        if (success)
+            any_working = true;
     }
     if (!any_working) {
         std::cout << "\n⚠️  No working AI providers found!" << std::endl;
@@ -324,7 +330,8 @@ void EnhancedAIManager::update_stats(const bolt::drawkern::AIInferenceResponse& 
         stats_.total_tokens_generated += response.tokens_generated;
         stats_.total_tokens_processed += response.tokens_processed;
         if (stats_.successful_requests > 0) {
-            float total_time = stats_.average_inference_time_ms * (stats_.successful_requests - 1) + response.inference_time_ms;
+            float total_time =
+                stats_.average_inference_time_ms * (stats_.successful_requests - 1) + response.inference_time_ms;
             stats_.average_inference_time_ms = total_time / stats_.successful_requests;
         }
     } else {
@@ -391,7 +398,7 @@ bool quick_setup_wizard() {
     return found;
 }
 
-} // namespace AutoSetup
+}  // namespace AutoSetup
 
-} // namespace ai
-} // namespace bolt
+}  // namespace ai
+}  // namespace bolt

@@ -91,6 +91,11 @@ class EnhancedAIManager {
 
     bool initialize_active_provider();
     void update_stats(const bolt::drawkern::AIInferenceResponse& response);
+    // Copy of the stored history for session_id; empty when the id is empty or unknown. Never creates a session.
+    std::vector<std::string> session_history_snapshot(const std::string& session_id) const;
+    // Answers with direct_inference_ (which must be set), records the exchange in the session and updates the stats.
+    bolt::drawkern::AIInferenceResponse chat_with_direct_inference(const std::string& message,
+                                                                   const std::string& session_id);
 };
 
 // Auto-detection and setup utilities
