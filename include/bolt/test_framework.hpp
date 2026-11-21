@@ -1,19 +1,19 @@
-#ifndef BOLT_TEST_FRAMEWORK_HPP
-#define BOLT_TEST_FRAMEWORK_HPP
+#ifndef BOLT_TEST_FRAMEWORK_HPP_
+#define BOLT_TEST_FRAMEWORK_HPP_
 
-#include <iostream>
-#include <vector>
-#include <string>
-#include <functional>
-#include <sstream>
-#include <exception>
 #include <chrono>
+#include <exception>
+#include <functional>
+#include <iostream>
+#include <sstream>
+#include <string>
+#include <vector>
 
 namespace bolt {
 namespace test {
 
 class TestFailure : public std::exception {
-public:
+ public:
     TestFailure(const std::string& message, const std::string& file, int line)
         : message_(message), file_(file), line_(line) {
         std::stringstream ss;
@@ -21,15 +21,13 @@ public:
         full_message_ = ss.str();
     }
 
-    const char* what() const noexcept override {
-        return full_message_.c_str();
-    }
+    const char* what() const noexcept override { return full_message_.c_str(); }
 
     const std::string& getMessage() const { return message_; }
     const std::string& getFile() const { return file_; }
     int getLine() const { return line_; }
 
-private:
+ private:
     std::string message_;
     std::string file_;
     int line_;
@@ -37,7 +35,7 @@ private:
 };
 
 class TestSuite {
-public:
+ public:
     struct TestCase {
         std::string name;
         std::function<void()> test_func;
@@ -70,46 +68,7 @@ public:
         }
 
         for (const auto& test : tests_) {
-            if (verbose) {
-                std::cout << "[" << test.suite_name << "] " << test.name << " ... ";
-                std::cout.flush();
-            }
-
-            auto start = std::chrono::high_resolution_clock::now();
-            TestResult result;
-            result.name = test.name;
-            result.suite_name = test.suite_name;
-
-            try {
-                test.test_func();
-                result.passed = true;
-                passed++;
-                if (verbose) {
-                    std::cout << "PASS" << std::endl;
-                }
-            } catch (const TestFailure& e) {
-                result.passed = false;
-                result.error_message = e.what();
-                failed++;
-                if (verbose) {
-                    std::cout << "FAIL" << std::endl;
-                    std::cout << "  " << e.what() << std::endl;
-                }
-            } catch (const std::exception& e) {
-                result.passed = false;
-                result.error_message = "Unexpected exception: " + std::string(e.what());
-                failed++;
-                if (verbose) {
-                    std::cout << "ERROR" << std::endl;
-                    std::cout << "  " << result.error_message << std::endl;
-                }
-            }
-
-            auto end = std::chrono::high_resolution_clock::now();
-            auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-            result.duration_ms = duration.count() / 1000.0;
-
-            results_.push_back(result);
+            runSingleTest(test, verbose, passed, failed);
         }
 
         if (verbose) {
@@ -144,48 +103,10 @@ public:
         }
 
         for (const auto& test : tests_) {
-            if (test.suite_name != suite_name) continue;
+            if (test.suite_name != suite_name)
+                continue;
 
-            if (verbose) {
-                std::cout << "[" << test.suite_name << "] " << test.name << " ... ";
-                std::cout.flush();
-            }
-
-            auto start = std::chrono::high_resolution_clock::now();
-            TestResult result;
-            result.name = test.name;
-            result.suite_name = test.suite_name;
-
-            try {
-                test.test_func();
-                result.passed = true;
-                passed++;
-                if (verbose) {
-                    std::cout << "PASS" << std::endl;
-                }
-            } catch (const TestFailure& e) {
-                result.passed = false;
-                result.error_message = e.what();
-                failed++;
-                if (verbose) {
-                    std::cout << "FAIL" << std::endl;
-                    std::cout << "  " << e.what() << std::endl;
-                }
-            } catch (const std::exception& e) {
-                result.passed = false;
-                result.error_message = "Unexpected exception: " + std::string(e.what());
-                failed++;
-                if (verbose) {
-                    std::cout << "ERROR" << std::endl;
-                    std::cout << "  " << result.error_message << std::endl;
-                }
-            }
-
-            auto end = std::chrono::high_resolution_clock::now();
-            auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-            result.duration_ms = duration.count() / 1000.0;
-
-            results_.push_back(result);
+            runSingleTest(test, verbose, passed, failed);
         }
 
         if (verbose) {
@@ -196,9 +117,7 @@ public:
         return failed;
     }
 
-    const std::vector<TestResult>& getResults() const {
-        return results_;
-    }
+    const std::vector<TestResult>& getResults() const { return results_; }
 
     void listTests() const {
         std::cout << "Available tests:\n" << std::endl;
@@ -214,9 +133,53 @@ public:
         std::cout << "Total: " << tests_.size() << " tests" << std::endl;
     }
 
-private:
+ private:
     std::vector<TestCase> tests_;
     std::vector<TestResult> results_;
+
+    // Runs one test case, prints its outcome when verbose, updates the pass/fail counters and records the result.
+    void runSingleTest(const TestCase& test, bool verbose, int& passed, int& failed) {
+        if (verbose) {
+            std::cout << "[" << test.suite_name << "] " << test.name << " ... ";
+            std::cout.flush();
+        }
+
+        auto start = std::chrono::high_resolution_clock::now();
+        TestResult result;
+        result.name = test.name;
+        result.suite_name = test.suite_name;
+
+        try {
+            test.test_func();
+            result.passed = true;
+            passed++;
+            if (verbose) {
+                std::cout << "PASS" << std::endl;
+            }
+        } catch (const TestFailure& e) {
+            result.passed = false;
+            result.error_message = e.what();
+            failed++;
+            if (verbose) {
+                std::cout << "FAIL" << std::endl;
+                std::cout << "  " << e.what() << std::endl;
+            }
+        } catch (const std::exception& e) {
+            result.passed = false;
+            result.error_message = "Unexpected exception: " + std::string(e.what());
+            failed++;
+            if (verbose) {
+                std::cout << "ERROR" << std::endl;
+                std::cout << "  " << result.error_message << std::endl;
+            }
+        }
+
+        auto end = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+        result.duration_ms = duration.count() / 1000.0;
+
+        results_.push_back(result);
+    }
 
     void printSummary(int passed, int failed) {
         std::cout << "Test Results:" << std::endl;
@@ -234,83 +197,86 @@ private:
 
 // Test registration helper
 class TestRegistrar {
-public:
+ public:
     TestRegistrar(const std::string& suite_name, const std::string& test_name, std::function<void()> test_func) {
         TestSuite::getInstance().addTest(suite_name, test_name, test_func);
     }
 };
 
 // Assertion macros
-#define BOLT_ASSERT(condition) \
-    do { \
-        if (!(condition)) { \
+#define BOLT_ASSERT(condition)                                                                  \
+    do {                                                                                        \
+        if (!(condition)) {                                                                     \
             throw bolt::test::TestFailure("Assertion failed: " #condition, __FILE__, __LINE__); \
-        } \
+        }                                                                                       \
     } while (0)
 
-#define BOLT_ASSERT_EQ(expected, actual) \
-    do { \
-        if ((expected) != (actual)) { \
-            std::stringstream ss; \
+#define BOLT_ASSERT_EQ(expected, actual)                                           \
+    do {                                                                           \
+        if ((expected) != (actual)) {                                              \
+            std::stringstream ss;                                                  \
             ss << "Expected '" << (expected) << "', but got '" << (actual) << "'"; \
-            throw bolt::test::TestFailure(ss.str(), __FILE__, __LINE__); \
-        } \
+            throw bolt::test::TestFailure(ss.str(), __FILE__, __LINE__);           \
+        }                                                                          \
     } while (0)
 
-#define BOLT_ASSERT_NE(expected, actual) \
-    do { \
-        if ((expected) == (actual)) { \
-            std::stringstream ss; \
+#define BOLT_ASSERT_NE(expected, actual)                                                 \
+    do {                                                                                 \
+        if ((expected) == (actual)) {                                                    \
+            std::stringstream ss;                                                        \
             ss << "Expected values to be different, but both were '" << (actual) << "'"; \
-            throw bolt::test::TestFailure(ss.str(), __FILE__, __LINE__); \
-        } \
+            throw bolt::test::TestFailure(ss.str(), __FILE__, __LINE__);                 \
+        }                                                                                \
     } while (0)
 
 #define BOLT_ASSERT_TRUE(condition) BOLT_ASSERT(condition)
 
-#define BOLT_ASSERT_FALSE(condition) \
-    do { \
-        if (condition) { \
+#define BOLT_ASSERT_FALSE(condition)                                                                        \
+    do {                                                                                                    \
+        if (condition) {                                                                                    \
             throw bolt::test::TestFailure("Expected false, but got true: " #condition, __FILE__, __LINE__); \
-        } \
+        }                                                                                                   \
     } while (0)
 
-#define BOLT_ASSERT_NULL(ptr) \
-    do { \
-        if ((ptr) != nullptr) { \
+#define BOLT_ASSERT_NULL(ptr)                                                                             \
+    do {                                                                                                  \
+        if ((ptr) != nullptr) {                                                                           \
             throw bolt::test::TestFailure("Expected null pointer, but got non-null", __FILE__, __LINE__); \
-        } \
+        }                                                                                                 \
     } while (0)
 
-#define BOLT_ASSERT_NOT_NULL(ptr) \
-    do { \
-        if ((ptr) == nullptr) { \
+#define BOLT_ASSERT_NOT_NULL(ptr)                                                                         \
+    do {                                                                                                  \
+        if ((ptr) == nullptr) {                                                                           \
             throw bolt::test::TestFailure("Expected non-null pointer, but got null", __FILE__, __LINE__); \
-        } \
+        }                                                                                                 \
     } while (0)
 
-#define BOLT_ASSERT_THROWS(exception_type, code) \
-    do { \
-        bool threw_expected = false; \
-        try { \
-            code; \
-        } catch (const exception_type&) { \
-            threw_expected = true; \
-        } catch (...) { \
-            throw bolt::test::TestFailure("Expected " #exception_type " but caught different exception", __FILE__, __LINE__); \
-        } \
-        if (!threw_expected) { \
-            throw bolt::test::TestFailure("Expected " #exception_type " but no exception was thrown", __FILE__, __LINE__); \
-        } \
+#define BOLT_ASSERT_THROWS(exception_type, code)                                                                   \
+    do {                                                                                                           \
+        bool threw_expected = false;                                                                               \
+        try {                                                                                                      \
+            code;                                                                                                  \
+        } catch (const exception_type&) {                                                                          \
+            threw_expected = true;                                                                                 \
+        } catch (...) {                                                                                            \
+            throw bolt::test::TestFailure("Expected " #exception_type " but caught different exception", __FILE__, \
+                                          __LINE__);                                                               \
+        }                                                                                                          \
+        if (!threw_expected) {                                                                                     \
+            throw bolt::test::TestFailure("Expected " #exception_type " but no exception was thrown", __FILE__,    \
+                                          __LINE__);                                                               \
+        }                                                                                                          \
     } while (0)
 
 // Test case registration macro
-#define BOLT_TEST(suite_name, test_name) \
-    void test_##suite_name##_##test_name(); \
-    static bolt::test::TestRegistrar registrar_##suite_name##_##test_name(#suite_name, #test_name, test_##suite_name##_##test_name); \
+#define BOLT_TEST(suite_name, test_name)                                                                    \
+    void test_##suite_name##_##test_name();                                                                 \
+    static bolt::test::TestRegistrar registrar_##suite_name##_##test_name(#suite_name, #test_name,          \
+                                                                          test_##suite_name##_##test_name); \
     void test_##suite_name##_##test_name()
 
-} // namespace test
-} // namespace bolt
+}  // namespace test
+}  // namespace bolt
 
-#endif // BOLT_TEST_FRAMEWORK_HPP
+#endif  // BOLT_TEST_FRAMEWORK_HPP_

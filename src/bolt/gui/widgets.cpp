@@ -104,7 +104,7 @@ Size Label::calculatePreferredSize() const {
 
 // TextInput implementation
 TextInput::TextInput(const std::string& id, const std::string& placeholder)
-    : Widget(id), placeholder_(placeholder), readOnly_(false), password_(false) {
+    : TextEntryWidget(id, placeholder), password_(false) {
     textBuffer_[0] = '\0';
 }
 
@@ -160,8 +160,7 @@ Size TextInput::calculatePreferredSize() const {
 }
 
 // TextArea implementation
-TextArea::TextArea(const std::string& id, const std::string& placeholder)
-    : Widget(id), placeholder_(placeholder), readOnly_(false) {
+TextArea::TextArea(const std::string& id, const std::string& placeholder) : TextEntryWidget(id, placeholder) {
     ensureBufferSize(1024);
 }
 

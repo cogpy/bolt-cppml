@@ -1,8 +1,27 @@
 #include "bolt/network/network_buffer.hpp"
+
 #include <algorithm>
 #include <stdexcept>
 
 namespace bolt {
+
+namespace {
+
+// Copies the bytes of every segment, in order, into one contiguous vector with totalSize bytes reserved up front.
+template <typename Segments>
+std::vector<uint8_t> concatenateSegments(const Segments& segments, size_t totalSize) {
+    std::vector<uint8_t> result;
+    result.reserve(totalSize);
+
+    for (const auto& segment : segments) {
+        const uint8_t* data = static_cast<const uint8_t*>(segment.data);
+        result.insert(result.end(), data, data + segment.length);
+    }
+
+    return result;
+}
+
+}  // namespace
 
 // NetworkBuffer Implementation
 
@@ -26,8 +45,9 @@ void NetworkBuffer::clear() {
 }
 
 void NetworkBuffer::append(const void* data, size_t length) {
-    if (length == 0) return;
-    
+    if (length == 0)
+        return;
+
     ensureSpace(length);
     std::memcpy(data_.data() + size_, data, length);
     size_ += length;
@@ -49,27 +69,27 @@ void NetworkBuffer::append(uint8_t byte) {
 std::vector<uint8_t> NetworkBuffer::consume(size_t length) {
     size_t availableData = size_ - readPos_;
     size_t toConsume = std::min(length, availableData);
-    
+
     std::vector<uint8_t> result(data_.begin() + readPos_, data_.begin() + readPos_ + toConsume);
     readPos_ += toConsume;
-    
+
     return result;
 }
 
 std::string NetworkBuffer::consumeString(size_t length) {
     size_t availableData = size_ - readPos_;
     size_t toConsume = std::min(length, availableData);
-    
+
     std::string result(data_.begin() + readPos_, data_.begin() + readPos_ + toConsume);
     readPos_ += toConsume;
-    
+
     return result;
 }
 
 void NetworkBuffer::consume(void* dest, size_t length) {
     size_t availableData = size_ - readPos_;
     size_t toConsume = std::min(length, availableData);
-    
+
     std::memcpy(dest, data_.data() + readPos_, toConsume);
     readPos_ += toConsume;
 }
@@ -81,13 +101,14 @@ void NetworkBuffer::discard(size_t length) {
 }
 
 void NetworkBuffer::compact() {
-    if (readPos_ == 0) return;
-    
+    if (readPos_ == 0)
+        return;
+
     size_t remainingData = size_ - readPos_;
     if (remainingData > 0) {
         std::memmove(data_.data(), data_.data() + readPos_, remainingData);
     }
-    
+
     size_ = remainingData;
     readPos_ = 0;
 }
@@ -115,31 +136,32 @@ void NetworkBuffer::commitWrite(size_t length) {
 
 std::unique_ptr<NetworkBuffer> NetworkBufferPool::getBuffer(size_t minSize) {
     std::lock_guard<std::mutex> lock(poolMutex_);
-    
+
     if (!pool_.empty()) {
         auto buffer = std::move(pool_.front());
         pool_.pop();
-        
+
         buffer->clear();
         if (buffer->capacity() < minSize) {
             buffer->reserve(minSize);
         }
-        
+
         activeBuffers_++;
         return buffer;
     }
-    
+
     activeBuffers_++;
     return std::make_unique<NetworkBuffer>(minSize);
 }
 
 void NetworkBufferPool::returnBuffer(std::unique_ptr<NetworkBuffer> buffer) {
-    if (!buffer) return;
-    
+    if (!buffer)
+        return;
+
     activeBuffers_--;
-    
+
     std::lock_guard<std::mutex> lock(poolMutex_);
-    
+
     if (pool_.size() < maxPoolSize_) {
         buffer->clear();
         pool_.push(std::move(buffer));
@@ -154,25 +176,24 @@ size_t NetworkBufferPool::getPoolSize() const {
 
 // RingBuffer Implementation
 
-RingBuffer::RingBuffer(size_t size) : buffer_(size), size_(size), writePos_(0), readPos_(0) {
-}
+RingBuffer::RingBuffer(size_t size) : buffer_(size), size_(size), writePos_(0), readPos_(0) {}
 
 size_t RingBuffer::write(const void* data, size_t length) {
     const uint8_t* src = static_cast<const uint8_t*>(data);
     size_t written = 0;
     size_t currentWrite = writePos_.load();
-    
+
     while (written < length && writeAvailable() > 0) {
         size_t currentRead = readPos_.load();
-        size_t available = (currentRead > currentWrite) ? 
-                          (currentRead - currentWrite - 1) : 
-                          (size_ - currentWrite + currentRead - 1);
-        
-        if (available == 0) break;
-        
+        size_t available =
+            (currentRead > currentWrite) ? (currentRead - currentWrite - 1) : (size_ - currentWrite + currentRead - 1);
+
+        if (available == 0)
+            break;
+
         size_t toWrite = std::min(length - written, available);
         size_t endSpace = size_ - currentWrite;
-        
+
         if (toWrite <= endSpace) {
             // Can write in one chunk
             std::memcpy(&buffer_[currentWrite], src + written, toWrite);
@@ -187,7 +208,7 @@ size_t RingBuffer::write(const void* data, size_t length) {
             written += toWrite;
         }
     }
-    
+
     writePos_.store(currentWrite);
     return written;
 }
@@ -195,7 +216,7 @@ size_t RingBuffer::write(const void* data, size_t length) {
 size_t RingBuffer::writeAvailable() const {
     size_t currentWrite = writePos_.load();
     size_t currentRead = readPos_.load();
-    
+
     if (currentRead > currentWrite) {
         return currentRead - currentWrite - 1;
     } else {
@@ -211,18 +232,18 @@ size_t RingBuffer::read(void* data, size_t length) {
     uint8_t* dest = static_cast<uint8_t*>(data);
     size_t read = 0;
     size_t currentRead = readPos_.load();
-    
+
     while (read < length && readAvailable() > 0) {
         size_t currentWrite = writePos_.load();
-        size_t available = (currentWrite >= currentRead) ? 
-                          (currentWrite - currentRead) : 
-                          (size_ - currentRead + currentWrite);
-        
-        if (available == 0) break;
-        
+        size_t available =
+            (currentWrite >= currentRead) ? (currentWrite - currentRead) : (size_ - currentRead + currentWrite);
+
+        if (available == 0)
+            break;
+
         size_t toRead = std::min(length - read, available);
         size_t endSpace = size_ - currentRead;
-        
+
         if (toRead <= endSpace) {
             // Can read in one chunk
             std::memcpy(dest + read, &buffer_[currentRead], toRead);
@@ -237,7 +258,7 @@ size_t RingBuffer::read(void* data, size_t length) {
             read += toRead;
         }
     }
-    
+
     readPos_.store(currentRead);
     return read;
 }
@@ -245,7 +266,7 @@ size_t RingBuffer::read(void* data, size_t length) {
 size_t RingBuffer::readAvailable() const {
     size_t currentWrite = writePos_.load();
     size_t currentRead = readPos_.load();
-    
+
     if (currentWrite >= currentRead) {
         return currentWrite - currentRead;
     } else {
@@ -274,21 +295,20 @@ size_t RingBuffer::peek(void* data, size_t length) const {
     uint8_t* dest = static_cast<uint8_t*>(data);
     size_t currentRead = readPos_.load();
     size_t currentWrite = writePos_.load();
-    
-    size_t available = (currentWrite >= currentRead) ? 
-                      (currentWrite - currentRead) : 
-                      (size_ - currentRead + currentWrite);
-    
+
+    size_t available =
+        (currentWrite >= currentRead) ? (currentWrite - currentRead) : (size_ - currentRead + currentWrite);
+
     size_t toPeek = std::min(length, available);
     size_t endSpace = size_ - currentRead;
-    
+
     if (toPeek <= endSpace) {
         std::memcpy(dest, &buffer_[currentRead], toPeek);
     } else {
         std::memcpy(dest, &buffer_[currentRead], endSpace);
         std::memcpy(dest + endSpace, &buffer_[0], toPeek - endSpace);
     }
-    
+
     return toPeek;
 }
 
@@ -324,15 +344,7 @@ size_t ScatterGatherBuffer::getTotalSize() const {
 }
 
 std::vector<uint8_t> ScatterGatherBuffer::flatten() const {
-    std::vector<uint8_t> result;
-    result.reserve(getTotalSize());
-    
-    for (const auto& segment : segments_) {
-        const uint8_t* data = static_cast<const uint8_t*>(segment.data);
-        result.insert(result.end(), data, data + segment.length);
-    }
-    
-    return result;
+    return concatenateSegments(segments_, getTotalSize());
 }
 
 void ScatterGatherBuffer::clear() {
@@ -366,7 +378,7 @@ size_t ZeroCopyBuffer::getTotalSize() const {
 void ZeroCopyBuffer::copyTo(void* dest) const {
     uint8_t* output = static_cast<uint8_t*>(dest);
     size_t offset = 0;
-    
+
     for (const auto& segment : segments_) {
         std::memcpy(output + offset, segment.data, segment.length);
         offset += segment.length;
@@ -374,19 +386,11 @@ void ZeroCopyBuffer::copyTo(void* dest) const {
 }
 
 std::vector<uint8_t> ZeroCopyBuffer::copyToVector() const {
-    std::vector<uint8_t> result;
-    result.reserve(getTotalSize());
-    
-    for (const auto& segment : segments_) {
-        const uint8_t* data = static_cast<const uint8_t*>(segment.data);
-        result.insert(result.end(), data, data + segment.length);
-    }
-    
-    return result;
+    return concatenateSegments(segments_, getTotalSize());
 }
 
 void ZeroCopyBuffer::clear() {
     segments_.clear();
 }
 
-} // namespace bolt
+}  // namespace bolt
