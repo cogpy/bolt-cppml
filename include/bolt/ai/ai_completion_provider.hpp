@@ -13,9 +13,9 @@ namespace bolt {
 struct CodeContext {
     std::string filePath;
     std::string content;
-    size_t cursorPosition;
-    size_t line;
-    size_t column;
+    size_t cursorPosition = 0;
+    size_t line = 0;
+    size_t column = 0;
     std::string language;
 };
 

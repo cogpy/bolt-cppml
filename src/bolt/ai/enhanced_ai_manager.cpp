@@ -203,9 +203,10 @@ bolt::drawkern::AIInferenceResponse EnhancedAIManager::analyze_code(const std::s
 }
 
 bool EnhancedAIManager::switch_provider(const std::string& provider_name) {
-    if (!config_manager_->list_providers().size() ||
-        std::find(config_manager_->list_providers().begin(), config_manager_->list_providers().end(), provider_name) ==
-            config_manager_->list_providers().end()) {
+    // list_providers() returns a new vector each time, so keep one copy:
+    // iterators taken from different calls must not be compared.
+    const auto providers = config_manager_->list_providers();
+    if (std::find(providers.begin(), providers.end(), provider_name) == providers.end()) {
         std::cerr << "❌ Provider not found: " << provider_name << std::endl;
         return false;
     }

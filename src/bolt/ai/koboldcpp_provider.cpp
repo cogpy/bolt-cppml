@@ -161,10 +161,15 @@ KoboldCppResponse finishRequest(std::chrono::high_resolution_clock::time_point s
 #ifdef BOLT_HAVE_JSONCPP
     Json::Value root;
     std::string errors;
-    if (parseJson(response_str, root, errors)) {
-        read_reply(root, result);
-    } else {
+    if (!parseJson(response_str, root, errors)) {
         result.error = "JSON parse error: " + errors;
+    } else if (!root.isObject()) {
+        // Valid JSON, but not the object every endpoint replies with (for
+        // example a bare array or string). Looking up members in it throws.
+        result.success = false;
+        result.error = "Unexpected response from server: not a JSON object";
+    } else {
+        read_reply(root, result);
     }
 #else
     read_reply(response_str, result);
