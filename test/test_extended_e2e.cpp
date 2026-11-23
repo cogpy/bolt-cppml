@@ -462,6 +462,32 @@ BOLT_TEST(ProtocolMessage, PlainMessageWireFormatUnchanged) {
         msg.serialize());
 }
 
+BOLT_TEST(ProtocolMessage, DocumentStatePlainNamesFormatUnchanged) {
+    std::vector<UserSession> users{UserSession("u1", "Alice"), UserSession("u2", "Bob")};
+    users[1].cursorPosition = Position(3, 7);
+    BOLT_ASSERT_EQ(std::string("{\"content\":\"int x;\",\"users\":["
+                               "{\"userId\":\"u1\",\"userName\":\"Alice\",\"cursorLine\":0,\"cursorChar\":0},"
+                               "{\"userId\":\"u2\",\"userName\":\"Bob\",\"cursorLine\":3,\"cursorChar\":7}]}"),
+                   detail::buildDocumentStateJson("int x;", users));
+    BOLT_ASSERT_EQ(std::string("{\"content\":\"\",\"users\":[]}"), detail::buildDocumentStateJson("", {}));
+}
+
+BOLT_TEST(ProtocolMessage, DocumentStateEscapesUserIdAndName) {
+    std::vector<UserSession> users{UserSession("id\"1\\", "Bob \"the\\builder\"\n")};
+    const std::string state = detail::buildDocumentStateJson("a\"b", users);
+    BOLT_ASSERT_EQ(std::string("{\"content\":\"a\\\"b\",\"users\":["
+                               "{\"userId\":\"id\\\"1\\\\\","
+                               "\"userName\":\"Bob \\\"the\\\\builder\\\"\\n\","
+                               "\"cursorLine\":0,\"cursorChar\":0}]}"),
+                   state);
+
+    // Each value reads back as written, so the quotes inside it did not end the string early.
+    const std::string idKey = "\"userId\":\"";
+    const std::string nameKey = "\"userName\":\"";
+    BOLT_ASSERT_EQ(users[0].userId, detail::unescapeJsonStringAt(state, state.find(idKey) + idKey.size()));
+    BOLT_ASSERT_EQ(users[0].userName, detail::unescapeJsonStringAt(state, state.find(nameKey) + nameKey.size()));
+}
+
 BOLT_TEST(ProtocolMessage, NonNumericTypeDoesNotThrow) {
     auto msg = ProtocolMessage::deserialize("{\"type\":abc,\"documentId\":\"doc\",\"userId\":\"bob\",\"data\":\"d\"}");
     BOLT_ASSERT_EQ(0, static_cast<int>(msg.type));

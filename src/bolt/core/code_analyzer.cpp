@@ -12,10 +12,40 @@
 
 namespace bolt {
 
-// ComplexityAnalyzer implementation
-std::vector<std::string> ComplexityAnalyzer::getSupportedExtensions() const {
-    return {".cpp", ".hpp", ".c", ".h", ".cc", ".cxx", ".hxx"};
+// CodeAnalyzerBase implementation
+CodeAnalyzerBase::CodeAnalyzerBase(const std::string& name, AnalysisCategory category,
+                                   const std::vector<std::string>& extensions)
+    : name_(name), category_(category), extensions_(extensions) {}
+
+void CodeAnalyzerBase::forEachSupportedFile(
+    const std::string& projectPath, const std::function<void(const std::string&, const std::string&)>& visit) const {
+    for (const auto& ext : getSupportedExtensions()) {
+        for (const auto& entry : std::filesystem::recursive_directory_iterator(projectPath)) {
+            if (entry.is_regular_file() && entry.path().extension() == ext) {
+                std::ifstream file(entry.path());
+                std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+
+                visit(entry.path().string(), content);
+            }
+        }
+    }
 }
+
+std::vector<AnalysisIssue> CodeAnalyzerBase::analyzeProject(const std::string& projectPath) {
+    std::vector<AnalysisIssue> allIssues;
+
+    forEachSupportedFile(projectPath, [&](const std::string& filePath, const std::string& content) {
+        auto fileIssues = analyzeFile(filePath, content);
+        allIssues.insert(allIssues.end(), fileIssues.begin(), fileIssues.end());
+    });
+
+    return allIssues;
+}
+
+// ComplexityAnalyzer implementation
+ComplexityAnalyzer::ComplexityAnalyzer()
+    : CodeAnalyzerBase("ComplexityAnalyzer", AnalysisCategory::COMPLEXITY,
+                       {".cpp", ".hpp", ".c", ".h", ".cc", ".cxx", ".hxx"}) {}
 
 std::vector<AnalysisIssue> ComplexityAnalyzer::analyzeFile(const std::string& filePath, const std::string& content) {
     std::vector<AnalysisIssue> issues;
@@ -55,24 +85,6 @@ std::vector<AnalysisIssue> ComplexityAnalyzer::analyzeFile(const std::string& fi
     }
 
     return issues;
-}
-
-std::vector<AnalysisIssue> ComplexityAnalyzer::analyzeProject(const std::string& projectPath) {
-    std::vector<AnalysisIssue> allIssues;
-
-    for (const auto& ext : getSupportedExtensions()) {
-        for (const auto& entry : std::filesystem::recursive_directory_iterator(projectPath)) {
-            if (entry.is_regular_file() && entry.path().extension() == ext) {
-                std::ifstream file(entry.path());
-                std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
-
-                auto fileIssues = analyzeFile(entry.path().string(), content);
-                allIssues.insert(allIssues.end(), fileIssues.begin(), fileIssues.end());
-            }
-        }
-    }
-
-    return allIssues;
 }
 
 CodeMetrics ComplexityAnalyzer::getMetrics(const std::string& filePath, const std::string& content) {
@@ -174,60 +186,9 @@ std::vector<std::string> ComplexityAnalyzer::extractFunctions(const std::string&
     return functions;
 }
 
-// SecurityAnalyzer implementation
-std::vector<std::string> SecurityAnalyzer::getSupportedExtensions() const {
-    return {".cpp", ".c", ".cc", ".cxx"};
-}
+namespace {
 
-std::vector<AnalysisIssue> SecurityAnalyzer::analyzeFile(const std::string& filePath, const std::string& content) {
-    std::vector<AnalysisIssue> issues;
-
-    auto bufferIssues = checkBufferOverflows(content, filePath);
-    auto memoryIssues = checkMemoryLeaks(content, filePath);
-    auto unsafeIssues = checkUnsafeFunctions(content, filePath);
-
-    issues.insert(issues.end(), bufferIssues.begin(), bufferIssues.end());
-    issues.insert(issues.end(), memoryIssues.begin(), memoryIssues.end());
-    issues.insert(issues.end(), unsafeIssues.begin(), unsafeIssues.end());
-
-    return issues;
-}
-
-std::vector<AnalysisIssue> SecurityAnalyzer::analyzeProject(const std::string& projectPath) {
-    std::vector<AnalysisIssue> allIssues;
-
-    for (const auto& ext : getSupportedExtensions()) {
-        for (const auto& entry : std::filesystem::recursive_directory_iterator(projectPath)) {
-            if (entry.is_regular_file() && entry.path().extension() == ext) {
-                std::ifstream file(entry.path());
-                std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
-
-                auto fileIssues = analyzeFile(entry.path().string(), content);
-                allIssues.insert(allIssues.end(), fileIssues.begin(), fileIssues.end());
-            }
-        }
-    }
-
-    return allIssues;
-}
-
-CodeMetrics SecurityAnalyzer::getMetrics(const std::string& filePath, const std::string& content) {
-    CodeMetrics metrics;
-
-    // Count potential security issues as custom metrics
-    auto bufferIssues = checkBufferOverflows(content, filePath);
-    auto memoryIssues = checkMemoryLeaks(content, filePath);
-    auto unsafeIssues = checkUnsafeFunctions(content, filePath);
-
-    metrics.customMetrics["buffer_overflow_risks"] = bufferIssues.size();
-    metrics.customMetrics["memory_leak_risks"] = memoryIssues.size();
-    metrics.customMetrics["unsafe_function_uses"] = unsafeIssues.size();
-
-    return metrics;
-}
-
-std::vector<AnalysisIssue> SecurityAnalyzer::checkBufferOverflows(const std::string& content,
-                                                                  const std::string& filePath) {
+std::vector<AnalysisIssue> checkBufferOverflows(const std::string& content, const std::string& filePath) {
     std::vector<AnalysisIssue> issues;
 
     // Check for unsafe buffer operations
@@ -247,7 +208,7 @@ std::vector<AnalysisIssue> SecurityAnalyzer::checkBufferOverflows(const std::str
     return issues;
 }
 
-std::vector<AnalysisIssue> SecurityAnalyzer::checkMemoryLeaks(const std::string& content, const std::string& filePath) {
+std::vector<AnalysisIssue> checkMemoryLeaks(const std::string& content, const std::string& filePath) {
     std::vector<AnalysisIssue> issues;
 
     // Simple heuristic: count new/delete and malloc/free pairs
@@ -277,8 +238,7 @@ std::vector<AnalysisIssue> SecurityAnalyzer::checkMemoryLeaks(const std::string&
     return issues;
 }
 
-std::vector<AnalysisIssue> SecurityAnalyzer::checkUnsafeFunctions(const std::string& content,
-                                                                  const std::string& filePath) {
+std::vector<AnalysisIssue> checkUnsafeFunctions(const std::string& content, const std::string& filePath) {
     std::vector<AnalysisIssue> issues;
 
     std::vector<std::pair<std::string, std::string>> unsafeFunctions = {
@@ -304,10 +264,45 @@ std::vector<AnalysisIssue> SecurityAnalyzer::checkUnsafeFunctions(const std::str
     return issues;
 }
 
-// DependencyAnalyzer implementation
-std::vector<std::string> DependencyAnalyzer::getSupportedExtensions() const {
-    return {".cpp", ".hpp", ".c", ".h", ".cc", ".cxx", ".hxx"};
+}  // namespace
+
+// SecurityAnalyzer implementation
+SecurityAnalyzer::SecurityAnalyzer()
+    : CodeAnalyzerBase("SecurityAnalyzer", AnalysisCategory::SECURITY, {".cpp", ".c", ".cc", ".cxx"}) {}
+
+std::vector<AnalysisIssue> SecurityAnalyzer::analyzeFile(const std::string& filePath, const std::string& content) {
+    std::vector<AnalysisIssue> issues;
+
+    auto bufferIssues = checkBufferOverflows(content, filePath);
+    auto memoryIssues = checkMemoryLeaks(content, filePath);
+    auto unsafeIssues = checkUnsafeFunctions(content, filePath);
+
+    issues.insert(issues.end(), bufferIssues.begin(), bufferIssues.end());
+    issues.insert(issues.end(), memoryIssues.begin(), memoryIssues.end());
+    issues.insert(issues.end(), unsafeIssues.begin(), unsafeIssues.end());
+
+    return issues;
 }
+
+CodeMetrics SecurityAnalyzer::getMetrics(const std::string& filePath, const std::string& content) {
+    CodeMetrics metrics;
+
+    // Count potential security issues as custom metrics
+    auto bufferIssues = checkBufferOverflows(content, filePath);
+    auto memoryIssues = checkMemoryLeaks(content, filePath);
+    auto unsafeIssues = checkUnsafeFunctions(content, filePath);
+
+    metrics.customMetrics["buffer_overflow_risks"] = bufferIssues.size();
+    metrics.customMetrics["memory_leak_risks"] = memoryIssues.size();
+    metrics.customMetrics["unsafe_function_uses"] = unsafeIssues.size();
+
+    return metrics;
+}
+
+// DependencyAnalyzer implementation
+DependencyAnalyzer::DependencyAnalyzer()
+    : CodeAnalyzerBase("DependencyAnalyzer", AnalysisCategory::DEPENDENCIES,
+                       {".cpp", ".hpp", ".c", ".h", ".cc", ".cxx", ".hxx"}) {}
 
 std::vector<AnalysisIssue> DependencyAnalyzer::analyzeFile(const std::string& filePath, const std::string& content) {
     std::vector<AnalysisIssue> issues;
@@ -328,20 +323,8 @@ std::vector<AnalysisIssue> DependencyAnalyzer::analyzeFile(const std::string& fi
 }
 
 std::vector<AnalysisIssue> DependencyAnalyzer::analyzeProject(const std::string& projectPath) {
-    std::vector<AnalysisIssue> allIssues;
-
     // Analyze individual files
-    for (const auto& ext : getSupportedExtensions()) {
-        for (const auto& entry : std::filesystem::recursive_directory_iterator(projectPath)) {
-            if (entry.is_regular_file() && entry.path().extension() == ext) {
-                std::ifstream file(entry.path());
-                std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
-
-                auto fileIssues = analyzeFile(entry.path().string(), content);
-                allIssues.insert(allIssues.end(), fileIssues.begin(), fileIssues.end());
-            }
-        }
-    }
+    std::vector<AnalysisIssue> allIssues = CodeAnalyzerBase::analyzeProject(projectPath);
 
     // Check for circular dependencies
     auto circularDeps = findCircularDependencies(projectPath);
@@ -371,23 +354,16 @@ CodeMetrics DependencyAnalyzer::getMetrics(const std::string& filePath, const st
 std::vector<DependencyInfo> DependencyAnalyzer::getDependencies(const std::string& projectPath) {
     std::vector<DependencyInfo> dependencies;
 
-    for (const auto& ext : getSupportedExtensions()) {
-        for (const auto& entry : std::filesystem::recursive_directory_iterator(projectPath)) {
-            if (entry.is_regular_file() && entry.path().extension() == ext) {
-                std::ifstream file(entry.path());
-                std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
-
-                auto includes = extractIncludes(content);
-                for (const auto& include : includes) {
-                    DependencyInfo dep;
-                    dep.fromFile = entry.path().string();
-                    dep.toFile = include;
-                    dep.dependencyType = "include";
-                    dependencies.push_back(dep);
-                }
-            }
+    forEachSupportedFile(projectPath, [&](const std::string& filePath, const std::string& content) {
+        auto includes = extractIncludes(content);
+        for (const auto& include : includes) {
+            DependencyInfo dep;
+            dep.fromFile = filePath;
+            dep.toFile = include;
+            dep.dependencyType = "include";
+            dependencies.push_back(dep);
         }
-    }
+    });
 
     return dependencies;
 }
@@ -479,58 +455,9 @@ std::vector<std::vector<std::string>> DependencyAnalyzer::findCycles(
     return cycles;
 }
 
-// PerformanceAnalyzer implementation
-std::vector<std::string> PerformanceAnalyzer::getSupportedExtensions() const {
-    return {".cpp", ".c", ".cc", ".cxx"};
-}
+namespace {
 
-std::vector<AnalysisIssue> PerformanceAnalyzer::analyzeFile(const std::string& filePath, const std::string& content) {
-    std::vector<AnalysisIssue> issues;
-
-    auto inefficiencyIssues = detectInefficiencies(content, filePath);
-    auto memoryIssues = detectMemoryIssues(content, filePath);
-    auto algorithmicIssues = detectAlgorithmicIssues(content, filePath);
-
-    issues.insert(issues.end(), inefficiencyIssues.begin(), inefficiencyIssues.end());
-    issues.insert(issues.end(), memoryIssues.begin(), memoryIssues.end());
-    issues.insert(issues.end(), algorithmicIssues.begin(), algorithmicIssues.end());
-
-    return issues;
-}
-
-std::vector<AnalysisIssue> PerformanceAnalyzer::analyzeProject(const std::string& projectPath) {
-    std::vector<AnalysisIssue> allIssues;
-
-    for (const auto& ext : getSupportedExtensions()) {
-        for (const auto& entry : std::filesystem::recursive_directory_iterator(projectPath)) {
-            if (entry.is_regular_file() && entry.path().extension() == ext) {
-                std::ifstream file(entry.path());
-                std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
-
-                auto fileIssues = analyzeFile(entry.path().string(), content);
-                allIssues.insert(allIssues.end(), fileIssues.begin(), fileIssues.end());
-            }
-        }
-    }
-
-    return allIssues;
-}
-
-CodeMetrics PerformanceAnalyzer::getMetrics(const std::string& filePath, const std::string& content) {
-    CodeMetrics metrics;
-
-    auto inefficiencyIssues = detectInefficiencies(content, filePath);
-    auto memoryIssues = detectMemoryIssues(content, filePath);
-    auto algorithmicIssues = detectAlgorithmicIssues(content, filePath);
-
-    metrics.customMetrics["performance_issues"] =
-        inefficiencyIssues.size() + memoryIssues.size() + algorithmicIssues.size();
-
-    return metrics;
-}
-
-std::vector<AnalysisIssue> PerformanceAnalyzer::detectInefficiencies(const std::string& content,
-                                                                     const std::string& filePath) {
+std::vector<AnalysisIssue> detectInefficiencies(const std::string& content, const std::string& filePath) {
     std::vector<AnalysisIssue> issues;
 
     // Check for string concatenation in loops
@@ -546,8 +473,7 @@ std::vector<AnalysisIssue> PerformanceAnalyzer::detectInefficiencies(const std::
     return issues;
 }
 
-std::vector<AnalysisIssue> PerformanceAnalyzer::detectMemoryIssues(const std::string& content,
-                                                                   const std::string& filePath) {
+std::vector<AnalysisIssue> detectMemoryIssues(const std::string& content, const std::string& filePath) {
     std::vector<AnalysisIssue> issues;
 
     // Check for frequent allocations
@@ -564,8 +490,7 @@ std::vector<AnalysisIssue> PerformanceAnalyzer::detectMemoryIssues(const std::st
     return issues;
 }
 
-std::vector<AnalysisIssue> PerformanceAnalyzer::detectAlgorithmicIssues(const std::string& content,
-                                                                        const std::string& filePath) {
+std::vector<AnalysisIssue> detectAlgorithmicIssues(const std::string& content, const std::string& filePath) {
     std::vector<AnalysisIssue> issues;
 
     // Check for nested loops (potential O(n²) or worse)
@@ -584,6 +509,39 @@ std::vector<AnalysisIssue> PerformanceAnalyzer::detectAlgorithmicIssues(const st
     }
 
     return issues;
+}
+
+}  // namespace
+
+// PerformanceAnalyzer implementation
+PerformanceAnalyzer::PerformanceAnalyzer()
+    : CodeAnalyzerBase("PerformanceAnalyzer", AnalysisCategory::PERFORMANCE, {".cpp", ".c", ".cc", ".cxx"}) {}
+
+std::vector<AnalysisIssue> PerformanceAnalyzer::analyzeFile(const std::string& filePath, const std::string& content) {
+    std::vector<AnalysisIssue> issues;
+
+    auto inefficiencyIssues = detectInefficiencies(content, filePath);
+    auto memoryIssues = detectMemoryIssues(content, filePath);
+    auto algorithmicIssues = detectAlgorithmicIssues(content, filePath);
+
+    issues.insert(issues.end(), inefficiencyIssues.begin(), inefficiencyIssues.end());
+    issues.insert(issues.end(), memoryIssues.begin(), memoryIssues.end());
+    issues.insert(issues.end(), algorithmicIssues.begin(), algorithmicIssues.end());
+
+    return issues;
+}
+
+CodeMetrics PerformanceAnalyzer::getMetrics(const std::string& filePath, const std::string& content) {
+    CodeMetrics metrics;
+
+    auto inefficiencyIssues = detectInefficiencies(content, filePath);
+    auto memoryIssues = detectMemoryIssues(content, filePath);
+    auto algorithmicIssues = detectAlgorithmicIssues(content, filePath);
+
+    metrics.customMetrics["performance_issues"] =
+        inefficiencyIssues.size() + memoryIssues.size() + algorithmicIssues.size();
+
+    return metrics;
 }
 
 // AnalysisResult implementation

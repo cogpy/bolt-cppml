@@ -116,6 +116,9 @@ Token GlyphLexer::next_token() {
         case '=':
             advance();
             return Token(TokenType::ASSIGN, "=", line_, column_ - 1);
+        case ':':
+            advance();
+            return Token(TokenType::COLON, ":", line_, column_ - 1);
         case ';':
             advance();
             return Token(TokenType::SEMICOLON, ";", line_, column_ - 1);
@@ -391,7 +394,9 @@ std::unique_ptr<VMDeclNode> GlyphParser::parse_vm_declaration() {
     std::string vm_id = current_token().value;
     advance();
 
-    if (!consume(TokenType::ASSIGN)) {
+    // The documented separator is ':' (vm <name> : <type>); '=' is the form the parser took before the
+    // lexer had a ':' token and stays accepted.
+    if (!consume(TokenType::COLON) && !consume(TokenType::ASSIGN)) {
         add_error("Expected ':' after VM name");
         return nullptr;
     }

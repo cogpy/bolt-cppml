@@ -118,6 +118,7 @@
 
 // DrawKern includes
 #include "bolt/drawkern/dis_vm.hpp"
+#include "bolt/drawkern/drawkern.hpp"
 #include "bolt/drawkern/styx_protocol.hpp"
 #include "bolt/drawkern/yacc_grammar.hpp"
 
@@ -2260,7 +2261,7 @@ BOLT_TEST(E2E_YaccGrammar, GrammarSystem_Validate) {
 
 BOLT_TEST(E2E_YaccGrammar, GrammarSystem_ValidateAfterFailedGenerate) {
     const std::string invalid = "vm : { = \"unterminated";
-    // The parser takes '=' between the VM name and its type.
+    // The parser also takes '=' between the VM name and its type.
     const std::string valid = "vm test = dis { width = 800; }";
     bolt::drawkern::YaccGrammarSystem system;
 
@@ -2273,6 +2274,55 @@ BOLT_TEST(E2E_YaccGrammar, GrammarSystem_ValidateAfterFailedGenerate) {
 
     BOLT_ASSERT_FALSE(system.validate_description(invalid));
     BOLT_ASSERT_TRUE(system.validate_description(valid));
+}
+
+BOLT_TEST(E2E_YaccGrammar, LexerColonToken) {
+    bolt::drawkern::GlyphLexer lexer("vm test : dis { }");
+    auto tokens = lexer.tokenize();
+    BOLT_ASSERT_FALSE(lexer.has_errors());
+    BOLT_ASSERT(tokens.size() >= 3);
+    BOLT_ASSERT_TRUE(tokens[2].type == bolt::drawkern::TokenType::COLON);
+    BOLT_ASSERT_EQ(std::string(":"), tokens[2].value);
+}
+
+BOLT_TEST(E2E_YaccGrammar, GrammarSystem_ValidatesDocumentedColonForm) {
+    bolt::drawkern::YaccGrammarSystem system;
+    BOLT_ASSERT_TRUE(system.validate_description("vm test : dis { architecture = \"portable\"; }"));
+    BOLT_ASSERT_TRUE(system.get_validation_errors().empty());
+    BOLT_ASSERT_TRUE(system.validate_description("vm test : dis { }\nglyph view on test { width = 640; }"));
+
+    // The type after the ':' reaches the generated glyph.
+    BOLT_ASSERT_EQ(std::string("native"), system.parse_vm_glyph("vm test : native { }").vm_type);
+    BOLT_ASSERT_EQ(std::string("wasm"), system.parse_vm_glyph("vm test : wasm { }").vm_type);
+    BOLT_ASSERT_TRUE(system.get_validation_errors().empty());
+}
+
+BOLT_TEST(E2E_YaccGrammar, GrammarSystem_StillValidatesAssignForm) {
+    bolt::drawkern::YaccGrammarSystem system;
+    BOLT_ASSERT_TRUE(system.validate_description("vm test = dis { width = 800; }"));
+    BOLT_ASSERT_EQ(std::string("native"), system.parse_vm_glyph("vm test = native { }").vm_type);
+    BOLT_ASSERT_TRUE(system.get_validation_errors().empty());
+}
+
+BOLT_TEST(E2E_YaccGrammar, GrammarSystem_RejectsInvalidVmDeclarations) {
+    bolt::drawkern::YaccGrammarSystem system;
+    BOLT_ASSERT_FALSE(system.validate_description("vm test dis { }"));
+    BOLT_ASSERT_FALSE(system.get_validation_errors().empty());
+    BOLT_ASSERT_FALSE(system.validate_description("vm test : bogus { }"));
+    BOLT_ASSERT_FALSE(system.validate_description("vm test : : dis { }"));
+    BOLT_ASSERT_FALSE(system.validate_description("vm : dis { }"));
+    BOLT_ASSERT_FALSE(system.validate_description("glyph view : test { }"));
+}
+
+BOLT_TEST(E2E_YaccGrammar, GrammarSystem_TemplateVmDeclarationIsParsed) {
+    // The templates as a whole do not validate yet (their render blocks are not parsed), but the
+    // "vm <name> : <type>" line they open with is now read, so the declared type is picked up.
+    bolt::drawkern::YaccGrammarSystem system;
+    BOLT_ASSERT_EQ(std::string("native"), system.parse_vm_glyph(bolt::drawkern::GlyphTemplates::ECHO_SERVER).vm_type);
+    for (const auto& error : system.get_validation_errors()) {
+        BOLT_ASSERT_TRUE(error.find("after VM name") == std::string::npos);
+        BOLT_ASSERT_TRUE(error.find("Unexpected character") == std::string::npos);
+    }
 }
 
 BOLT_TEST(E2E_YaccGrammar, GrammarSystem_GetSupportedProperties) {
