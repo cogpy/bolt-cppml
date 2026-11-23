@@ -336,6 +336,25 @@ BOLT_TEST(KoboldCppChat, ChatWithMultipleMessages) {
     BOLT_ASSERT(response.success == false || response.success == true);
 }
 
+BOLT_TEST(KoboldCppChat, PlainChatRequestUnchanged) {
+    KoboldCppConfig config;
+    std::string body = detail::buildOpenAIChatRequest({{"system", "Be brief."}, {"user", "Hi"}}, config);
+
+    BOLT_ASSERT_EQ(std::string(R"({"messages":[{"role":"system","content":"Be brief."},)"
+                               R"({"role":"user","content":"Hi"}],"max_tokens":200,"temperature":0.7})"),
+                   body);
+}
+
+BOLT_TEST(KoboldCppChat, RoleAndContentAreEscapedInRequest) {
+    KoboldCppConfig config;
+    std::string body =
+        detail::buildOpenAIChatRequest({{"user\",\"content\":\"injected", "line1\nline2 \"q\" \\ \x02"}}, config);
+
+    BOLT_ASSERT_EQ(std::string(R"({"messages":[{"role":"user\",\"content\":\"injected",)"
+                               R"("content":"line1\nline2 \"q\" \\ \u0002"}],"max_tokens":200,"temperature":0.7})"),
+                   body);
+}
+
 // ═══════════════════════════════════════════════════════════════════════
 // Suite: KoboldCppProvider Streaming — streaming callback tests
 // ═══════════════════════════════════════════════════════════════════════
@@ -409,6 +428,37 @@ BOLT_TEST(KoboldCppStopSeq, EmptyStopSequences) {
     KoboldCppConfig config;
     KoboldCppProvider provider(config);
     BOLT_ASSERT(provider.get_config().stop_sequences.empty());
+}
+
+BOLT_TEST(KoboldCppStopSeq, PlainCompletionRequestUnchanged) {
+    KoboldCppConfig config;
+    BOLT_ASSERT_EQ(std::string(R"({"prompt":"int main","max_tokens":16,"temperature":0.7,"top_p":0.9})"),
+                   detail::buildOpenAICompletionRequest("int main", 16, config));
+
+    config.stop_sequences = {"END", "```"};
+    BOLT_ASSERT_EQ(
+        std::string(R"({"prompt":"int main","max_tokens":16,"temperature":0.7,"top_p":0.9,"stop":["END","```"]})"),
+        detail::buildOpenAICompletionRequest("int main", 16, config));
+}
+
+BOLT_TEST(KoboldCppStopSeq, StopSequencesAreEscapedInRequest) {
+    KoboldCppConfig config;
+    config.stop_sequences = {"\n", "say \"stop\"", "back\\slash", std::string("\x01\x1f", 2), "\b\f\r\t"};
+
+    std::string body = detail::buildOpenAICompletionRequest("x", 8, config);
+
+    BOLT_ASSERT(body.find(R"("stop":["\n","say \"stop\"","back\\slash","\u0001\u001f","\b\f\r\t"]})") !=
+                std::string::npos);
+}
+
+BOLT_TEST(KoboldCppStopSeq, ControlCharactersInPromptAreEscaped) {
+    KoboldCppConfig config;
+    std::string body = detail::buildOpenAICompletionRequest(std::string("a\0b\x1b[0m\x7f", 8), 8, config);
+
+    BOLT_ASSERT_EQ(0, body.find(std::string(R"({"prompt":"a\u0000b\u001b[0m)") + "\x7f\","));
+    for (char c : body) {
+        BOLT_ASSERT(static_cast<unsigned char>(c) >= 0x20);
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════

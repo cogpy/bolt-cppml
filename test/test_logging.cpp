@@ -141,7 +141,7 @@ BOLT_TEST(Logging, ConsoleSink) {
 }
 
 BOLT_TEST(Logging, FileSink) {
-    std::string testFile = "/tmp/bolt_test_log.txt";
+    std::string testFile = bolt::test::uniqueTempPath("bolt_test_log.txt");
 
     // Clean up any existing file
     if (std::filesystem::exists(testFile)) {
@@ -172,7 +172,7 @@ BOLT_TEST(Logging, FileSink) {
 }
 
 BOLT_TEST(Logging, RotatingFileSink) {
-    std::string baseFile = "/tmp/bolt_rotating_test.log";
+    std::string baseFile = bolt::test::uniqueTempPath("bolt_rotating_test.log");
 
     // Clean up any existing files
     removeRotatedFiles(baseFile);
@@ -261,7 +261,7 @@ BOLT_TEST(Logging, LoggerWithSinks) {
     bolt::Logger logger;
 
     // Add test file sink
-    std::string testFile = "/tmp/bolt_logger_test.log";
+    std::string testFile = bolt::test::uniqueTempPath("bolt_logger_test.log");
     if (std::filesystem::exists(testFile)) {
         removeTestFile(testFile);
     }
@@ -295,7 +295,7 @@ BOLT_TEST(Logging, LoggerWithSinks) {
 BOLT_TEST(Logging, LoggerLevelFiltering) {
     bolt::Logger logger(bolt::LogLevel::WARN);
 
-    std::string testFile = "/tmp/bolt_level_test.log";
+    std::string testFile = bolt::test::uniqueTempPath("bolt_level_test.log");
     if (std::filesystem::exists(testFile)) {
         removeTestFile(testFile);
     }
@@ -314,7 +314,7 @@ BOLT_TEST(Logging, LoggerLevelFiltering) {
 BOLT_TEST(Logging, LoggerWithFilters) {
     bolt::Logger logger(bolt::LogLevel::TRACE);  // Allow all levels
 
-    std::string testFile = "/tmp/bolt_filter_test.log";
+    std::string testFile = bolt::test::uniqueTempPath("bolt_filter_test.log");
     if (std::filesystem::exists(testFile)) {
         removeTestFile(testFile);
     }
@@ -336,7 +336,7 @@ BOLT_TEST(Logging, LoggerWithFilters) {
 BOLT_TEST(Logging, LoggerCategoryLogging) {
     bolt::Logger logger;
 
-    std::string testFile = "/tmp/bolt_category_test.log";
+    std::string testFile = bolt::test::uniqueTempPath("bolt_category_test.log");
     if (std::filesystem::exists(testFile)) {
         removeTestFile(testFile);
     }
@@ -380,7 +380,7 @@ BOLT_TEST(Logging, LoggerMetrics) {
 BOLT_TEST(Logging, LoggerEnableDisable) {
     bolt::Logger logger;
 
-    std::string testFile = "/tmp/bolt_enable_test.log";
+    std::string testFile = bolt::test::uniqueTempPath("bolt_enable_test.log");
     if (std::filesystem::exists(testFile)) {
         removeTestFile(testFile);
     }
@@ -473,7 +473,7 @@ BOLT_TEST(Logging, LogManagerSingleton) {
 }
 
 BOLT_TEST(Logging, LogManagerConfiguration) {
-    std::string testFile = "/tmp/bolt_manager_test.log";
+    std::string testFile = bolt::test::uniqueTempPath("bolt_manager_test.log");
     if (std::filesystem::exists(testFile)) {
         removeTestFile(testFile);
     }
@@ -497,7 +497,7 @@ BOLT_TEST(Logging, LogManagerConfiguration) {
 // ===== Macro Tests =====
 
 BOLT_TEST(Logging, LoggingMacros) {
-    std::string testFile = "/tmp/bolt_macro_test.log";
+    std::string testFile = bolt::test::uniqueTempPath("bolt_macro_test.log");
     if (std::filesystem::exists(testFile)) {
         removeTestFile(testFile);
     }
@@ -531,7 +531,7 @@ BOLT_TEST(Logging, LoggingMacros) {
 }
 
 BOLT_TEST(Logging, CategoryMacros) {
-    std::string testFile = "/tmp/bolt_category_macro_test.log";
+    std::string testFile = bolt::test::uniqueTempPath("bolt_category_macro_test.log");
     if (std::filesystem::exists(testFile)) {
         removeTestFile(testFile);
     }
@@ -557,7 +557,7 @@ BOLT_TEST(Logging, CategoryMacros) {
 // ===== Thread Safety Tests =====
 
 BOLT_TEST(Logging, ThreadSafety) {
-    std::string testFile = "/tmp/bolt_thread_test.log";
+    std::string testFile = bolt::test::uniqueTempPath("bolt_thread_test.log");
     if (std::filesystem::exists(testFile)) {
         removeTestFile(testFile);
     }
@@ -603,7 +603,7 @@ BOLT_TEST(Logging, ThreadSafety) {
 // ===== Scoped Logger Tests =====
 
 BOLT_TEST(Logging, ScopedLogger) {
-    std::string testFile = "/tmp/bolt_scoped_test.log";
+    std::string testFile = bolt::test::uniqueTempPath("bolt_scoped_test.log");
     if (std::filesystem::exists(testFile)) {
         removeTestFile(testFile);
     }
@@ -658,7 +658,7 @@ BOLT_TEST(Logging, PerformanceMetrics) {
 // ===== Integration Tests =====
 
 BOLT_TEST(Logging, ErrorHandlingIntegration) {
-    std::string testFile = "/tmp/bolt_error_integration_test.log";
+    std::string testFile = bolt::test::uniqueTempPath("bolt_error_integration_test.log");
     if (std::filesystem::exists(testFile)) {
         removeTestFile(testFile);
     }

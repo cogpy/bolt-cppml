@@ -359,7 +359,7 @@ BOLT_TEST(E2E_DataProcessor, Sort_Doubles) {
 // ============================================================================
 
 BOLT_TEST(E2E_FileSystemUtils, WriteAndReadFile) {
-    std::string testFile = "/tmp/bolt_test_write_read.txt";
+    std::string testFile = bolt::test::uniqueTempPath("bolt_test_write_read.txt");
     std::string content = "Hello, Bolt!";
     FileSystemUtils::writeFile(testFile, content);
     std::string read = FileSystemUtils::readFile(testFile);
@@ -368,7 +368,7 @@ BOLT_TEST(E2E_FileSystemUtils, WriteAndReadFile) {
 }
 
 BOLT_TEST(E2E_FileSystemUtils, AppendToFile) {
-    std::string testFile = "/tmp/bolt_test_append.txt";
+    std::string testFile = bolt::test::uniqueTempPath("bolt_test_append.txt");
     FileSystemUtils::writeFile(testFile, "Hello");
     FileSystemUtils::appendToFile(testFile, " World");
     std::string read = FileSystemUtils::readFile(testFile);
@@ -377,11 +377,12 @@ BOLT_TEST(E2E_FileSystemUtils, AppendToFile) {
 }
 
 BOLT_TEST(E2E_FileSystemUtils, ReadNonExistentFile_ThrowsException) {
-    BOLT_ASSERT_THROWS(std::runtime_error, FileSystemUtils::readFile("/tmp/bolt_nonexistent_file_xyz.txt"));
+    BOLT_ASSERT_THROWS(std::runtime_error,
+                       FileSystemUtils::readFile(bolt::test::uniqueTempPath("bolt_nonexistent_file_xyz.txt")));
 }
 
 BOLT_TEST(E2E_FileSystemUtils, WriteEmptyFile) {
-    std::string testFile = "/tmp/bolt_test_empty.txt";
+    std::string testFile = bolt::test::uniqueTempPath("bolt_test_empty.txt");
     FileSystemUtils::writeFile(testFile, "");
     std::string read = FileSystemUtils::readFile(testFile);
     BOLT_ASSERT_EQ("", read);
@@ -389,7 +390,7 @@ BOLT_TEST(E2E_FileSystemUtils, WriteEmptyFile) {
 }
 
 BOLT_TEST(E2E_FileSystemUtils, WriteLargeContent) {
-    std::string testFile = "/tmp/bolt_test_large.txt";
+    std::string testFile = bolt::test::uniqueTempPath("bolt_test_large.txt");
     std::string content(10000, 'X');
     FileSystemUtils::writeFile(testFile, content);
     std::string read = FileSystemUtils::readFile(testFile);
@@ -398,7 +399,7 @@ BOLT_TEST(E2E_FileSystemUtils, WriteLargeContent) {
 }
 
 BOLT_TEST(E2E_FileSystemUtils, WriteOverwrite) {
-    std::string testFile = "/tmp/bolt_test_overwrite.txt";
+    std::string testFile = bolt::test::uniqueTempPath("bolt_test_overwrite.txt");
     FileSystemUtils::writeFile(testFile, "First");
     FileSystemUtils::writeFile(testFile, "Second");
     std::string read = FileSystemUtils::readFile(testFile);
@@ -1849,7 +1850,7 @@ BOLT_TEST(E2E_Logging, ConsoleSink) {
 }
 
 BOLT_TEST(E2E_Logging, FileSink) {
-    std::string logFile = "/tmp/bolt_e2e_test.log";
+    std::string logFile = bolt::test::uniqueTempPath("bolt_e2e_test.log");
     {
         bolt::FileSink sink(logFile);
         BOLT_ASSERT_TRUE(sink.isOpen());
@@ -2257,6 +2258,23 @@ BOLT_TEST(E2E_YaccGrammar, GrammarSystem_Validate) {
     }
 }
 
+BOLT_TEST(E2E_YaccGrammar, GrammarSystem_ValidateAfterFailedGenerate) {
+    const std::string invalid = "vm : { = \"unterminated";
+    // The parser takes '=' between the VM name and its type.
+    const std::string valid = "vm test = dis { width = 800; }";
+    bolt::drawkern::YaccGrammarSystem system;
+
+    system.generate_cpp_code(invalid);
+    BOLT_ASSERT_FALSE(system.get_validation_errors().empty());
+
+    // Errors of the earlier calls must not be reported for a valid description.
+    BOLT_ASSERT_TRUE(system.validate_description(valid));
+    BOLT_ASSERT_TRUE(system.get_validation_errors().empty());
+
+    BOLT_ASSERT_FALSE(system.validate_description(invalid));
+    BOLT_ASSERT_TRUE(system.validate_description(valid));
+}
+
 BOLT_TEST(E2E_YaccGrammar, GrammarSystem_GetSupportedProperties) {
     bolt::drawkern::YaccGrammarSystem system;
     auto props = system.get_supported_properties();
@@ -2559,7 +2577,7 @@ BOLT_TEST(E2E_CodeAnalyzer, CreateAnalyzer) {
 BOLT_TEST(E2E_CodeAnalyzer, AnalyzeFile) {
     bolt::CodeAnalyzer analyzer;
     // Create a temp file to analyze
-    std::string testFile = "/tmp/bolt_e2e_analyze.cpp";
+    std::string testFile = bolt::test::uniqueTempPath("bolt_e2e_analyze.cpp");
     // clang-format off
     FileSystemUtils::writeFile(testFile, R"(
 #include <iostream>

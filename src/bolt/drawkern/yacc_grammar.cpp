@@ -751,6 +751,10 @@ AIWorkbenchGlyph YaccGrammarSystem::parse_ai_workbench(const std::string& descri
 bool YaccGrammarSystem::validate_description(const std::string& description) {
     clear_errors();
 
+    // Validation runs no generator, so drop the one an earlier parse or generate call left behind;
+    // otherwise collect_errors() would report that call's errors as this description's.
+    generator_.reset();
+
     auto ast = lex_and_parse(description, lexer_, parser_);
 
     collect_errors();

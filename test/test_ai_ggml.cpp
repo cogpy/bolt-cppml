@@ -59,6 +59,28 @@ BOLT_TEST(GGMLTest, GraphOperations) {
     BOLT_ASSERT_TRUE(gf != nullptr);
 }
 
+BOLT_TEST(GGMLTest, TensorUtilsEmptyTensor) {
+    bolt::GGMLContext context(1024 * 1024);
+    auto* empty = ggml_new_tensor_1d(context.get(), GGML_TYPE_F32, 0);
+    auto* alsoEmpty = ggml_new_tensor_1d(context.get(), GGML_TYPE_F32, 0);
+    BOLT_ASSERT_TRUE(empty != nullptr && alsoEmpty != nullptr);
+    BOLT_ASSERT_EQ(0, ggml_nelements(empty));
+
+    // Each of these divided 0 by 0 and returned NaN.
+    BOLT_ASSERT_EQ(0.0f, bolt::TensorUtils::calculateQuantizationError(empty, alsoEmpty));
+    BOLT_ASSERT_EQ(0.0f, bolt::TensorUtils::calculateRMSE(empty, alsoEmpty));
+    BOLT_ASSERT_EQ(0.0f, bolt::TensorUtils::calculateMAE(empty, alsoEmpty));
+
+    auto stats = bolt::TensorUtils::getTensorStats(empty);
+    BOLT_ASSERT_EQ(0, stats.n_elements);
+    BOLT_ASSERT_EQ(0, stats.n_zero);
+    BOLT_ASSERT_EQ(0.0f, stats.min);
+    BOLT_ASSERT_EQ(0.0f, stats.max);
+    BOLT_ASSERT_EQ(0.0f, stats.mean);
+    BOLT_ASSERT_EQ(0.0f, stats.std);
+    BOLT_ASSERT_EQ(0.0f, stats.sparsity);
+}
+
 BOLT_TEST(GGMLTest, GGMLWrapperBasics) {
     auto& wrapper = bolt::GGMLWrapper::getInstance();
     (void)wrapper;

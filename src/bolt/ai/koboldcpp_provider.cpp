@@ -29,8 +29,10 @@ static size_t KoboldWriteCallback(void* contents, size_t size, size_t nmemb, std
 
 namespace {
 
-// Writes text to out with the characters ", \, newline, carriage return and tab escaped for a JSON string.
+// Writes text to out escaped for use inside a JSON string: ", \ and every control character
+// (U+0000-U+001F), using the short forms where JSON has one and \u00XX otherwise.
 void appendJsonEscaped(std::ostream& out, const std::string& text) {
+    static const char kHexDigits[] = "0123456789abcdef";
     for (char c : text) {
         switch (c) {
             case '"':
@@ -48,8 +50,18 @@ void appendJsonEscaped(std::ostream& out, const std::string& text) {
             case '\t':
                 out << "\\t";
                 break;
+            case '\b':
+                out << "\\b";
+                break;
+            case '\f':
+                out << "\\f";
+                break;
             default:
-                out << c;
+                if (static_cast<unsigned char>(c) < 0x20) {
+                    out << "\\u00" << kHexDigits[(c >> 4) & 0xF] << kHexDigits[c & 0xF];
+                } else {
+                    out << c;
+                }
                 break;
         }
     }
@@ -391,26 +403,8 @@ void KoboldCppProvider::set_endpoint(const std::string& endpoint) {
 KoboldCppResponse KoboldCppProvider::send_openai_completion(const std::string& prompt, int max_tokens) {
     auto start = std::chrono::high_resolution_clock::now();
 
-    std::ostringstream json;
-    json << "{\"prompt\":\"";
-    // Escape the prompt for JSON
-    appendJsonEscaped(json, prompt);
-    json << "\",\"max_tokens\":" << max_tokens << ",\"temperature\":" << config_.temperature
-         << ",\"top_p\":" << config_.top_p;
-
-    if (!config_.stop_sequences.empty()) {
-        json << ",\"stop\":[";
-        for (size_t i = 0; i < config_.stop_sequences.size(); ++i) {
-            if (i > 0)
-                json << ",";
-            json << "\"" << config_.stop_sequences[i] << "\"";
-        }
-        json << "]";
-    }
-    json << "}";
-
     std::string url = config_.endpoint + "/v1/completions";
-    std::string response_str = http_post(url, json.str());
+    std::string response_str = http_post(url, detail::buildOpenAICompletionRequest(prompt, max_tokens, config_));
     return finishRequest(start, response_str, readOpenAICompletionReply);
 }
 
@@ -418,21 +412,53 @@ KoboldCppResponse KoboldCppProvider::send_openai_chat(
     const std::vector<std::pair<std::string, std::string>>& messages) {
     auto start = std::chrono::high_resolution_clock::now();
 
+    std::string url = config_.endpoint + "/v1/chat/completions";
+    std::string response_str = http_post(url, detail::buildOpenAIChatRequest(messages, config_));
+    return finishRequest(start, response_str, readOpenAIChatReply);
+}
+
+namespace detail {
+
+std::string buildOpenAICompletionRequest(const std::string& prompt, int max_tokens, const KoboldCppConfig& config) {
+    std::ostringstream json;
+    json << "{\"prompt\":\"";
+    appendJsonEscaped(json, prompt);
+    json << "\",\"max_tokens\":" << max_tokens << ",\"temperature\":" << config.temperature
+         << ",\"top_p\":" << config.top_p;
+
+    if (!config.stop_sequences.empty()) {
+        json << ",\"stop\":[";
+        for (size_t i = 0; i < config.stop_sequences.size(); ++i) {
+            if (i > 0)
+                json << ",";
+            json << "\"";
+            appendJsonEscaped(json, config.stop_sequences[i]);
+            json << "\"";
+        }
+        json << "]";
+    }
+    json << "}";
+    return json.str();
+}
+
+std::string buildOpenAIChatRequest(const std::vector<std::pair<std::string, std::string>>& messages,
+                                   const KoboldCppConfig& config) {
     std::ostringstream json;
     json << "{\"messages\":[";
     for (size_t i = 0; i < messages.size(); ++i) {
         if (i > 0)
             json << ",";
-        json << "{\"role\":\"" << messages[i].first << "\",\"content\":\"";
+        json << "{\"role\":\"";
+        appendJsonEscaped(json, messages[i].first);
+        json << "\",\"content\":\"";
         appendJsonEscaped(json, messages[i].second);
         json << "\"}";
     }
-    json << "],\"max_tokens\":" << config_.max_tokens << ",\"temperature\":" << config_.temperature << "}";
-
-    std::string url = config_.endpoint + "/v1/chat/completions";
-    std::string response_str = http_post(url, json.str());
-    return finishRequest(start, response_str, readOpenAIChatReply);
+    json << "],\"max_tokens\":" << config.max_tokens << ",\"temperature\":" << config.temperature << "}";
+    return json.str();
 }
+
+}  // namespace detail
 
 // ── Internal: KoboldAI native API ──────────────────────────────
 

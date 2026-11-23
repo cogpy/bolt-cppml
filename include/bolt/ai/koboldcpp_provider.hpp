@@ -157,6 +157,20 @@ class KoboldCppProvider : public AICompletionProvider {
     bool detect_api_mode();
 };
 
+namespace detail {
+
+// Request bodies exactly as KoboldCppProvider posts them. Every string taken from the caller or the
+// configuration is JSON-escaped. Declared here so that the tests can check them without a server.
+
+/// Body for POST /v1/completions.
+std::string buildOpenAICompletionRequest(const std::string& prompt, int max_tokens, const KoboldCppConfig& config);
+
+/// Body for POST /v1/chat/completions; each message is a (role, content) pair.
+std::string buildOpenAIChatRequest(const std::vector<std::pair<std::string, std::string>>& messages,
+                                   const KoboldCppConfig& config);
+
+}  // namespace detail
+
 }  // namespace ai
 }  // namespace bolt
 

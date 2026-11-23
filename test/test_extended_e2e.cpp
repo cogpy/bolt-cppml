@@ -156,7 +156,7 @@ BOLT_TEST(MathUtils, FactorialTen) {
 // ═══════════════════════════════════════════════════════════════════════
 
 BOLT_TEST(FileSystemUtils, WriteAndRead) {
-    std::string path = "/tmp/bolt_test_fsutils.txt";
+    std::string path = bolt::test::uniqueTempPath("bolt_test_fsutils.txt");
     FileSystemUtils::writeFile(path, "Hello Bolt!");
     std::string content = FileSystemUtils::readFile(path);
     BOLT_ASSERT_EQ(std::string("Hello Bolt!"), content);
@@ -164,7 +164,7 @@ BOLT_TEST(FileSystemUtils, WriteAndRead) {
 }
 
 BOLT_TEST(FileSystemUtils, AppendToFile) {
-    std::string path = "/tmp/bolt_test_append.txt";
+    std::string path = bolt::test::uniqueTempPath("bolt_test_append.txt");
     FileSystemUtils::writeFile(path, "Line1\n");
     FileSystemUtils::appendToFile(path, "Line2\n");
     std::string content = FileSystemUtils::readFile(path);
@@ -174,11 +174,12 @@ BOLT_TEST(FileSystemUtils, AppendToFile) {
 }
 
 BOLT_TEST(FileSystemUtils, ReadNonExistentThrows) {
-    BOLT_ASSERT_THROWS(std::runtime_error, { FileSystemUtils::readFile("/tmp/bolt_nonexistent_file_xyz.txt"); });
+    BOLT_ASSERT_THROWS(std::runtime_error,
+                       { FileSystemUtils::readFile(bolt::test::uniqueTempPath("bolt_nonexistent_file_xyz.txt")); });
 }
 
 BOLT_TEST(FileSystemUtils, WriteEmptyFile) {
-    std::string path = "/tmp/bolt_test_empty.txt";
+    std::string path = bolt::test::uniqueTempPath("bolt_test_empty.txt");
     FileSystemUtils::writeFile(path, "");
     std::string content = FileSystemUtils::readFile(path);
     BOLT_ASSERT(content.empty());
@@ -432,4 +433,45 @@ BOLT_TEST(ProtocolMessage, RoundTrip) {
     auto restored = ProtocolMessage::deserialize(wire);
     BOLT_ASSERT_EQ(original.userId, restored.userId);
     BOLT_ASSERT_EQ(original.documentId, restored.documentId);
+}
+
+BOLT_TEST(ProtocolMessage, RoundTripWithSpecialCharacters) {
+    const std::string tricky = "say \"hi\"\\n is not a newline\nbut this is\r\tend\\";
+    ProtocolMessage original;
+    original.type = MessageType::DOCUMENT_OPERATION;
+    original.documentId = "dir\\\"doc\".cpp\n" + tricky;
+    original.userId = "al\"ice\\" + tricky;
+    original.data = "{\"userId\":\"mallory\",\"data\":\"x\"}" + tricky;
+
+    auto restored = ProtocolMessage::deserialize(original.serialize());
+
+    BOLT_ASSERT_TRUE(restored.type == original.type);
+    BOLT_ASSERT_EQ(original.documentId, restored.documentId);
+    BOLT_ASSERT_EQ(original.userId, restored.userId);
+    BOLT_ASSERT_EQ(original.data, restored.data);
+}
+
+BOLT_TEST(ProtocolMessage, PlainMessageWireFormatUnchanged) {
+    ProtocolMessage msg;
+    msg.type = MessageType::CURSOR_UPDATE;
+    msg.documentId = "main.cpp";
+    msg.userId = "alice";
+    msg.data = "cursor at line 10";
+    BOLT_ASSERT_EQ(
+        std::string("{\"type\":3,\"documentId\":\"main.cpp\",\"userId\":\"alice\",\"data\":\"cursor at line 10\"}"),
+        msg.serialize());
+}
+
+BOLT_TEST(ProtocolMessage, NonNumericTypeDoesNotThrow) {
+    auto msg = ProtocolMessage::deserialize("{\"type\":abc,\"documentId\":\"doc\",\"userId\":\"bob\",\"data\":\"d\"}");
+    BOLT_ASSERT_EQ(0, static_cast<int>(msg.type));
+    BOLT_ASSERT_EQ(std::string("doc"), msg.documentId);
+    BOLT_ASSERT_EQ(std::string("bob"), msg.userId);
+    BOLT_ASSERT_EQ(std::string("d"), msg.data);
+
+    auto huge = ProtocolMessage::deserialize("{\"type\":99999999999999999999,\"documentId\":\"doc\"}");
+    BOLT_ASSERT_EQ(0, static_cast<int>(huge.type));
+
+    auto valid = ProtocolMessage::deserialize("{\"type\":6,\"documentId\":\"doc\"}");
+    BOLT_ASSERT_TRUE(valid.type == MessageType::DOCUMENT_STATE);
 }

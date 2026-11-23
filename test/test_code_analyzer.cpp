@@ -266,7 +266,7 @@ void problematicFunction(int x) {
         // clang-format on
 
         // Create temporary file
-        std::string tempFile = "/tmp/test_problematic.cpp";
+        std::string tempFile = bolt::test::uniqueTempPath("test_problematic.cpp");
         std::ofstream file(tempFile);
         file << problematicCode;
         file.close();
@@ -290,7 +290,7 @@ void problematicFunction(int x) {
     SECTION("export results") {
         std::string simpleCode = "void test() {}";
 
-        std::string tempFile = "/tmp/test_simple.cpp";
+        std::string tempFile = bolt::test::uniqueTempPath("test_simple.cpp");
         std::ofstream file(tempFile);
         file << simpleCode;
         file.close();
@@ -312,7 +312,7 @@ void problematicFunction(int x) {
 
     SECTION("project analysis") {
         // Create temporary project
-        std::string projectPath = "/tmp/test_project";
+        std::string projectPath = bolt::test::uniqueTempPath("test_project");
         std::filesystem::create_directories(projectPath);
 
         std::ofstream main_cpp(projectPath + "/main.cpp");

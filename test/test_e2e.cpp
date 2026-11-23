@@ -425,7 +425,7 @@ BOLT_TEST(E2E_Logging, FileLogging) {
     bolt::Logger& logger = bolt::Logger::getInstance();
 
     // Configure file logging
-    std::string logFile = "/tmp/bolt_e2e_test.log";
+    std::string logFile = bolt::test::uniqueTempPath("bolt_e2e_test.log");
     logger.setOutputFile(logFile);
 
     // Log some messages

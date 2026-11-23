@@ -69,71 +69,79 @@ class EditorStore {
         ErrorHandler::validateParameter(!path.empty(), "Document path cannot be empty");
         doc.validateDocument();
 
-        std::lock_guard<std::mutex> lock(mutex_);
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
 
-        if (documents_.size() >= MAX_OPEN_DOCUMENTS && documents_.find(path) == documents_.end()) {
-            throw EditorException(ErrorCode::EDITOR_OPERATION_FAILED,
-                                  "Too many open documents: " + std::to_string(documents_.size()) +
-                                      " >= " + std::to_string(MAX_OPEN_DOCUMENTS));
+            if (documents_.size() >= MAX_OPEN_DOCUMENTS && documents_.find(path) == documents_.end()) {
+                throw EditorException(ErrorCode::EDITOR_OPERATION_FAILED,
+                                      "Too many open documents: " + std::to_string(documents_.size()) +
+                                          " >= " + std::to_string(MAX_OPEN_DOCUMENTS));
+            }
+
+            documents_[path] = doc;
         }
-
-        documents_[path] = doc;
         notifyListeners();
     }
 
     void updateScrollPosition(const std::string& path, int line, int character) {
         ErrorHandler::validateParameter(!path.empty(), "Document path cannot be empty");
 
-        std::lock_guard<std::mutex> lock(mutex_);
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
 
-        auto it = findDocumentOrThrowLocked(path, "Document not found: ");
+            auto it = findDocumentOrThrowLocked(path, "Document not found: ");
 
-        EditorDocument::ScrollPosition pos{line, character};
-        pos.validate();
+            EditorDocument::ScrollPosition pos{line, character};
+            pos.validate();
 
-        it->second.scroll = pos;
+            it->second.scroll = pos;
+        }
         notifyListeners();
     }
 
     void updateFoldingRanges(const std::string& path, const std::vector<FoldRange>& ranges) {
         ErrorHandler::validateParameter(!path.empty(), "Document path cannot be empty");
 
-        std::lock_guard<std::mutex> lock(mutex_);
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
 
-        auto it = findDocumentOrThrowLocked(path, "Document not found: ");
+            auto it = findDocumentOrThrowLocked(path, "Document not found: ");
 
-        if (ranges.size() > MAX_FOLDING_RANGES) {
-            throw EditorException(ErrorCode::EDITOR_FOLDING_ERROR,
-                                  "Too many folding ranges: " + std::to_string(ranges.size()) + " > " +
-                                      std::to_string(MAX_FOLDING_RANGES));
+            if (ranges.size() > MAX_FOLDING_RANGES) {
+                throw EditorException(ErrorCode::EDITOR_FOLDING_ERROR,
+                                      "Too many folding ranges: " + std::to_string(ranges.size()) + " > " +
+                                          std::to_string(MAX_FOLDING_RANGES));
+            }
+
+            it->second.foldingRanges = ranges;
         }
-
-        it->second.foldingRanges = ranges;
         notifyListeners();
     }
 
     void toggleFold(const std::string& path, size_t line) {
         ErrorHandler::validateParameter(!path.empty(), "Document path cannot be empty");
 
-        std::lock_guard<std::mutex> lock(mutex_);
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
 
-        auto it = findDocumentOrThrowLocked(path, "Document not found: ");
+            auto it = findDocumentOrThrowLocked(path, "Document not found: ");
 
-        auto& ranges = it->second.foldingRanges;
-        bool found = false;
-        for (auto& range : ranges) {
-            if (line >= range.startLine && line <= range.endLine) {
-                range.isFolded = !range.isFolded;
-                found = true;
-                notifyListeners();
-                break;
+            auto& ranges = it->second.foldingRanges;
+            bool found = false;
+            for (auto& range : ranges) {
+                if (line >= range.startLine && line <= range.endLine) {
+                    range.isFolded = !range.isFolded;
+                    found = true;
+                    break;
+                }
+            }
+
+            if (!found) {
+                throw EditorException(ErrorCode::EDITOR_FOLDING_ERROR,
+                                      "No foldable range found at line " + std::to_string(line) + " in " + path);
             }
         }
-
-        if (!found) {
-            throw EditorException(ErrorCode::EDITOR_FOLDING_ERROR,
-                                  "No foldable range found at line " + std::to_string(line) + " in " + path);
-        }
+        notifyListeners();
     }
 
     std::vector<FoldRange> getFoldingRanges(const std::string& path) const {
@@ -148,6 +156,10 @@ class EditorStore {
         return {};
     }
 
+    // The returned pointer refers to an entry of the documents map and is not
+    // protected by the lock once this returns: it is only valid until that
+    // document is closed, and reading or writing through it is not
+    // synchronised with other threads using the store.
     EditorDocument* getCurrentDocument() {
         std::lock_guard<std::mutex> lock(mutex_);
 
@@ -163,12 +175,14 @@ class EditorStore {
                                             "File path too long: " + std::to_string(path.length()));
         }
 
-        std::lock_guard<std::mutex> lock(mutex_);
-        selectedFile_ = path;
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            selectedFile_ = path;
+        }
         notifyListeners();
     }
 
-    const std::string& getSelectedFile() const {
+    std::string getSelectedFile() const {
         std::lock_guard<std::mutex> lock(mutex_);
         return selectedFile_;
     }
@@ -201,15 +215,17 @@ class EditorStore {
     void closeDocument(const std::string& path) {
         ErrorHandler::validateParameter(!path.empty(), "Document path cannot be empty");
 
-        std::lock_guard<std::mutex> lock(mutex_);
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
 
-        auto it = findDocumentOrThrowLocked(path, "Cannot close document that is not open: ");
+            auto it = findDocumentOrThrowLocked(path, "Cannot close document that is not open: ");
 
-        documents_.erase(it);
+            documents_.erase(it);
 
-        // Clear selection if this was the selected file
-        if (selectedFile_ == path) {
-            selectedFile_.clear();
+            // Clear selection if this was the selected file
+            if (selectedFile_ == path) {
+                selectedFile_.clear();
+            }
         }
 
         notifyListeners();
@@ -229,9 +245,16 @@ class EditorStore {
         return it;
     }
 
+    // Must be called WITHOUT mutex_ held. The listeners are copied under the
+    // lock and invoked after it is released, so a listener may call back into
+    // the store (mutex_ is not recursive).
     void notifyListeners() {
-        // Note: mutex should already be locked when this is called
-        for (auto& listener : listeners_) {
+        std::vector<std::function<void()>> listeners;
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            listeners = listeners_;
+        }
+        for (auto& listener : listeners) {
             try {
                 if (listener) {
                     listener();

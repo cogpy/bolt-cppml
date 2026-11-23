@@ -89,6 +89,8 @@ class TensorUtils {
     static float calculateQuantizationError(ggml_tensor* original, ggml_tensor* quantized) {
         std::vector<float> orig_data, quant_data;
         int64_t n_orig = extractComparableData(original, quantized, orig_data, quant_data);
+        if (n_orig == 0)
+            return 0.0f;  // No elements: no error, rather than 0/0.
 
         double mse = 0.0;
         for (int64_t i = 0; i < n_orig; i++) {
@@ -105,6 +107,8 @@ class TensorUtils {
     static float calculateMAE(ggml_tensor* original, ggml_tensor* quantized) {
         std::vector<float> orig_data, quant_data;
         int64_t n = extractComparableData(original, quantized, orig_data, quant_data);
+        if (n == 0)
+            return 0.0f;
 
         double mae = 0.0;
         for (int64_t i = 0; i < n; i++)
@@ -141,6 +145,8 @@ class TensorUtils {
             return stats;
         int64_t n = ggml_nelements(tensor);
         stats.n_elements = n;
+        if (n == 0)
+            return stats;  // All statistics stay zero for an empty tensor.
         std::vector<float> data(n);
         extractFloatData(tensor, data);
         stats.min = std::numeric_limits<float>::max();

@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <exception>
 #include <functional>
 #include <map>
 #include <memory>
@@ -50,14 +51,39 @@ inline std::string escapeJsonString(const std::string& str) {
     return result;
 }
 
-// Reads the integer value of "key" from a flat JSON object; returns 0 when the key is absent.
+// Reads the escaped body of a JSON string value starting at `pos` (just after the opening quote) up to
+// the closing unescaped quote, undoing escapeJsonString. An unknown escape yields the escaped character.
+inline std::string unescapeJsonStringAt(const std::string& data, size_t pos) {
+    std::string result;
+    for (; pos < data.size() && data[pos] != '"'; ++pos) {
+        char c = data[pos];
+        if (c == '\\' && pos + 1 < data.size()) {
+            c = data[++pos];
+            if (c == 'n')
+                c = '\n';
+            else if (c == 'r')
+                c = '\r';
+            else if (c == 't')
+                c = '\t';
+        }
+        result += c;
+    }
+    return result;
+}
+
+// Reads the integer value of "key" from a flat JSON object; returns 0 when the key is absent or its
+// value is not a number that fits in an int.
 inline int extractJsonInt(const std::string& data, const std::string& key) {
     auto pos = data.find("\"" + key + "\":");
     if (pos == std::string::npos)
         return 0;
     pos = data.find(":", pos) + 1;
     auto end = data.find_first_of(",}", pos);
-    return std::stoi(data.substr(pos, end - pos));
+    try {
+        return std::stoi(data.substr(pos, end - pos));
+    } catch (const std::exception&) {
+        return 0;
+    }
 }
 
 }  // namespace detail
@@ -71,8 +97,8 @@ struct ProtocolMessage {
     std::string serialize() const {
         std::string result = "{";
         result += "\"type\":" + std::to_string(static_cast<int>(type)) + ",";
-        result += "\"documentId\":\"" + documentId + "\",";
-        result += "\"userId\":\"" + userId + "\",";
+        result += "\"documentId\":\"" + detail::escapeJsonString(documentId) + "\",";
+        result += "\"userId\":\"" + detail::escapeJsonString(userId) + "\",";
         result += "\"data\":\"" + detail::escapeJsonString(data) + "\"";
         result += "}";
         return result;
@@ -93,8 +119,7 @@ struct ProtocolMessage {
         if (pos == std::string::npos)
             return "";
         pos = data.find("\":\"", pos) + 3;
-        auto end = data.find("\"", pos);
-        return data.substr(pos, end - pos);
+        return detail::unescapeJsonStringAt(data, pos);
     }
 };
 
