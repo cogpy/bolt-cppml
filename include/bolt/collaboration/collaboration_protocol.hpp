@@ -10,6 +10,7 @@
 #include <mutex>
 #include <set>
 #include <string>
+#include <vector>
 
 #include "bolt/collaboration/collaborative_session.hpp"
 #include "bolt/collaboration/document_operation.hpp"
@@ -84,6 +85,24 @@ inline int extractJsonInt(const std::string& data, const std::string& key) {
     } catch (const std::exception&) {
         return 0;
     }
+}
+
+// Builds the nested state object carried in the data field of a DOCUMENT_STATE message: the document
+// content and the active users with their cursor positions. Every string value is escaped.
+inline std::string buildDocumentStateJson(const std::string& content, const std::vector<UserSession>& users) {
+    std::string stateData = "{";
+    stateData += "\"content\":\"" + escapeJsonString(content) + "\",";
+    stateData += "\"users\":[";
+    for (size_t i = 0; i < users.size(); ++i) {
+        if (i > 0)
+            stateData += ",";
+        stateData += "{\"userId\":\"" + escapeJsonString(users[i].userId) + "\",";
+        stateData += "\"userName\":\"" + escapeJsonString(users[i].userName) + "\",";
+        stateData += "\"cursorLine\":" + std::to_string(users[i].cursorPosition.line) + ",";
+        stateData += "\"cursorChar\":" + std::to_string(users[i].cursorPosition.character) + "}";
+    }
+    stateData += "]}";
+    return stateData;
 }
 
 }  // namespace detail
@@ -184,20 +203,7 @@ class CollaborationProtocol {
         msg.documentId = documentId;
         msg.userId = userId;
 
-        // Create document state data
-        std::string stateData = "{";
-        stateData += "\"content\":\"" + detail::escapeJsonString(content) + "\",";
-        stateData += "\"users\":[";
-        for (size_t i = 0; i < users.size(); ++i) {
-            if (i > 0)
-                stateData += ",";
-            stateData += "{\"userId\":\"" + users[i].userId + "\",";
-            stateData += "\"userName\":\"" + users[i].userName + "\",";
-            stateData += "\"cursorLine\":" + std::to_string(users[i].cursorPosition.line) + ",";
-            stateData += "\"cursorChar\":" + std::to_string(users[i].cursorPosition.character) + "}";
-        }
-        stateData += "]}";
-        msg.data = stateData;
+        msg.data = detail::buildDocumentStateJson(content, users);
 
         sendToUser(userId, msg.serialize());
     }

@@ -65,7 +65,10 @@ enum class TokenType {
 
     // Special
     END_OF_FILE,
-    UNKNOWN
+    UNKNOWN,
+
+    // Punctuation added after the values above were in use; kept last so those values do not change.
+    COLON  // :
 };
 
 struct Token {
