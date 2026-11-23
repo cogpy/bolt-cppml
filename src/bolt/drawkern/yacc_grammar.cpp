@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <exception>
 #include <iostream>
 #include <sstream>
 
@@ -419,7 +420,7 @@ std::unique_ptr<VMDeclNode> GlyphParser::parse_vm_declaration() {
     auto vm_node = std::make_unique<VMDeclNode>(vm_id, vm_type);
 
     if (consume(TokenType::LBRACE)) {
-        auto block = parse_block();
+        auto block = parse_block(false);
         if (block) {
             vm_node->add_child(std::move(block));
         }
@@ -464,7 +465,7 @@ std::unique_ptr<GlyphDeclNode> GlyphParser::parse_glyph_declaration() {
     }
 
     if (consume(TokenType::LBRACE)) {
-        auto block = parse_block();
+        auto block = parse_block(true);
         if (block) {
             glyph_node->add_child(std::move(block));
         }
@@ -473,8 +474,33 @@ std::unique_ptr<GlyphDeclNode> GlyphParser::parse_glyph_declaration() {
     return glyph_node;
 }
 
+bool GlyphParser::is_word(TokenType type) {
+    switch (type) {
+        case TokenType::IDENTIFIER:
+        case TokenType::VM:
+        case TokenType::GLYPH:
+        case TokenType::WORKBENCH:
+        case TokenType::DIS:
+        case TokenType::NATIVE:
+        case TokenType::WASM:
+        case TokenType::RENDER:
+        case TokenType::AI:
+        case TokenType::MODEL:
+        case TokenType::TOOLS:
+        case TokenType::NAMESPACE:
+            return true;
+        default:
+            return false;
+    }
+}
+
+bool GlyphParser::is_value_start(TokenType type) {
+    return type == TokenType::STRING || type == TokenType::NUMBER || is_word(type);
+}
+
 std::unique_ptr<PropertyNode> GlyphParser::parse_property() {
-    if (!match(TokenType::IDENTIFIER)) {
+    // Keywords are ordinary names here: "model = ...;" and "tools = [...];" are properties.
+    if (!is_word(current_token().type)) {
         return nullptr;
     }
 
@@ -486,25 +512,24 @@ std::unique_ptr<PropertyNode> GlyphParser::parse_property() {
         return nullptr;
     }
 
-    std::string value;
-    if (match(TokenType::STRING) || match(TokenType::NUMBER) || match(TokenType::IDENTIFIER)) {
-        value = current_token().value;
+    std::unique_ptr<PropertyNode> property;
+    if (is_value_start(current_token().type)) {
+        property = std::make_unique<PropertyNode>(name, current_token().value);
         advance();
     } else if (match(TokenType::LBRACKET)) {
-        // Handle list values (simplified)
-        value = "[";
-        advance();
-        while (!match(TokenType::RBRACKET) && !match(TokenType::END_OF_FILE)) {
-            value += current_token().value;
-            advance();
-            if (match(TokenType::COMMA)) {
-                value += ",";
-                advance();
-            }
+        auto list = parse_list();
+        if (!list) {
+            return nullptr;
         }
-        if (consume(TokenType::RBRACKET)) {
-            value += "]";
+        // The value keeps its "[a,b]" text form; the items are also kept as a LIST child so that
+        // an item containing a comma stays one item.
+        std::string value = "[";
+        for (size_t i = 0; i < list->children.size(); ++i) {
+            value += (i ? "," : "") + list->children[i]->get_attribute("value");
         }
+        value += "]";
+        property = std::make_unique<PropertyNode>(name, value);
+        property->add_child(std::move(list));
     } else {
         add_error("Expected property value");
         return nullptr;
@@ -512,22 +537,120 @@ std::unique_ptr<PropertyNode> GlyphParser::parse_property() {
 
     consume(TokenType::SEMICOLON);  // Optional semicolon
 
-    return std::make_unique<PropertyNode>(name, value);
+    return property;
 }
 
-std::unique_ptr<ASTNode> GlyphParser::parse_block() {
-    auto block = std::make_unique<ASTNode>(ASTNodeType::BLOCK);
+std::unique_ptr<ASTNode> GlyphParser::parse_mount() {
+    advance();  // 'mount'
+
+    if (!match(TokenType::STRING)) {
+        add_error("Expected the path to mount, in quotes");
+        return nullptr;
+    }
+    std::string source = current_token().value;
+    advance();
+
+    if (!match(TokenType::IDENTIFIER) || current_token().value != "as") {
+        add_error("Expected 'as' after the mount path");
+        return nullptr;
+    }
+    advance();
+
+    if (!match(TokenType::STRING)) {
+        add_error("Expected the mount target, in quotes");
+        return nullptr;
+    }
+    std::string target = current_token().value;
+    advance();
+
+    consume(TokenType::SEMICOLON);  // Optional semicolon
+
+    auto mount = std::make_unique<ASTNode>(ASTNodeType::CALL);
+    mount->set_attribute("name", "mount");
+    mount->set_attribute("source", source);
+    mount->set_attribute("target", target);
+    return mount;
+}
+
+void GlyphParser::recover_in_block(size_t item_start) {
+    // Resume after the next ';', or at the '}' that closes the block.
+    while (!match(TokenType::SEMICOLON) && !match(TokenType::RBRACE) && !match(TokenType::END_OF_FILE)) {
+        advance();
+    }
+    consume(TokenType::SEMICOLON);
+
+    if (pos_ == item_start && !match(TokenType::RBRACE)) {
+        advance();  // Always make progress
+    }
+}
+
+std::unique_ptr<ASTNode> GlyphParser::parse_section() {
+    const TokenType kind = current_token().type;
+    auto section = std::make_unique<ASTNode>(ASTNodeType::BLOCK);
+    section->set_attribute("section", current_token().value);
+    advance();  // 'render', 'ai' or 'namespace'
+    advance();  // '{'
 
     while (!match(TokenType::RBRACE) && !match(TokenType::END_OF_FILE)) {
-        auto statement = parse_statement();
-        if (statement) {
-            block->add_child(std::move(statement));
+        const size_t item_start = pos_;
+        std::unique_ptr<ASTNode> item;
+
+        if (kind == TokenType::NAMESPACE) {
+            if (match(TokenType::IDENTIFIER) && current_token().value == "mount") {
+                item = parse_mount();
+            } else {
+                add_error("Expected 'mount' in namespace block, got " + current_token().value);
+            }
+        } else if (is_word(current_token().type) && peek_token().type == TokenType::ASSIGN) {
+            item = parse_property();
         } else {
-            advance();  // Skip problematic tokens
+            add_error("Expected property in " + section->get_attribute("section") + " block, got " +
+                      current_token().value);
+        }
+
+        if (item) {
+            section->add_child(std::move(item));
+        } else {
+            recover_in_block(item_start);
         }
     }
 
-    consume(TokenType::RBRACE);
+    if (!consume(TokenType::RBRACE)) {
+        add_error("Expected '}' to close the " + section->get_attribute("section") + " block");
+    }
+    return section;
+}
+
+std::unique_ptr<ASTNode> GlyphParser::parse_block(bool allow_sections) {
+    auto block = std::make_unique<ASTNode>(ASTNodeType::BLOCK);
+
+    while (!match(TokenType::RBRACE) && !match(TokenType::END_OF_FILE)) {
+        const size_t item_start = pos_;
+        const TokenType type = current_token().type;
+        const bool is_section = (type == TokenType::RENDER || type == TokenType::AI || type == TokenType::NAMESPACE) &&
+                                peek_token().type == TokenType::LBRACE;
+        std::unique_ptr<ASTNode> item;
+
+        if (is_section && allow_sections) {
+            item = parse_section();
+        } else if (is_section) {
+            add_error("A " + current_token().value + " block is only allowed inside a glyph or workbench");
+        } else if (is_word(type) && peek_token().type == TokenType::ASSIGN) {
+            item = parse_property();
+        } else {
+            add_error("Expected property, got " + current_token().value);
+        }
+
+        if (item) {
+            block->add_child(std::move(item));
+        } else {
+            recover_in_block(item_start);
+        }
+    }
+
+    if (!consume(TokenType::RBRACE)) {
+        add_error("Expected '}'");
+    }
     return block;
 }
 
@@ -535,7 +658,7 @@ std::unique_ptr<ASTNode> GlyphParser::parse_expression() {
     // Simplified expression parsing
     auto expr = std::make_unique<ASTNode>(ASTNodeType::EXPRESSION);
 
-    if (match(TokenType::IDENTIFIER) || match(TokenType::STRING) || match(TokenType::NUMBER)) {
+    if (is_value_start(current_token().type)) {
         expr->set_attribute("value", current_token().value);
         advance();
     }
@@ -550,18 +673,20 @@ std::unique_ptr<ASTNode> GlyphParser::parse_list() {
         return nullptr;
     }
 
-    while (!match(TokenType::RBRACKET) && !match(TokenType::END_OF_FILE)) {
-        auto expr = parse_expression();
-        if (expr) {
-            list->add_child(std::move(expr));
-        }
-
-        if (!consume(TokenType::COMMA)) {
-            break;
-        }
+    if (!match(TokenType::RBRACKET)) {
+        do {
+            if (!is_value_start(current_token().type)) {
+                add_error("Expected list item");
+                return nullptr;
+            }
+            list->add_child(parse_expression());
+        } while (consume(TokenType::COMMA));
     }
 
-    consume(TokenType::RBRACKET);
+    if (!consume(TokenType::RBRACKET)) {
+        add_error("Expected ',' or ']' in list");
+        return nullptr;
+    }
     return list;
 }
 
@@ -576,6 +701,132 @@ GlyphCodeGenerator::GlyphCodeGenerator() {}
 
 GlyphCodeGenerator::~GlyphCodeGenerator() {}
 
+namespace {
+
+// The BLOCK child that holds a declaration's body, or nullptr when it was declared without one.
+const ASTNode* body_of(const ASTNode& declaration) {
+    for (const auto& child : declaration.children) {
+        if (child->type == ASTNodeType::BLOCK) {
+            return child.get();
+        }
+    }
+    return nullptr;
+}
+
+// The named "render", "ai" or "namespace" block inside a body, or nullptr.
+const ASTNode* section_of(const ASTNode* body, const std::string& name) {
+    if (!body) {
+        return nullptr;
+    }
+    for (const auto& child : body->children) {
+        if (child->type == ASTNodeType::BLOCK && child->get_attribute("section") == name) {
+            return child.get();
+        }
+    }
+    return nullptr;
+}
+
+// The property with the given name directly inside a block, or nullptr.
+const PropertyNode* property_of(const ASTNode* block, const std::string& name) {
+    if (!block) {
+        return nullptr;
+    }
+    for (const auto& child : block->children) {
+        if (child->type == ASTNodeType::PROPERTY) {
+            const PropertyNode* prop = static_cast<const PropertyNode*>(child.get());
+            if (prop->name == name) {
+                return prop;
+            }
+        }
+    }
+    return nullptr;
+}
+
+// The items of a list property; a scalar property counts as a list of one.
+std::vector<std::string> items_of(const PropertyNode& prop) {
+    std::vector<std::string> items;
+    for (const auto& child : prop.children) {
+        if (child->type == ASTNodeType::LIST) {
+            for (const auto& item : child->children) {
+                items.push_back(item->get_attribute("value"));
+            }
+            return items;
+        }
+    }
+    items.push_back(prop.value);
+    return items;
+}
+
+// The first glyph or workbench declaration; a workbench is preferred when asked for.
+const GlyphDeclNode* find_glyph(const ASTNode& ast, bool prefer_workbench) {
+    const GlyphDeclNode* first = nullptr;
+    for (const auto& child : ast.children) {
+        if (child->type != ASTNodeType::GLYPH_DECL) {
+            continue;
+        }
+        const GlyphDeclNode* glyph = static_cast<const GlyphDeclNode*>(child.get());
+        if (prefer_workbench && glyph->get_attribute("type") == "workbench") {
+            return glyph;
+        }
+        if (!first) {
+            first = glyph;
+        }
+    }
+    return first;
+}
+
+}  // namespace
+
+bool GlyphCodeGenerator::read_int(const PropertyNode& prop, int32_t& out) {
+    try {
+        size_t used = 0;
+        int value = std::stoi(prop.value, &used);
+        if (used == prop.value.size()) {
+            out = value;
+            return true;
+        }
+    } catch (const std::exception&) {
+        // Reported below.
+    }
+    add_error("Property '" + prop.name + "' needs a whole number, got '" + prop.value + "'");
+    return false;
+}
+
+void GlyphCodeGenerator::apply_render_properties(const ASTNode* block, VMGlyph& glyph) {
+    if (!block) {
+        return;
+    }
+    for (const auto& child : block->children) {
+        if (child->type != ASTNodeType::PROPERTY) {
+            continue;
+        }
+        const PropertyNode& prop = static_cast<const PropertyNode&>(*child);
+
+        if (prop.name == "width") {
+            read_int(prop, glyph.render.width);
+        } else if (prop.name == "height") {
+            read_int(prop, glyph.render.height);
+        } else if (prop.name == "interactive") {
+            glyph.render.interactive = (prop.value == "true");
+        } else if (prop.name == "ai_enabled") {
+            glyph.render.ai_enabled = (prop.value == "true");
+        } else if (prop.name == "font") {
+            glyph.render.font_family = prop.value;
+        } else if (prop.name == "background") {
+            // "#rrggbb"
+            const std::string hex = prop.value.empty() ? "" : prop.value.substr(1);
+            const bool well_formed =
+                prop.value.size() == 7 && prop.value[0] == '#' &&
+                std::all_of(hex.begin(), hex.end(), [](unsigned char c) { return std::isxdigit(c); });
+            if (well_formed) {
+                glyph.render.background_color = static_cast<uint32_t>(std::stoul(hex, nullptr, 16));
+            } else {
+                add_error("Property 'background' needs a colour like \"#1e1e1e\", got '" + prop.value + "'");
+            }
+        }
+    }
+}
+
 VMGlyph GlyphCodeGenerator::generate_vm_glyph(const ASTNode& ast) {
     errors_.clear();
     VMGlyph glyph;
@@ -589,30 +840,47 @@ VMGlyph GlyphCodeGenerator::generate_vm_glyph(const ASTNode& ast) {
     glyph.render.interactive = true;
     glyph.render.ai_enabled = false;
 
-    // Process AST nodes
+    const GlyphDeclNode* glyph_decl = find_glyph(ast, false);
+
+    // The VM the glyph runs on: the one it names, or the last one declared when there is no glyph.
+    const VMDeclNode* vm_decl = nullptr;
     for (const auto& child : ast.children) {
         if (child->type == ASTNodeType::VM_DECL) {
-            const VMDeclNode* vm_decl = static_cast<const VMDeclNode*>(child.get());
-            glyph.vm_type = vm_decl->vm_type;
-        } else if (child->type == ASTNodeType::GLYPH_DECL) {
-            // Process glyph properties
-            for (const auto& grandchild : child->children) {
-                if (grandchild->type == ASTNodeType::BLOCK) {
-                    for (const auto& prop_child : grandchild->children) {
-                        if (prop_child->type == ASTNodeType::PROPERTY) {
-                            const PropertyNode* prop = static_cast<const PropertyNode*>(prop_child.get());
+            const VMDeclNode* candidate = static_cast<const VMDeclNode*>(child.get());
+            if (!glyph_decl || candidate->vm_id == glyph_decl->base_vm) {
+                vm_decl = candidate;
+            }
+        }
+    }
+    if (glyph_decl && !vm_decl) {
+        add_error("'" + glyph_decl->glyph_id + "' runs on '" + glyph_decl->base_vm + "', which is not declared");
+    }
 
-                            if (prop->name == "width") {
-                                glyph.render.width = std::stoi(prop->value);
-                            } else if (prop->name == "height") {
-                                glyph.render.height = std::stoi(prop->value);
-                            } else if (prop->name == "architecture") {
-                                glyph.architecture = prop->value;
-                            } else if (prop->name == "interactive") {
-                                glyph.render.interactive = (prop->value == "true");
-                            }
-                        }
-                    }
+    if (vm_decl) {
+        glyph.vm_type = vm_decl->vm_type;
+        const ASTNode* vm_body = body_of(*vm_decl);
+        if (const PropertyNode* architecture = property_of(vm_body, "architecture")) {
+            glyph.architecture = architecture->value;
+        }
+        if (const PropertyNode* capabilities = property_of(vm_body, "capabilities")) {
+            glyph.capabilities = items_of(*capabilities);
+        }
+    }
+
+    if (glyph_decl) {
+        const ASTNode* body = body_of(*glyph_decl);
+        if (const PropertyNode* architecture = property_of(body, "architecture")) {
+            glyph.architecture = architecture->value;
+        }
+
+        // Rendering properties may sit directly in the body or in its render block; the block wins.
+        apply_render_properties(body, glyph);
+        apply_render_properties(section_of(body, "render"), glyph);
+
+        if (const ASTNode* mounts = section_of(body, "namespace")) {
+            for (const auto& mount : mounts->children) {
+                if (mount->type == ASTNodeType::CALL) {
+                    glyph.namespace_mounts[mount->get_attribute("source")] = mount->get_attribute("target");
                 }
             }
         }
@@ -632,6 +900,21 @@ AIWorkbenchGlyph GlyphCodeGenerator::generate_ai_workbench(const ASTNode& ast) {
     // Generate host VM
     workbench.host_vm = generate_vm_glyph(ast);
     workbench.host_vm.render.ai_enabled = true;
+
+    if (const GlyphDeclNode* decl = find_glyph(ast, true)) {
+        workbench.workbench_id = decl->glyph_id;
+
+        const ASTNode* body = body_of(*decl);
+        // "model" in the body names the workbench's model; the one in the ai block is the fallback.
+        if (const PropertyNode* model = property_of(body, "model")) {
+            workbench.ai_model = model->value;
+        } else if (const PropertyNode* ai_model = property_of(section_of(body, "ai"), "model")) {
+            workbench.ai_model = ai_model->value;
+        }
+        if (const PropertyNode* tools = property_of(body, "tools")) {
+            workbench.tools = items_of(*tools);
+        }
+    }
 
     return workbench;
 }
@@ -826,7 +1109,12 @@ Keywords:
 Basic Structure:
   vm <name> : <type> { properties... }
   glyph <name> on <vm> { properties... }
-  workbench <name> on <vm> { properties... render { ... } ai { ... } }
+  workbench <name> on <vm> { properties... render { ... } ai { ... } namespace { ... } }
+
+Blocks inside a glyph or workbench:
+  render { properties... }
+  ai { properties... }
+  namespace { mount "<path>" as "<target>"; ... }
 
 Properties:
   width = <number>;
@@ -847,6 +1135,7 @@ Example:
   workbench my_workbench on my_vm {
     render { width = 1200; height = 800; }
     ai { model = "ggml-rwkv"; }
+    namespace { mount "/ai/models" as "/srv/models"; }
   }
 )";
 }

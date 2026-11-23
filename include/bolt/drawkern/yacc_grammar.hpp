@@ -1,4 +1,5 @@
 #pragma once
+#include <cstdint>
 #include <functional>
 #include <map>
 #include <memory>
@@ -196,7 +197,14 @@ class GlyphParser {
     std::unique_ptr<VMDeclNode> parse_vm_declaration();
     std::unique_ptr<GlyphDeclNode> parse_glyph_declaration();
     std::unique_ptr<PropertyNode> parse_property();
-    std::unique_ptr<ASTNode> parse_block();
+    std::unique_ptr<ASTNode> parse_block(bool allow_sections);
+    std::unique_ptr<ASTNode> parse_section();
+    std::unique_ptr<ASTNode> parse_mount();
+    void recover_in_block(size_t item_start);
+
+    // An identifier or a keyword; keywords double as property names and bare values.
+    static bool is_word(TokenType type);
+    static bool is_value_start(TokenType type);
     std::unique_ptr<ASTNode> parse_expression();
     std::unique_ptr<ASTNode> parse_list();
 
@@ -230,6 +238,8 @@ class GlyphCodeGenerator {
     void process_vm_declaration(const VMDeclNode& node);
     void process_glyph_declaration(const GlyphDeclNode& node);
     void process_properties(const ASTNode& node, std::map<std::string, std::string>& props);
+    void apply_render_properties(const ASTNode* block, VMGlyph& glyph);
+    bool read_int(const PropertyNode& prop, int32_t& out);
 };
 
 // Grammar specification (BNF-like notation in comments)
@@ -238,30 +248,29 @@ Grammar for VM Glyph Description Language:
 
 program      ::= declaration*
 
-declaration  ::= vm_decl | glyph_decl
+declaration  ::= vm_decl | glyph_decl | workbench
 
 vm_decl      ::= 'vm' IDENTIFIER ':' vm_type '{' property* '}'
 vm_type      ::= 'dis' | 'native' | 'wasm'
 
-glyph_decl   ::= 'glyph' IDENTIFIER 'on' IDENTIFIER '{' glyph_body '}'
-glyph_body   ::= property* render_spec? ai_spec?
+glyph_decl   ::= 'glyph' IDENTIFIER 'on' IDENTIFIER '{' body '}'
+workbench    ::= 'workbench' IDENTIFIER 'on' IDENTIFIER '{' body '}'
+body         ::= (property | render_spec | ai_spec | namespace_spec)*
 
-property     ::= IDENTIFIER '=' value ';'
-value        ::= STRING | NUMBER | IDENTIFIER | list
+property     ::= name '=' value ';'?
+name         ::= IDENTIFIER | keyword
+value        ::= STRING | NUMBER | name | list
 
 list         ::= '[' (value (',' value)*)? ']'
 
-render_spec  ::= 'render' '{' render_prop* '}'
-render_prop  ::= ('width' | 'height' | 'background' | 'font' | 'interactive') '=' value ';'
-
-ai_spec      ::= 'ai' '{' ai_prop* '}'
-ai_prop      ::= ('model' | 'tools' | 'context') '=' value ';'
-
-workbench    ::= 'workbench' IDENTIFIER 'on' IDENTIFIER '{' workbench_body '}'
-workbench_body ::= property* render_spec? ai_spec? namespace_spec?
+render_spec  ::= 'render' '{' property* '}'
+ai_spec      ::= 'ai' '{' property* '}'
 
 namespace_spec ::= 'namespace' '{' mount* '}'
-mount        ::= 'mount' STRING 'as' STRING ';'
+mount        ::= 'mount' STRING 'as' STRING ';'?
+
+A keyword (vm, glyph, model, tools, ...) is an ordinary name when it is followed by '=' or used as
+a value, so "model = ..." and "tools = [...]" are properties. Lists do not nest.
 */
 
 // High-level interface for the grammar system
