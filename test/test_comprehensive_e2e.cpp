@@ -2314,15 +2314,115 @@ BOLT_TEST(E2E_YaccGrammar, GrammarSystem_RejectsInvalidVmDeclarations) {
     BOLT_ASSERT_FALSE(system.validate_description("glyph view : test { }"));
 }
 
-BOLT_TEST(E2E_YaccGrammar, GrammarSystem_TemplateVmDeclarationIsParsed) {
-    // The templates as a whole do not validate yet (their render blocks are not parsed), but the
-    // "vm <name> : <type>" line they open with is now read, so the declared type is picked up.
+BOLT_TEST(E2E_YaccGrammar, GrammarSystem_BuiltInTemplatesValidate) {
     bolt::drawkern::YaccGrammarSystem system;
-    BOLT_ASSERT_EQ(std::string("native"), system.parse_vm_glyph(bolt::drawkern::GlyphTemplates::ECHO_SERVER).vm_type);
-    for (const auto& error : system.get_validation_errors()) {
-        BOLT_ASSERT_TRUE(error.find("after VM name") == std::string::npos);
-        BOLT_ASSERT_TRUE(error.find("Unexpected character") == std::string::npos);
+    for (const std::string& description :
+         {system.get_ai_workbench_template(), system.get_file_server_template(), system.get_echo_server_template()}) {
+        BOLT_ASSERT_TRUE(system.validate_description(description));
+        BOLT_ASSERT_TRUE(system.get_validation_errors().empty());
     }
+}
+
+BOLT_TEST(E2E_YaccGrammar, GrammarSystem_EchoServerTemplateIsRead) {
+    bolt::drawkern::YaccGrammarSystem system;
+    auto glyph = system.parse_vm_glyph(bolt::drawkern::GlyphTemplates::ECHO_SERVER);
+    BOLT_ASSERT_TRUE(system.get_validation_errors().empty());
+    BOLT_ASSERT_EQ(std::string("native"), glyph.vm_type);
+    BOLT_ASSERT_EQ(std::string("x86_64"), glyph.architecture);
+    BOLT_ASSERT_EQ(static_cast<size_t>(1), glyph.capabilities.size());
+    BOLT_ASSERT_EQ(std::string("network"), glyph.capabilities[0]);
+    BOLT_ASSERT_EQ(400, glyph.render.width);
+    BOLT_ASSERT_EQ(300, glyph.render.height);
+}
+
+BOLT_TEST(E2E_YaccGrammar, GrammarSystem_AiWorkbenchTemplateIsRead) {
+    bolt::drawkern::YaccGrammarSystem system;
+    auto workbench = system.parse_ai_workbench(bolt::drawkern::GlyphTemplates::AI_WORKBENCH);
+    BOLT_ASSERT_TRUE(system.get_validation_errors().empty());
+
+    BOLT_ASSERT_EQ(std::string("bolt_ai"), workbench.workbench_id);
+    BOLT_ASSERT_EQ(std::string("ggml-rwkv"), workbench.ai_model);
+    BOLT_ASSERT_EQ(static_cast<size_t>(4), workbench.tools.size());
+    BOLT_ASSERT_EQ(std::string("completion"), workbench.tools[0]);
+    BOLT_ASSERT_EQ(std::string("refactoring"), workbench.tools[3]);
+
+    const auto& vm = workbench.host_vm;
+    BOLT_ASSERT_EQ(std::string("dis"), vm.vm_type);
+    BOLT_ASSERT_EQ(std::string("portable"), vm.architecture);
+    BOLT_ASSERT_EQ(static_cast<size_t>(3), vm.capabilities.size());
+    BOLT_ASSERT_EQ(1200, vm.render.width);
+    BOLT_ASSERT_EQ(800, vm.render.height);
+    BOLT_ASSERT_TRUE(vm.render.background_color == 0x1e1e1e);
+    BOLT_ASSERT_EQ(std::string("Fira Code"), vm.render.font_family);
+    BOLT_ASSERT_TRUE(vm.render.interactive);
+    BOLT_ASSERT_TRUE(vm.render.ai_enabled);
+    BOLT_ASSERT_EQ(static_cast<size_t>(2), vm.namespace_mounts.size());
+    BOLT_ASSERT_EQ(std::string("/srv/models"), vm.namespace_mounts.at("/ai/models"));
+    BOLT_ASSERT_EQ(std::string("/tmp/ai_cache"), vm.namespace_mounts.at("/ai/cache"));
+}
+
+BOLT_TEST(E2E_YaccGrammar, GrammarSystem_KeywordsAsNamesAndValues) {
+    bolt::drawkern::YaccGrammarSystem system;
+    BOLT_ASSERT_TRUE(system.validate_description("vm v : dis { model = \"m\"; tools = [a, b]; kind = native; }"));
+    BOLT_ASSERT_TRUE(system.validate_description("vm v : dis { }\nglyph g on v { ai { model = \"m\"; } }"));
+
+    // Without an outer model, the one in the ai block names the workbench's model.
+    auto workbench = system.parse_ai_workbench("vm v : dis { }\nworkbench w on v { ai { model = \"inner\"; } }");
+    BOLT_ASSERT_EQ(std::string("inner"), workbench.ai_model);
+    // A list item containing a comma stays one item.
+    workbench = system.parse_ai_workbench("vm v : dis { }\nworkbench w on v { tools = [\"a,b\", \"c\"]; }");
+    BOLT_ASSERT_EQ(static_cast<size_t>(2), workbench.tools.size());
+    BOLT_ASSERT_EQ(std::string("a,b"), workbench.tools[0]);
+}
+
+BOLT_TEST(E2E_YaccGrammar, GrammarSystem_GlyphUsesTheVmItNames) {
+    bolt::drawkern::YaccGrammarSystem system;
+    auto glyph = system.parse_vm_glyph("vm a : wasm { }\nvm b : native { }\nglyph g on a { render { width = 10; } }");
+    BOLT_ASSERT_TRUE(system.get_validation_errors().empty());
+    BOLT_ASSERT_EQ(std::string("wasm"), glyph.vm_type);
+    BOLT_ASSERT_EQ(10, glyph.render.width);
+
+    system.parse_vm_glyph("vm a : wasm { }\nglyph g on missing { }");
+    BOLT_ASSERT_FALSE(system.get_validation_errors().empty());
+}
+
+BOLT_TEST(E2E_YaccGrammar, GrammarSystem_RejectsMalformedBlocks) {
+    bolt::drawkern::YaccGrammarSystem system;
+    const std::string vm = "vm v : dis { }\n";
+    // Blocks belong to glyphs and workbenches, not to VMs.
+    BOLT_ASSERT_FALSE(system.validate_description("vm v : dis { render { width = 1; } }"));
+    // A namespace block holds mounts only, and mounts live nowhere else.
+    BOLT_ASSERT_FALSE(system.validate_description(vm + "glyph g on v { namespace { width = 1; } }"));
+    BOLT_ASSERT_FALSE(system.validate_description(vm + "glyph g on v { mount \"/a\" as \"/b\"; }"));
+    BOLT_ASSERT_FALSE(system.validate_description(vm + "glyph g on v { namespace { mount \"/a\" \"/b\"; } }"));
+    BOLT_ASSERT_FALSE(system.validate_description(vm + "glyph g on v { namespace { mount a as b; } }"));
+    // Blocks do not nest, and every block must be closed.
+    BOLT_ASSERT_FALSE(system.validate_description(vm + "glyph g on v { render { ai { model = 1; } } }"));
+    BOLT_ASSERT_FALSE(system.validate_description(vm + "glyph g on v { render { width = 1; }"));
+    BOLT_ASSERT_FALSE(system.validate_description(vm + "glyph g on v { width = 1;"));
+    // Lists need commas between items and a closing bracket.
+    BOLT_ASSERT_FALSE(system.validate_description("vm v : dis { caps = [a b]; }"));
+    BOLT_ASSERT_FALSE(system.validate_description("vm v : dis { caps = [a, ]; }"));
+    BOLT_ASSERT_FALSE(system.validate_description("vm v : dis { caps = [a, b; }"));
+    BOLT_ASSERT_FALSE(system.validate_description("vm v : dis { width = ; }"));
+
+    // One bad entry does not hide the rest of the description from the parser.
+    BOLT_ASSERT_TRUE(system.validate_description(vm + "glyph g on v { render { } ai { } namespace { } }"));
+}
+
+BOLT_TEST(E2E_YaccGrammar, GrammarSystem_BadPropertyValuesAreReportedNotThrown) {
+    bolt::drawkern::YaccGrammarSystem system;
+    const std::string vm = "vm v : dis { }\n";
+
+    auto glyph = system.parse_vm_glyph(vm + "glyph g on v { width = wide; height = 12.5; }");
+    BOLT_ASSERT_EQ(static_cast<size_t>(2), system.get_validation_errors().size());
+    BOLT_ASSERT_EQ(800, glyph.render.width);
+    BOLT_ASSERT_EQ(600, glyph.render.height);
+
+    system.parse_vm_glyph(vm + "glyph g on v { render { background = \"blue\"; } }");
+    BOLT_ASSERT_EQ(static_cast<size_t>(1), system.get_validation_errors().size());
+    system.parse_vm_glyph(vm + "glyph g on v { render { width = 99999999999999999999; } }");
+    BOLT_ASSERT_EQ(static_cast<size_t>(1), system.get_validation_errors().size());
 }
 
 BOLT_TEST(E2E_YaccGrammar, GrammarSystem_GetSupportedProperties) {
