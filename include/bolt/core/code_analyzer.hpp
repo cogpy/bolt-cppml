@@ -1,41 +1,37 @@
-#ifndef BOLT_CODE_ANALYZER_HPP
-#define BOLT_CODE_ANALYZER_HPP
+#ifndef BOLT_CORE_CODE_ANALYZER_HPP_
+#define BOLT_CORE_CODE_ANALYZER_HPP_
 
-#include <string>
-#include <vector>
-#include <memory>
-#include <unordered_map>
 #include <chrono>
 #include <functional>
+#include <memory>
 #include <optional>
-#include "logging.hpp"
-#include "performance_profiler.hpp"
+#include <string>
+#include <unordered_map>
+#include <vector>
+
+#include "bolt/core/logging.hpp"
+#include "bolt/core/performance_profiler.hpp"
 
 namespace bolt {
 
 /**
  * Analysis severity levels
  */
-enum class AnalysisSeverity {
-    INFO,
-    WARNING,
-    ERROR,
-    CRITICAL
-};
+enum class AnalysisSeverity { INFO, WARNING, ERROR, CRITICAL };
 
 /**
  * Analysis category types
  */
 enum class AnalysisCategory {
-    COMPLEXITY,         // Cyclomatic complexity, nesting depth, etc.
-    MAINTAINABILITY,    // Code smells, duplication, etc.
-    PERFORMANCE,        // Performance bottlenecks, inefficient patterns
-    SECURITY,          // Security vulnerabilities, unsafe patterns
-    STYLE,             // Coding standards, formatting
-    DEPENDENCIES,      // Dependency analysis, coupling metrics
-    MEMORY,            // Memory leaks, resource management
-    TESTING,           // Test coverage, testability metrics
-    ARCHITECTURE       // Design patterns, architectural violations
+    COMPLEXITY,       // Cyclomatic complexity, nesting depth, etc.
+    MAINTAINABILITY,  // Code smells, duplication, etc.
+    PERFORMANCE,      // Performance bottlenecks, inefficient patterns
+    SECURITY,         // Security vulnerabilities, unsafe patterns
+    STYLE,            // Coding standards, formatting
+    DEPENDENCIES,     // Dependency analysis, coupling metrics
+    MEMORY,           // Memory leaks, resource management
+    TESTING,          // Test coverage, testability metrics
+    ARCHITECTURE      // Design patterns, architectural violations
 };
 
 /**
@@ -54,11 +50,16 @@ struct AnalysisIssue {
     size_t endColumnNumber;
     std::vector<std::string> suggestions;
     std::unordered_map<std::string, std::string> metadata;
-    
-    AnalysisIssue(const std::string& issueId, const std::string& msg, 
-                  AnalysisSeverity sev, AnalysisCategory cat)
-        : id(issueId), message(msg), severity(sev), category(cat)
-        , lineNumber(0), columnNumber(0), endLineNumber(0), endColumnNumber(0) {}
+
+    AnalysisIssue(const std::string& issueId, const std::string& msg, AnalysisSeverity sev, AnalysisCategory cat)
+        : id(issueId),
+          message(msg),
+          severity(sev),
+          category(cat),
+          lineNumber(0),
+          columnNumber(0),
+          endLineNumber(0),
+          endColumnNumber(0) {}
 };
 
 /**
@@ -85,7 +86,7 @@ struct CodeMetrics {
 struct DependencyInfo {
     std::string fromFile;
     std::string toFile;
-    std::string dependencyType; // "include", "import", "uses", etc.
+    std::string dependencyType;  // "include", "import", "uses", etc.
     size_t lineNumber;
     bool isCircular = false;
 };
@@ -94,41 +95,63 @@ struct DependencyInfo {
  * Abstract base class for code analyzers
  */
 class ICodeAnalyzer {
-public:
+ public:
     virtual ~ICodeAnalyzer() = default;
-    
+
     virtual std::string getName() const = 0;
     virtual std::string getVersion() const = 0;
     virtual std::vector<std::string> getSupportedExtensions() const = 0;
     virtual AnalysisCategory getCategory() const = 0;
-    
-    virtual std::vector<AnalysisIssue> analyzeFile(const std::string& filePath, 
-                                                   const std::string& content) = 0;
+
+    virtual std::vector<AnalysisIssue> analyzeFile(const std::string& filePath, const std::string& content) = 0;
     virtual std::vector<AnalysisIssue> analyzeProject(const std::string& projectPath) = 0;
-    virtual CodeMetrics getMetrics(const std::string& filePath, 
-                                   const std::string& content) = 0;
-    
+    virtual CodeMetrics getMetrics(const std::string& filePath, const std::string& content) = 0;
+
     virtual void configure(const std::unordered_map<std::string, std::string>& config) {}
     virtual bool isEnabled() const { return true; }
 };
 
 /**
+ * Shared part of the built-in analyzers: the identity an analyzer reports (name, version, category and
+ * supported extensions) and the walk over a project directory that hands every supported file to
+ * analyzeFile(). A concrete analyzer passes its identity to the constructor and implements analyzeFile()
+ * and getMetrics().
+ */
+class CodeAnalyzerBase : public ICodeAnalyzer {
+ public:
+    std::string getName() const override { return name_; }
+    std::string getVersion() const override { return "1.0.0"; }
+    std::vector<std::string> getSupportedExtensions() const override { return extensions_; }
+    AnalysisCategory getCategory() const override { return category_; }
+
+    // The issues analyzeFile() reports for each supported file below projectPath, in visiting order.
+    std::vector<AnalysisIssue> analyzeProject(const std::string& projectPath) override;
+
+ protected:
+    CodeAnalyzerBase(const std::string& name, AnalysisCategory category, const std::vector<std::string>& extensions);
+
+    // Calls visit(path, content) for every regular file below projectPath with a supported extension:
+    // one pass over the directory tree per extension, in getSupportedExtensions() order.
+    void forEachSupportedFile(const std::string& projectPath,
+                              const std::function<void(const std::string&, const std::string&)>& visit) const;
+
+ private:
+    std::string name_;
+    AnalysisCategory category_;
+    std::vector<std::string> extensions_;
+};
+
+/**
  * Static code analyzer for complexity metrics
  */
-class ComplexityAnalyzer : public ICodeAnalyzer {
-public:
-    std::string getName() const override { return "ComplexityAnalyzer"; }
-    std::string getVersion() const override { return "1.0.0"; }
-    std::vector<std::string> getSupportedExtensions() const override;
-    AnalysisCategory getCategory() const override { return AnalysisCategory::COMPLEXITY; }
-    
-    std::vector<AnalysisIssue> analyzeFile(const std::string& filePath, 
-                                           const std::string& content) override;
-    std::vector<AnalysisIssue> analyzeProject(const std::string& projectPath) override;
-    CodeMetrics getMetrics(const std::string& filePath, 
-                           const std::string& content) override;
+class ComplexityAnalyzer : public CodeAnalyzerBase {
+ public:
+    ComplexityAnalyzer();
 
-private:
+    std::vector<AnalysisIssue> analyzeFile(const std::string& filePath, const std::string& content) override;
+    CodeMetrics getMetrics(const std::string& filePath, const std::string& content) override;
+
+ private:
     size_t calculateCyclomaticComplexity(const std::string& content);
     size_t calculateNestingDepth(const std::string& content);
     size_t countFunctions(const std::string& content);
@@ -139,51 +162,32 @@ private:
 /**
  * Security vulnerability analyzer
  */
-class SecurityAnalyzer : public ICodeAnalyzer {
-public:
-    std::string getName() const override { return "SecurityAnalyzer"; }
-    std::string getVersion() const override { return "1.0.0"; }
-    std::vector<std::string> getSupportedExtensions() const override;
-    AnalysisCategory getCategory() const override { return AnalysisCategory::SECURITY; }
-    
-    std::vector<AnalysisIssue> analyzeFile(const std::string& filePath, 
-                                           const std::string& content) override;
-    std::vector<AnalysisIssue> analyzeProject(const std::string& projectPath) override;
-    CodeMetrics getMetrics(const std::string& filePath, 
-                           const std::string& content) override;
+class SecurityAnalyzer : public CodeAnalyzerBase {
+ public:
+    SecurityAnalyzer();
 
-private:
-    std::vector<AnalysisIssue> checkBufferOverflows(const std::string& content, 
-                                                     const std::string& filePath);
-    std::vector<AnalysisIssue> checkMemoryLeaks(const std::string& content, 
-                                                 const std::string& filePath);
-    std::vector<AnalysisIssue> checkUnsafeFunctions(const std::string& content, 
-                                                     const std::string& filePath);
+    std::vector<AnalysisIssue> analyzeFile(const std::string& filePath, const std::string& content) override;
+    CodeMetrics getMetrics(const std::string& filePath, const std::string& content) override;
 };
 
 /**
  * Dependency analyzer for architecture assessment
  */
-class DependencyAnalyzer : public ICodeAnalyzer {
-public:
-    std::string getName() const override { return "DependencyAnalyzer"; }
-    std::string getVersion() const override { return "1.0.0"; }
-    std::vector<std::string> getSupportedExtensions() const override;
-    AnalysisCategory getCategory() const override { return AnalysisCategory::DEPENDENCIES; }
-    
-    std::vector<AnalysisIssue> analyzeFile(const std::string& filePath, 
-                                           const std::string& content) override;
+class DependencyAnalyzer : public CodeAnalyzerBase {
+ public:
+    DependencyAnalyzer();
+
+    std::vector<AnalysisIssue> analyzeFile(const std::string& filePath, const std::string& content) override;
+    // The per-file issues followed by one issue per circular dependency found in the project.
     std::vector<AnalysisIssue> analyzeProject(const std::string& projectPath) override;
-    CodeMetrics getMetrics(const std::string& filePath, 
-                           const std::string& content) override;
-    
+    CodeMetrics getMetrics(const std::string& filePath, const std::string& content) override;
+
     std::vector<DependencyInfo> getDependencies(const std::string& projectPath);
     std::vector<DependencyInfo> findCircularDependencies(const std::string& projectPath);
 
-private:
+ private:
     std::vector<std::string> extractIncludes(const std::string& content);
-    std::unordered_map<std::string, std::vector<std::string>> buildDependencyGraph(
-        const std::string& projectPath);
+    std::unordered_map<std::string, std::vector<std::string>> buildDependencyGraph(const std::string& projectPath);
     std::vector<std::vector<std::string>> findCycles(
         const std::unordered_map<std::string, std::vector<std::string>>& graph);
 };
@@ -191,26 +195,12 @@ private:
 /**
  * Performance analyzer for bottleneck detection
  */
-class PerformanceAnalyzer : public ICodeAnalyzer {
-public:
-    std::string getName() const override { return "PerformanceAnalyzer"; }
-    std::string getVersion() const override { return "1.0.0"; }
-    std::vector<std::string> getSupportedExtensions() const override;
-    AnalysisCategory getCategory() const override { return AnalysisCategory::PERFORMANCE; }
-    
-    std::vector<AnalysisIssue> analyzeFile(const std::string& filePath, 
-                                           const std::string& content) override;
-    std::vector<AnalysisIssue> analyzeProject(const std::string& projectPath) override;
-    CodeMetrics getMetrics(const std::string& filePath, 
-                           const std::string& content) override;
+class PerformanceAnalyzer : public CodeAnalyzerBase {
+ public:
+    PerformanceAnalyzer();
 
-private:
-    std::vector<AnalysisIssue> detectInefficiencies(const std::string& content, 
-                                                     const std::string& filePath);
-    std::vector<AnalysisIssue> detectMemoryIssues(const std::string& content, 
-                                                   const std::string& filePath);
-    std::vector<AnalysisIssue> detectAlgorithmicIssues(const std::string& content, 
-                                                        const std::string& filePath);
+    std::vector<AnalysisIssue> analyzeFile(const std::string& filePath, const std::string& content) override;
+    CodeMetrics getMetrics(const std::string& filePath, const std::string& content) override;
 };
 
 /**
@@ -224,7 +214,7 @@ struct AnalysisResult {
     CodeMetrics overallMetrics;
     std::vector<DependencyInfo> dependencies;
     double analysisTimeMs = 0.0;
-    
+
     size_t getIssueCount(AnalysisSeverity severity) const;
     size_t getIssueCount(AnalysisCategory category) const;
     std::vector<AnalysisIssue> getIssuesForFile(const std::string& filePath) const;
@@ -234,47 +224,44 @@ struct AnalysisResult {
  * Main code analyzer orchestrator
  */
 class CodeAnalyzer {
-public:
+ public:
     CodeAnalyzer();
     ~CodeAnalyzer();
-    
+
     // Analyzer management
     void registerAnalyzer(std::unique_ptr<ICodeAnalyzer> analyzer);
     void unregisterAnalyzer(const std::string& analyzerName);
     std::vector<std::string> getRegisteredAnalyzers() const;
-    
+
     // Analysis execution
     AnalysisResult analyzeFile(const std::string& filePath);
     AnalysisResult analyzeProject(const std::string& projectPath);
-    AnalysisResult analyzeProject(const std::string& projectPath, 
-                                  const std::vector<std::string>& enabledAnalyzers);
-    
+    AnalysisResult analyzeProject(const std::string& projectPath, const std::vector<std::string>& enabledAnalyzers);
+
     // Configuration
-    void configure(const std::string& analyzerName, 
-                   const std::unordered_map<std::string, std::string>& config);
+    void configure(const std::string& analyzerName, const std::unordered_map<std::string, std::string>& config);
     void enableAnalyzer(const std::string& analyzerName, bool enabled = true);
     bool isAnalyzerEnabled(const std::string& analyzerName) const;
-    
+
     // Reporting
-    void exportResults(const AnalysisResult& result, const std::string& format, 
-                       const std::string& outputPath);
+    void exportResults(const AnalysisResult& result, const std::string& format, const std::string& outputPath);
     std::string generateReport(const AnalysisResult& result, const std::string& format);
-    
+
     // Metrics
     void setMetricsCallback(std::function<void(const std::string&, double)> callback);
-    
+
     // Integration with performance profiler
     void enablePerformanceProfiling(bool enabled = true);
 
-private:
+ private:
     std::unordered_map<std::string, std::unique_ptr<ICodeAnalyzer>> analyzers_;
     std::unordered_map<std::string, bool> analyzerEnabled_;
     std::unordered_map<std::string, std::unordered_map<std::string, std::string>> analyzerConfigs_;
     std::function<void(const std::string&, double)> metricsCallback_;
     bool performanceProfilingEnabled_;
-    
-    std::vector<std::string> findFilesWithExtensions(const std::string& path, 
-                                                      const std::vector<std::string>& extensions);
+
+    std::vector<std::string> findFilesWithExtensions(const std::string& path,
+                                                     const std::vector<std::string>& extensions);
     void aggregateMetrics(const std::vector<CodeMetrics>& fileMetrics, CodeMetrics& overall);
     std::string formatSeverity(AnalysisSeverity severity) const;
     std::string formatCategory(AnalysisCategory category) const;
@@ -284,7 +271,7 @@ private:
  * Refactoring suggestion engine
  */
 class RefactoringSuggestionEngine {
-public:
+ public:
     struct RefactoringSuggestion {
         std::string id;
         std::string title;
@@ -297,20 +284,18 @@ public:
         std::vector<std::string> benefits;
         double confidenceScore;
     };
-    
+
     std::vector<RefactoringSuggestion> generateSuggestions(const AnalysisResult& result);
-    std::vector<RefactoringSuggestion> generateSuggestionsForFile(const std::string& filePath, 
-                                                                   const std::string& content);
-    
-private:
-    std::vector<RefactoringSuggestion> suggestExtractMethod(const std::string& content, 
-                                                            const std::string& filePath);
-    std::vector<RefactoringSuggestion> suggestReduceComplexity(const std::string& content, 
-                                                               const std::string& filePath);
-    std::vector<RefactoringSuggestion> suggestRemoveDuplication(const std::string& content, 
+    std::vector<RefactoringSuggestion> generateSuggestionsForFile(const std::string& filePath,
+                                                                  const std::string& content);
+
+ private:
+    std::vector<RefactoringSuggestion> suggestExtractMethod(const std::string& content, const std::string& filePath);
+    std::vector<RefactoringSuggestion> suggestReduceComplexity(const std::string& content, const std::string& filePath);
+    std::vector<RefactoringSuggestion> suggestRemoveDuplication(const std::string& content,
                                                                 const std::string& filePath);
 };
 
-} // namespace bolt
+}  // namespace bolt
 
-#endif // BOLT_CODE_ANALYZER_HPP
+#endif  // BOLT_CORE_CODE_ANALYZER_HPP_

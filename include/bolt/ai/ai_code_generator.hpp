@@ -8,117 +8,18 @@
 #include <vector>
 
 #include "bolt/ai/ai_completion_provider.hpp"
+#include "bolt/ai/code_generator_interface.hpp"
+#include "bolt/ai/template_code_generator.hpp"
 
 namespace bolt {
 
 /**
- * Code generation context for AI-powered code creation
- */
-struct CodeGenerationContext {
-    std::string language = "cpp";
-    std::string fileType;
-    std::string projectContext;
-    std::string existingCode;
-    std::vector<std::string> requirements;
-    std::vector<std::string> dependencies;
-    std::unordered_map<std::string, std::string> metadata;
-};
-
-/**
- * Generated code result with metadata
- */
-struct GeneratedCode {
-    std::string code;
-    std::string description;
-    std::vector<std::string> dependencies;
-    std::vector<std::string> suggestions;
-    double confidence = 0.0;
-    std::string generatorType;
-};
-
-/**
- * AI-powered code generator interface
- */
-class AICodeGenerator {
- public:
-    virtual ~AICodeGenerator() = default;
-
-    // Function generation
-    virtual GeneratedCode generateFunction(const std::string& description,
-                                           const CodeGenerationContext& context = {}) = 0;
-
-    // Class generation
-    virtual GeneratedCode generateClass(const std::string& className, const std::string& description,
-                                        const CodeGenerationContext& context = {}) = 0;
-
-    // Method generation
-    virtual GeneratedCode generateMethod(const std::string& methodName, const std::string& description,
-                                         const std::string& className, const CodeGenerationContext& context = {}) = 0;
-
-    // Template/boilerplate generation
-    virtual GeneratedCode generateTemplate(const std::string& templateType,
-                                           const CodeGenerationContext& context = {}) = 0;
-
-    // Documentation generation
-    virtual std::string generateDocumentation(const std::string& code, const CodeGenerationContext& context = {}) = 0;
-
-    // Code explanation
-    virtual std::string explainCode(const std::string& code, const CodeGenerationContext& context = {}) = 0;
-
-    // Utility methods
-    virtual bool isReady() const = 0;
-    virtual bool initialize() = 0;
-    virtual void shutdown() = 0;
-};
-
-/**
- * Template-based code generator for common patterns
- */
-class TemplateCodeGenerator : public AICodeGenerator {
- private:
-    struct CodeTemplate {
-        std::string name;
-        std::string pattern;
-        std::vector<std::string> placeholders;
-        std::string description;
-    };
-
-    std::unordered_map<std::string, CodeTemplate> templates_;
-    bool initialized_ = false;
-
-    void loadDefaultTemplates();
-    std::string processTemplate(const CodeTemplate& tmpl,
-                                const std::unordered_map<std::string, std::string>& values) const;
-
- public:
-    TemplateCodeGenerator();
-
-    // AICodeGenerator interface
-    GeneratedCode generateFunction(const std::string& description, const CodeGenerationContext& context = {}) override;
-
-    GeneratedCode generateClass(const std::string& className, const std::string& description,
-                                const CodeGenerationContext& context = {}) override;
-
-    GeneratedCode generateMethod(const std::string& methodName, const std::string& description,
-                                 const std::string& className, const CodeGenerationContext& context = {}) override;
-
-    GeneratedCode generateTemplate(const std::string& templateType, const CodeGenerationContext& context = {}) override;
-
-    std::string generateDocumentation(const std::string& code, const CodeGenerationContext& context = {}) override;
-
-    std::string explainCode(const std::string& code, const CodeGenerationContext& context = {}) override;
-
-    bool isReady() const override { return initialized_; }
-    bool initialize() override;
-    void shutdown() override { initialized_ = false; }
-
-    // Template management
-    void addTemplate(const std::string& name, const CodeTemplate& tmpl);
-    std::vector<std::string> getAvailableTemplates() const;
-};
-
-/**
- * AI-enhanced code generator that uses AI completion providers
+ * AI-enhanced code generator that uses AI completion providers.
+ *
+ * generateFunction, generateClass and generateMethod ask the AI provider first when it is ready; the template
+ * generator answers when the provider has nothing and fallback is enabled. generateTemplate never uses the
+ * provider: it is always produced by the template generator, whatever the fallback setting.
+ * generateDocumentation and explainCode return the provider's first completion.
  */
 class AIEnhancedCodeGenerator : public AICodeGenerator {
  private:
@@ -138,27 +39,18 @@ class AIEnhancedCodeGenerator : public AICodeGenerator {
 
     void setAIProvider(std::unique_ptr<AICompletionProvider> provider);
 
-    // AICodeGenerator interface. Unless noted, a call asks the AI provider first when it is ready, and the template
-    // generator answers when the provider has nothing and fallback is enabled.
-
-    // A function matching the description.
     GeneratedCode generateFunction(const std::string& description, const CodeGenerationContext& context = {}) override;
 
-    // A class called className.
     GeneratedCode generateClass(const std::string& className, const std::string& description,
                                 const CodeGenerationContext& context = {}) override;
 
-    // A method called methodName for the class className.
     GeneratedCode generateMethod(const std::string& methodName, const std::string& description,
                                  const std::string& className, const CodeGenerationContext& context = {}) override;
 
-    // Never uses the AI provider: always produced by the template generator, whatever the fallback setting.
     GeneratedCode generateTemplate(const std::string& templateType, const CodeGenerationContext& context = {}) override;
 
-    // Documentation text for the code: the provider's first completion.
     std::string generateDocumentation(const std::string& code, const CodeGenerationContext& context = {}) override;
 
-    // An explanation of the code: the provider's first completion.
     std::string explainCode(const std::string& code, const CodeGenerationContext& context = {}) override;
 
     bool isReady() const override;
