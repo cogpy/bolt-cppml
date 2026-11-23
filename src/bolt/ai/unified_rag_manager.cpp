@@ -9,20 +9,19 @@ namespace ai {
 
 namespace {
 
-// Narrative memory events for the query as results, stopping once top_k have been collected (always at least one
-// when there are events).
+// Narrative memory events for the query as results: at most top_k of them, so none when top_k is 0.
 std::vector<RAGResult> queryNarrativeBackend(NarrativeRAGManager& narrative_rag, const std::string& query, int top_k) {
     auto events = narrative_rag.queryNarrativeMemory(query);
     std::vector<RAGResult> results;
     for (const auto& event : events) {
+        if (results.size() >= static_cast<size_t>(top_k))
+            break;
         RAGResult result;
         result.id = event.id;
         result.content = event.description;
         result.score = static_cast<float>(event.importance) / 10.0f;
         result.source = "NarrativeRAG";
         results.push_back(result);
-        if (results.size() >= static_cast<size_t>(top_k))
-            break;
     }
     return results;
 }
@@ -240,14 +239,16 @@ std::vector<RAGResult> UnifiedRAGManager::queryWithType(const std::string& query
 std::vector<RAGResult> UnifiedRAGManager::processHybridQuery(const std::string& query, int top_k) {
     std::vector<RAGResult> all_results;
 
-    // Query both narrative and temporal backends
+    // Query both narrative and temporal backends. Each gets half of top_k, rounded up so that a top_k of 1 still
+    // asks for one result; the trim below keeps the total within top_k.
+    const int per_backend = top_k / 2 + top_k % 2;
     if (narrative_rag_->isInitialized()) {
-        auto narrative_results = queryWithType(query, RAGQueryType::NARRATIVE, top_k / 2);
+        auto narrative_results = queryWithType(query, RAGQueryType::NARRATIVE, per_backend);
         all_results.insert(all_results.end(), narrative_results.begin(), narrative_results.end());
     }
 
     if (temporal_rag_->isInitialized()) {
-        auto temporal_results = queryWithType(query, RAGQueryType::TEMPORAL, top_k / 2);
+        auto temporal_results = queryWithType(query, RAGQueryType::TEMPORAL, per_backend);
         all_results.insert(all_results.end(), temporal_results.begin(), temporal_results.end());
     }
 

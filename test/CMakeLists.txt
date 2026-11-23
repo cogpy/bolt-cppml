@@ -327,6 +327,7 @@ if(BOLT_ENABLE_UNIT_TESTS)
     add_test(NAME unit_string_tests COMMAND bolt_unit_tests StringUtils)
     add_test(NAME unit_file_tree_tests COMMAND bolt_unit_tests FileTree)
     add_test(NAME unit_minimap_tests COMMAND bolt_unit_tests Minimap)
+    add_test(NAME unit_test_framework_tests COMMAND bolt_unit_tests TestFramework)
 
     # Editor component tests
     add_test(NAME unit_split_view_tests COMMAND bolt_split_view_tests)
@@ -433,6 +434,7 @@ if(BOLT_ENABLE_UNIT_TESTS)
     set_tests_properties(
         unit_all_tests unit_chat_tests unit_memory_tests unit_store_tests
         unit_string_tests unit_file_tree_tests unit_minimap_tests
+        unit_test_framework_tests
         unit_split_view_tests unit_multi_cursor_tests unit_keyboard_shortcuts_tests
         unit_theme_system_tests unit_plugin_system_tests unit_code_folding_tests
         unit_error_handling_tests unit_memory_error_tests unit_message_error_tests
@@ -466,6 +468,7 @@ if(BOLT_ENABLE_UNIT_TESTS)
     set_tests_properties(
         unit_all_tests unit_chat_tests unit_memory_tests unit_store_tests
         unit_string_tests unit_file_tree_tests unit_minimap_tests
+        unit_test_framework_tests
         PROPERTIES LABELS "Unit;Core"
     )
 

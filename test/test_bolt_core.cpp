@@ -1,3 +1,11 @@
+#include <chrono>
+#include <filesystem>
+#include <future>
+#include <memory>
+#include <mutex>
+#include <string>
+#include <thread>
+
 #include "bolt/bolt.hpp"
 #include "bolt/core/chat_store.hpp"
 #include "bolt/core/editor_store.hpp"
@@ -216,6 +224,54 @@ BOLT_TEST(EditorStore, UpdateScrollPosition) {
 
     // The method exists and should execute without throwing
     BOLT_ASSERT_TRUE(true);
+}
+
+BOLT_TEST(EditorStore, ListenerMayCallBackIntoStore) {
+    auto& store = bolt::EditorStore::getInstance();
+    const std::string previousSelection = store.getSelectedFile();
+    const std::string selection = "/reentrant/listener.cpp";
+
+    // The store has no way to remove a listener, so this one stays registered
+    // for the rest of the process and must own everything it touches.
+    struct Seen {
+        std::mutex mutex;
+        std::string selectedFile;
+        int calls = 0;
+    };
+    auto seen = std::make_shared<Seen>();
+    store.addListener([seen] {
+        auto& editorStore = bolt::EditorStore::getInstance();
+        std::string selected = editorStore.getSelectedFile();
+        editorStore.getDocumentCount();
+        std::lock_guard<std::mutex> lock(seen->mutex);
+        seen->selectedFile = selected;
+        seen->calls++;
+    });
+
+    // Run the notifying call on its own thread: if listeners were invoked with
+    // the store's lock held, it would never return.
+    auto done = std::make_shared<std::promise<void>>();
+    std::future<void> finished = done->get_future();
+    std::thread worker([done, selection] {
+        bolt::EditorStore::getInstance().setSelectedFile(selection);
+        done->set_value();
+    });
+    const bool completed = finished.wait_for(std::chrono::seconds(10)) == std::future_status::ready;
+    if (completed) {
+        worker.join();
+    } else {
+        worker.detach();
+    }
+    BOLT_ASSERT_TRUE(completed);
+
+    {
+        std::lock_guard<std::mutex> lock(seen->mutex);
+        BOLT_ASSERT_EQ(1, seen->calls);
+        BOLT_ASSERT_EQ(selection, seen->selectedFile);
+    }
+    BOLT_ASSERT_EQ(selection, store.getSelectedFile());
+
+    store.setSelectedFile(previousSelection);
 }
 
 // ===== WorkbenchStore Tests =====
@@ -510,4 +566,38 @@ BOLT_TEST(IntegratedEditor, FoldingEnabled) {
 
     // Restore default
     editor.setFoldingEnabled(true);
+}
+
+// ===== Test Framework Tests =====
+
+BOLT_TEST(TestFramework, NonStandardExceptionIsRecordedAsError) {
+    // A local suite, so the throwing test is not part of the real run.
+    TestSuite suite;
+    bool laterTestRan = false;
+    suite.addTest("Local", "ThrowsInt", [] { throw 42; });
+    suite.addTest("Local", "RunsAfterwards", [&laterTestRan] { laterTestRan = true; });
+
+    int failed = suite.runAllTests(false);
+
+    BOLT_ASSERT_EQ(1, failed);
+    BOLT_ASSERT_TRUE(laterTestRan);
+    BOLT_ASSERT_EQ(2, suite.getResults().size());
+    BOLT_ASSERT_FALSE(suite.getResults()[0].passed);
+    BOLT_ASSERT_TRUE(suite.getResults()[0].error_message.find("Unknown exception") != std::string::npos);
+    BOLT_ASSERT_TRUE(suite.getResults()[1].passed);
+}
+
+BOLT_TEST(TestFramework, UniqueTempPathKeepsNameAndExtension) {
+    namespace fs = std::filesystem;
+    const fs::path path(uniqueTempPath("bolt_framework_probe.log"));
+
+    BOLT_ASSERT_TRUE(fs::equivalent(path.parent_path(), fs::temp_directory_path()));
+    BOLT_ASSERT_EQ(std::string(".log"), path.extension().string());
+    BOLT_ASSERT_EQ(0, path.filename().string().find("bolt_framework_probe_"));
+    BOLT_ASSERT_NE(std::string("bolt_framework_probe.log"), path.filename().string());
+
+    // The tag is fixed for the process: the same name maps to the same path.
+    BOLT_ASSERT_EQ(path.string(), uniqueTempPath("bolt_framework_probe.log"));
+    BOLT_ASSERT_NE(path.string(), uniqueTempPath("bolt_framework_other.log"));
+    BOLT_ASSERT_EQ(std::string(""), fs::path(uniqueTempPath("bolt_framework_dir")).extension().string());
 }

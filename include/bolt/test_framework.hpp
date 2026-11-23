@@ -2,15 +2,40 @@
 #define BOLT_TEST_FRAMEWORK_HPP_
 
 #include <chrono>
+#include <cstdint>
 #include <exception>
+#include <filesystem>
 #include <functional>
 #include <iostream>
+#include <random>
 #include <sstream>
 #include <string>
 #include <vector>
 
 namespace bolt {
 namespace test {
+
+// Returns a path in the system temporary directory for a file or directory
+// that a test creates. The same test sources are built into several test
+// programs and CTest runs those in parallel, so a fixed path would be shared
+// between processes. The result is `name` with a tag inserted before its
+// extension; the tag is chosen once per process, so the same name always
+// gives the same path within one run and a different one in another process.
+inline std::string uniqueTempPath(const std::string& name) {
+    static const std::string process_tag = [] {
+        static const char anchor = 0;
+        const auto ticks = static_cast<std::uint64_t>(std::chrono::steady_clock::now().time_since_epoch().count());
+        const auto address = static_cast<std::uint64_t>(reinterpret_cast<std::uintptr_t>(&anchor));
+        std::random_device entropy;
+        std::ostringstream tag;
+        tag << std::hex << (ticks ^ (address << 20)) << entropy();
+        return tag.str();
+    }();
+
+    const std::filesystem::path file(name);
+    const std::string unique_name = file.stem().string() + "_" + process_tag + file.extension().string();
+    return (std::filesystem::temp_directory_path() / unique_name).string();
+}
 
 class TestFailure : public std::exception {
  public:
@@ -167,6 +192,14 @@ class TestSuite {
         } catch (const std::exception& e) {
             result.passed = false;
             result.error_message = "Unexpected exception: " + std::string(e.what());
+            failed++;
+            if (verbose) {
+                std::cout << "ERROR" << std::endl;
+                std::cout << "  " << result.error_message << std::endl;
+            }
+        } catch (...) {
+            result.passed = false;
+            result.error_message = "Unexpected exception: Unknown exception";
             failed++;
             if (verbose) {
                 std::cout << "ERROR" << std::endl;
